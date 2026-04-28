@@ -73,8 +73,6 @@ book:
     - references.qmd
 
   appendices:
-    - A-hw1.qmd
-    - B-hw2.qmd
     - credits.qmd
     - colophon.qmd
 
