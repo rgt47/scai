@@ -1,0 +1,664 @@
+# Advanced ggplot2 {#sec-ggplot2-advanced}
+
+## Prerequisites
+
+Answer the following questions to see if you can bypass this
+chapter. You can find the answers at the end of the chapter in
+@sec-quiz-answers-16.
+
+1. When choosing a colour scale for a visualisation, what
+   property of the data should guide your choice among
+   sequential, diverging, and qualitative scales?
+2. Name two appropriate ways to display uncertainty in a
+   visualisation.
+3. When designing multi-panel figures (for example, with
+   `facet_wrap()` or `patchwork`), what is the key
+   consideration that supports comparison across panels?
+
+## Learning objectives
+
+By the end of this chapter you should be able to:
+
+- Compose multi-panel figures with `patchwork` and
+  `cowplot`, with shared legends and panel labels.
+- Annotate plots with `ggrepel`, `geom_text`, mathematical
+  expressions, and `annotate()`.
+- Build custom scales, themes, and (briefly) custom geoms.
+- Produce publication-quality figures with consistent
+  fonts, sizes, and export formats appropriate to the
+  destination (paper, slide deck, web).
+- Animate a plot with `gganimate` for teaching and
+  exploratory uses.
+- Display uncertainty with error bars, confidence bands,
+  density plots, ribbon plots, and bootstrap distributions.
+
+## Orientation
+
+Once the grammar of graphics is in hand, the remaining work
+in making a finished figure is largely aesthetic:
+composition, typography, colour, and layout. `ggplot2` and
+its ecosystem give you fine-grained control over each. This
+chapter covers the tools used in every real paper or
+report, the ones that turn 'a plot that conveys the
+analysis' into 'a plot a journal will accept'.
+
+The pieces fall into four groups: composition (combining
+multiple plots), annotation (adding labels and
+highlights), styling (themes and colour palettes), and
+output (exporting at the right resolution and format).
+
+## The statistician's contribution {#sec-ggplot2-advanced-human}
+
+`ggplot2` defaults are reasonable for exploration; they are
+not the right choice for a published figure. The
+adjustments needed to make a figure publication-ready are
+small in code but consequential in clarity.
+
+**Match the polish to the audience.** A figure for an
+internal slide deck does not need 600-DPI vector output. A
+figure for a clinical journal does. Spending an hour
+fine-tuning a figure for an audience of three is misuse of
+time; not spending the hour on a figure for a peer-reviewed
+paper is misuse of opportunity.
+
+**Display uncertainty.** A point estimate without a
+confidence interval invites the reader to over-trust the
+estimate. A regression line without a confidence band is a
+similar invitation. The remedy is small: `geom_errorbar`,
+`geom_ribbon`, the `se = TRUE` argument to `geom_smooth`.
+Refusing to show uncertainty because the band looks
+'noisy' is wrong; if the data are noisy, the figure should
+show that.
+
+**Compose deliberately.** Multi-panel figures should make
+comparisons easy. Shared axes, shared legends, consistent
+scales, panel labels in the same position. Inconsistent
+panels create work for the reader; that work is what your
+figure should be doing for them.
+
+**Choose typography that respects the medium.** Default
+`ggplot2` text is fine on a slide; on a printed page it
+often looks small and grey. Customising the theme is a
+ten-line investment that pays off across an entire paper.
+
+These judgements determine whether figures get accepted on
+the first review or send the manuscript back for
+revisions.
+
+## Composing multi-panel figures with `patchwork`
+
+`patchwork` provides an arithmetic-style operator interface
+for combining ggplots:
+
+```r
+library(patchwork)
+library(ggplot2)
+library(palmerpenguins)
+
+p1 <- ggplot(penguins, aes(flipper_length_mm, body_mass_g, colour = species)) +
+        geom_point() +
+        labs(title = "A. Body mass vs. flipper length")
+
+p2 <- ggplot(penguins, aes(species, body_mass_g, fill = species)) +
+        geom_boxplot() +
+        labs(title = "B. Body mass distribution")
+
+p3 <- ggplot(penguins, aes(bill_length_mm, bill_depth_mm, colour = species)) +
+        geom_point() +
+        labs(title = "C. Bill morphology")
+
+# horizontal: side by side
+p1 + p2
+
+# vertical: stacked
+p1 / p2
+
+# 2x2 grid with shared legend
+(p1 + p2) / (p3 + p2) +
+  plot_layout(guides = "collect") &
+  theme(legend.position = "bottom")
+```
+
+Operators:
+
+- `+` places plots side by side.
+- `/` stacks plots vertically.
+- `|` is equivalent to `+` (horizontal).
+- Parentheses group plots into sub-arrangements.
+- `&` applies a theme or scale to all plots.
+- `plot_layout(guides = "collect")` collects shared
+  legends into one location.
+
+For more control, `cowplot::plot_grid()` provides similar
+functionality with finer-grained alignment options. For
+inset plots (a small panel inside a larger one), use
+`patchwork::inset_element()`.
+
+Panel labels (A, B, C) are best added in the `labs()` call
+of each individual plot, prepended to the title, rather
+than via patchwork's `plot_annotation(tag_levels = "A")`.
+The latter places labels in the corners but does not
+guarantee they appear in the order you want for a
+non-rectangular layout.
+
+## Annotation: text, arrows, and highlights
+
+```r
+library(ggrepel)
+
+# label specific points (one per row)
+ggplot(mtcars, aes(wt, mpg, label = rownames(mtcars))) +
+  geom_point() +
+  geom_text_repel(size = 3, max.overlaps = 10)
+
+# annotate a single text string at fixed coordinates
+ggplot(penguins, aes(flipper_length_mm, body_mass_g)) +
+  geom_point() +
+  annotate("text", x = 200, y = 6000, label = "Larger species",
+           hjust = 0)
+
+# math expressions
+ggplot(data.frame(x = 1:10, y = (1:10)^2), aes(x, y)) +
+  geom_line() +
+  labs(title = expression(paste("Quadratic: ", y == x^2)),
+       y = expression(y ~ "(units)"))
+
+# arrows pointing at features
+ggplot(penguins, aes(flipper_length_mm, body_mass_g, colour = species)) +
+  geom_point() +
+  annotate("segment", x = 175, xend = 180, y = 5500, yend = 5000,
+           arrow = arrow(length = unit(0.3, "cm"))) +
+  annotate("text", x = 175, y = 5600, label = "Outlier",
+           hjust = 0)
+```
+
+`ggrepel` produces non-overlapping text labels by
+optimising their positions. `max.overlaps` controls how
+many labels are allowed to overlap before some are dropped.
+For dense plots, label only a few key points.
+
+## Custom themes
+
+A custom theme keeps figures consistent across a paper or a
+package. Build it once, apply everywhere.
+
+```r
+theme_phb228 <- function(base_size = 11) {
+  theme_minimal(base_size = base_size) +
+    theme(
+      plot.title       = element_text(face = "bold", size = base_size + 2),
+      plot.subtitle    = element_text(colour = "grey40"),
+      axis.title       = element_text(face = "bold"),
+      axis.text        = element_text(colour = "grey20"),
+      panel.grid.minor = element_blank(),
+      panel.grid.major.x = element_line(linewidth = 0.2, colour = "grey90"),
+      panel.grid.major.y = element_line(linewidth = 0.2, colour = "grey90"),
+      legend.position  = "bottom",
+      strip.background = element_rect(fill = "grey95", colour = NA),
+      strip.text       = element_text(face = "bold")
+    )
+}
+
+ggplot(penguins, aes(flipper_length_mm, body_mass_g, colour = species)) +
+  geom_point() +
+  scale_colour_brewer(palette = "Dark2") +
+  theme_phb228()
+```
+
+Set defaults at the top of an analysis script:
+
+```r
+theme_set(theme_phb228())
+```
+
+`update_geom_defaults()` changes default geom parameters
+(default `geom_point` size, default `geom_line` width):
+
+```r
+update_geom_defaults("point", list(size = 1.5, alpha = 0.7))
+update_geom_defaults("line",  list(linewidth = 0.7))
+```
+
+For a project's typography, declare a font family and use
+it consistently:
+
+```r
+library(showtext)
+font_add_google("Source Sans 3", "source")
+showtext_auto()
+
+theme_set(theme_phb228() + theme(text = element_text(family = "source")))
+```
+
+`showtext` makes Google Fonts available to ggplot2 and
+ensures they render correctly when exporting.
+
+## Custom colour palettes
+
+For project-wide colour consistency, define your palette
+once:
+
+```r
+phb228_palette <- c(
+  "Adelie"    = "#1f4e79",
+  "Chinstrap" = "#9d2235",
+  "Gentoo"    = "#2e8b57"
+)
+
+scale_colour_phb228 <- function(...)
+  scale_colour_manual(values = phb228_palette, ...)
+scale_fill_phb228 <- function(...)
+  scale_fill_manual(values = phb228_palette, ...)
+
+ggplot(penguins, aes(flipper_length_mm, body_mass_g, colour = species)) +
+  geom_point() +
+  scale_colour_phb228()
+```
+
+For sequential or diverging continuous palettes,
+`viridis::scale_colour_viridis_c()` and
+`scico::scale_colour_scico(palette = "vik")` are perceptually
+uniform and colour-blind-safe.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: matching scale to data
+
+**Question.** You are visualising a heatmap of correlations
+between predictors. Correlations range from -0.9 to +0.9.
+Which colour scale is most appropriate?
+
+**Answer.**
+
+A diverging palette centred on zero. Correlations have a
+meaningful midpoint (zero correlation), and positive vs.
+negative correlations should be visually distinguishable.
+Standard choices: `RdBu` (red-to-blue, ColorBrewer),
+`PuOr` (purple-orange), `BrBG` (brown-bluegreen). Set the
+midpoint of the scale to zero (`midpoint = 0` in
+`scale_fill_gradient2`) and the limits symmetric around
+it. A sequential palette would map zero to a particular
+colour without visual reflection of the sign change.
+A qualitative palette would imply discrete categories,
+losing the continuous correlation magnitude.
+
+:::
+
+## Displaying uncertainty
+
+Multiple geoms exist for showing uncertainty alongside an
+estimate.
+
+```r
+# error bars on a categorical x
+ggplot(summarised, aes(group, mean)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = mean - 2 * se, ymax = mean + 2 * se),
+                width = 0.2)
+
+# confidence band on a regression line
+ggplot(d, aes(x, y)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE)
+
+# ribbon for a manual uncertainty range
+ggplot(d, aes(x)) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.3) +
+  geom_line(aes(y = mean))
+
+# half-eye plot from posterior or bootstrap samples
+library(ggdist)
+ggplot(samples, aes(x = group, y = posterior)) +
+  stat_halfeye()
+```
+
+`ggdist` is particularly worth knowing for Bayesian work
+or any analysis with full uncertainty distributions:
+`stat_halfeye`, `stat_dotsinterval`, `stat_lineribbon`
+make rich uncertainty representations one line each.
+
+For point estimates with CIs in a forest plot:
+
+```r
+forest_data |>
+  ggplot(aes(estimate, term)) +
+    geom_pointrange(aes(xmin = conf.low, xmax = conf.high)) +
+    geom_vline(xintercept = 0, linetype = "dashed") +
+    labs(x = "Effect estimate (95% CI)", y = NULL)
+```
+
+For posterior distributions from MCMC, `bayesplot::mcmc_areas`
+produces a similar interval plot directly from posterior
+samples.
+
+## Exporting for publication
+
+```r
+# raster: PNG at high DPI for slides, web
+ggsave("figure.png", plot = p, width = 6, height = 4,
+       dpi = 300, units = "in")
+
+# vector: PDF for LaTeX submissions
+ggsave("figure.pdf", plot = p, width = 6, height = 4,
+       device = cairo_pdf)
+
+# vector: SVG for the web
+ggsave("figure.svg", plot = p, width = 6, height = 4)
+
+# specific journal sizing (single column, double column)
+ggsave("figure_singlecol.pdf", plot = p,
+       width = 90 / 25.4, height = 60 / 25.4, units = "in",
+       device = cairo_pdf)
+```
+
+Three things to know about export:
+
+1. **Use vector formats** (PDF, SVG, EPS) for line art and
+   typography. Raster formats (PNG, JPG) lose quality on
+   zoom. JPG additionally adds compression artefacts; never
+   use JPG for plots.
+2. **DPI matters for raster.** 300 DPI is the standard for
+   print; 600 for high-quality scientific figures. 72 DPI is
+   web display only.
+3. **Embed fonts in PDFs.** `device = cairo_pdf` ensures
+   non-default fonts are embedded so the figure looks the
+   same on systems that lack the font. Without this, the
+   recipient may see a fallback font that looks wrong.
+
+For journal submissions, check the figure size requirements
+(typically single-column 85--90 mm, double-column 170--180 mm)
+and produce figures at exactly the target size, not
+larger. Plots designed at 6×4 inches and submitted at
+3 inches wide have illegible labels.
+
+## Animation with `gganimate`
+
+```r
+library(gganimate)
+
+# bootstrap convergence: posterior of mean as n grows
+boot_data <- expand_grid(rep = 1:100, n = c(10, 50, 100, 500)) |>
+  mutate(mean_est = map2_dbl(rep, n, \(r, k) mean(rnorm(k))))
+
+p <- ggplot(boot_data, aes(mean_est)) +
+  geom_histogram(bins = 30) +
+  labs(title = "Sampling distribution of the mean, n = {closest_state}",
+       x = "Sample mean") +
+  transition_states(n, transition_length = 2, state_length = 1)
+
+animate(p, nframes = 100, fps = 10)
+anim_save("convergence.gif")
+```
+
+`gganimate` supports several transitions:
+`transition_states` (discrete steps), `transition_time`
+(continuous), `transition_reveal` (incrementally reveal a
+line), and others. For teaching and exploratory work,
+animation is often the clearest way to show how a
+distribution evolves with sample size, iterations, or
+parameter changes.
+
+For papers, animation is rarely useful: figures are static.
+For slide decks, blog posts, and supplementary materials,
+animation can convey what static figures cannot.
+
+## Worked example: regression diagnostics in three panels
+
+```r
+library(ggplot2)
+library(patchwork)
+library(broom)
+
+fit <- lm(body_mass_g ~ flipper_length_mm + species, data = na.omit(penguins))
+diag_data <- augment(fit)
+
+p_resid <- ggplot(diag_data, aes(.fitted, .resid)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "loess", se = FALSE, colour = "red") +
+  labs(title = "A. Residuals vs. fitted",
+       x = "Fitted values", y = "Residuals")
+
+p_qq <- ggplot(diag_data, aes(sample = .std.resid)) +
+  geom_qq(alpha = 0.5) +
+  geom_qq_line(colour = "red") +
+  labs(title = "B. Normal Q-Q",
+       x = "Theoretical quantiles",
+       y = "Standardised residuals")
+
+p_cook <- ggplot(diag_data, aes(seq_len(nrow(diag_data)), .cooksd)) +
+  geom_col(width = 0.5) +
+  geom_hline(yintercept = 4 / nrow(diag_data),
+             linetype = "dashed", colour = "red") +
+  labs(title = "C. Cook's distance",
+       x = "Observation index",
+       y = "Cook's distance")
+
+(p_resid + p_qq) / p_cook + plot_layout(heights = c(1, 0.7))
+```
+
+This composition reads naturally: top row two related
+diagnostics (residual structure and Q-Q), bottom row a
+single observation-level diagnostic. Panel labels carry the
+reader through.
+
+## Collaborating with an LLM on advanced ggplot
+
+LLMs handle ggplot composition reasonably well; they
+handle typography and journal conventions less reliably.
+
+**Prompt 1: matching a journal style.** Paste the journal's
+figure guidelines (or the URL) and ask: 'write a
+`theme_journal()` function that matches.'
+
+*What to watch for.* The output theme is a starting point.
+Specific journal requirements (font family, font size at
+print, panel border vs. axis lines) often need to be
+verified by hand against the actual published figures.
+
+*Verification.* Generate a sample figure in your theme
+and a sample figure from a recent published paper.
+Compare side by side. Adjust until indistinguishable.
+
+**Prompt 2: combining plots.** Describe four plots and
+ask: 'combine these into a 2x2 grid with shared legend
+and panel labels A, B, C, D.'
+
+*What to watch for.* Most LLM solutions use `patchwork`,
+which is correct. Watch for legend handling: the LLM may
+forget `plot_layout(guides = "collect")` or place legends
+outside the plot area in unexpected ways.
+
+*Verification.* Render the combined plot at the target
+size. Are the legends in a single shared location? Are
+the axes consistent? Are the panel labels in the right
+position?
+
+**Prompt 3: animation.** Describe what you want to
+animate (e.g., 'how does the bootstrap distribution
+converge as $n$ grows?') and ask the LLM to produce
+`gganimate` code.
+
+*What to watch for.* The animation may run too fast (no
+time to read each frame) or too slow (boring). Adjust
+`nframes` and `fps`.
+
+*Verification.* Watch the animation. Does it tell the
+story you wanted? If the message gets lost in the
+movement, an animated plot is not the right medium.
+
+## Principle in use
+
+Three habits define defensible advanced visualisation:
+
+1. **Customise once, apply everywhere.** A
+   `theme_phb228()` function and a project palette make
+   every figure consistent for free.
+2. **Show uncertainty.** Confidence bands, error bars,
+   posterior intervals, whatever the analysis produces.
+   Never report point estimates without their uncertainty.
+3. **Export for the destination.** PDF for LaTeX, PNG for
+   slides, SVG for web. Embed fonts. Match journal
+   sizing.
+
+## Exercises
+
+1. Build a three-panel figure: (a) raw data scatter; (b)
+   residuals-vs-fitted; (c) QQ plot. Combine with
+   `patchwork` and add panel labels 'A', 'B', 'C'.
+2. Write a custom `theme_phb228()` function with serif
+   body text, sans-serif axis titles, and a colour-blind-
+   safe default palette. Apply it to three plots.
+3. Export a figure at 300 DPI as both PDF (for LaTeX)
+   and PNG (for Word). Open both and verify the fonts
+   are embedded correctly.
+4. Make a forest plot of effect estimates with 95% CIs
+   for ten coefficients from a regression. Use
+   `geom_pointrange` and a vertical reference line at
+   zero.
+5. Animate a sampling distribution converging as $n$
+   grows. Use `gganimate::transition_states`. Save as
+   GIF and verify the animation tells the story.
+
+## Further reading
+
+- [@wickham2016ggplot2], chapters on scales, themes,
+  and extending `ggplot2`. The 3rd edition is online at
+  `ggplot2-book.org`.
+- [@wilke2019viz], the source of many of the design
+  principles this chapter invokes.
+- [@healy2018data], shorter, applied, with R code.
+- The `gganimate` and `patchwork` package vignettes are
+  excellent and concise.
+
+## Practice test {#sec-practice-test-16}
+
+The following multiple-choice questions exercise the
+chapter's content. Attempt each question before expanding
+the answer.
+
+### Question 1
+
+Which of the following is MOST important when choosing a
+colour scale for a data visualisation?
+
+- A) Using the widest possible range of different
+  colours
+- B) Matching the colour scale to the type of data
+  being visualised (sequential, diverging, or
+  qualitative)
+- C) Always using the same colour scheme across all
+  visualisations in a project
+- D) Prioritising aesthetically pleasing colour
+  combinations over all other considerations
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** Sequential, diverging, and qualitative scales
+each encode a different kind of variable structure;
+mismatching distorts interpretation.
+:::
+
+### Question 2
+
+Which approach is recommended when displaying
+uncertainty in your data?
+
+- A) Omit uncertainty information to avoid confusing
+  the audience
+- B) Only show the mean or median values as single
+  points
+- C) Always show exact numerical values for uncertainty
+  in a caption rather than visualising it
+- D) Use visual elements like error bars, confidence
+  bands, or density plots to represent uncertainty
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**D.** Uncertainty should be visualised alongside the
+estimate rather than omitted or relegated to captions.
+:::
+
+### Question 3
+
+When designing multi-panel figures, which is the most
+important design consideration?
+
+- A) Always arrange panels in a perfect grid with equal
+  dimensions regardless of the data
+- B) Use as many panels as possible to show every
+  possible data combination
+- C) Maintain consistent scale and layout across panels
+  to facilitate comparisons
+- D) Avoid panels altogether and instead create a
+  single complex figure
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**C.** Consistent scales and layouts mean that visual
+differences across panels reflect data differences, not
+display differences.
+:::
+
+### Question 4
+
+You want to combine four ggplots into a 2x2 grid with a
+shared legend. Which approach uses the canonical R tool?
+
+- A) `gridExtra::grid.arrange(plot1, plot2, ...)` then
+  manually add the legend.
+- B) `patchwork::wrap_plots(p1, p2, p3, p4) + plot_layout(guides = "collect")`.
+- C) Save each plot, open in Photoshop, manually
+  combine.
+- D) `cowplot::plot_grid()` with default arguments.
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** `patchwork` is the canonical modern composition
+tool; `guides = "collect"` is what shares the legend.
+`cowplot::plot_grid` works similarly but with a different
+syntax.
+:::
+
+### Question 5
+
+For a journal submission, you should export figures as:
+
+- A) JPG at 72 DPI.
+- B) PNG at 96 DPI.
+- C) PDF (vector) with embedded fonts, sized to the
+  journal's column width.
+- D) PowerPoint (.pptx) with editable layers.
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**C.** Vector PDFs scale to any size without quality
+loss. Embedding fonts (`device = cairo_pdf`) ensures the
+figure renders correctly on any system. Sizing at the
+column width avoids the journal scaling your figure
+down and making labels illegible.
+:::
+
+## Prerequisites answers {#sec-quiz-answers-16}
+
+1. Match the colour scale to the type of data:
+   sequential for ordered or continuous data, diverging
+   for data with a meaningful midpoint, qualitative for
+   unordered categorical data. Using the wrong family
+   distorts perception. Sequential and diverging scales
+   should be perceptually uniform (viridis, ColorBrewer)
+   and colour-blind-safe.
+2. Error bars, confidence bands, density plots, violin
+   plots, point clouds, ribbons. Do not omit uncertainty
+   information or replace it with a numerical value in a
+   caption. The figure should encode estimate and
+   uncertainty together.
+3. Maintain consistent axis scales and panel layout so
+   that apparent differences across panels reflect real
+   differences in the data, not differences in the
+   display. Shared scales (`facet_*` or
+   `patchwork::plot_layout(axis_titles = "collect")`)
+   are the standard mechanism.

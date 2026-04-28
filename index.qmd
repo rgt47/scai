@@ -1,0 +1,57 @@
+# Welcome {.unnumbered .unlisted}
+
+::: {.content-visible when-format='html'}
+
+This is the online version of **Statistical Computing in the
+Age of AI** by The rgtlab Curriculum Project, a graduate textbook in
+statistical computing for biostatistics students.
+
+The book is a practical, code-first introduction to the
+computing techniques that biostatisticians use daily:
+programming in R, version control, linear algebra, simulation,
+statistical modelling, graphics, reproducible software, and
+the emerging role of large language models in each of these
+activities.
+
+It is written in the tradition of the Posit book family
+([*R for Data Science*](https://r4ds.hadley.nz),
+[*Advanced R*](https://adv-r.hadley.nz),
+[*R Packages*](https://r-pkgs.org)) and uses the same Quarto
+toolchain. The book is the introductory volume in a
+four-volume graduate sequence:
+
+- [*Biostatistics Practicum*](https://rgtlab.org/practicum)
+  covers the workflow infrastructure (Git, Docker, renv,
+  Quarto, CDISC, SAS) that surrounds the methods.
+- *Statistical Computing in the Age of AI* (this volume).
+- [*Advanced Statistical Computing in the Age of AI*](https://scai-advanced.rgtlab.org)
+  covers the advanced material: numerical stability,
+  numerical linear algebra in depth, advanced optimisation,
+  EM, Monte Carlo, MCMC, modern Bayesian computation,
+  high-performance and distributed computing,
+  high-dimensional methods, machine learning, software
+  engineering, interactive visualisation.
+- [*Applied Generative AI for Health Sciences Research*](https://applied-genai.rgtlab.org)
+  treats generative AI as the orthogonal axis: capability
+  classes, reasoning models, biomedical RAG, multimodal
+  medical AI, agents, evaluation, regulation, deployment.
+
+See the [Preface](preface.qmd) for motivation and the
+[Conventions](conventions.qmd) page for visual cues used
+throughout.
+
+## License
+
+This book is licensed to you under a
+[Creative Commons
+Attribution-NonCommercial-NoDerivatives 4.0 International
+License](https://creativecommons.org/licenses/by-nc-nd/4.0/).
+
+The code samples in this book are licensed under
+[Creative Commons CC0 1.0 Universal (CC0
+1.0)](https://creativecommons.org/publicdomain/zero/1.0/),
+i.e. public domain.
+
+:::
+
+:::

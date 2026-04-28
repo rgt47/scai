@@ -1,0 +1,54 @@
+# Conventions {.unnumbered}
+
+This book uses a small set of visual conventions.
+
+## In code blocks
+
+- Input lines carry no prefix.
+- Output lines are prefixed with `#>`. The whole block stays a
+  valid R script: paste it into a console and it runs without
+  error.
+- Numbered discs in the code gutter (1, 2, 3) are annotations.
+  Hover or tap them to read the annotation, or read the
+  numbered list below the block.
+
+A minimal example:
+
+```{.r}
+library(dplyr)
+
+penguins |>                                       # <1>
+  filter(!is.na(body_mass_g)) |>                  # <2>
+  group_by(species) |>                            # <3>
+  summarise(mean_mass = mean(body_mass_g))
+```
+1. Start the pipeline with the `penguins` data frame.
+2. Drop rows with missing body-mass values.
+3. Compute the species-level mean body mass.
+
+## In prose
+
+- **Bold** marks a term on its first use.
+- `monospace` marks code, file paths, and package names.
+- `package::function()` disambiguates function ownership when
+  the package is not obvious from context.
+
+## Callouts
+
+::: {.callout-note title='Note'}
+Clarification that is useful but not essential on first read.
+:::
+
+::: {.callout-tip title='Verification'}
+A concrete check the reader should run. This is the book's
+signature callout and appears after every non-trivial example.
+:::
+
+::: {.callout-warning title='Pitfall'}
+A failure mode reported by past students of the course.
+:::
+
+::: {.callout-important title='LLM prompt'}
+An adversarial prompt for use with a language model, paired
+with an explicit verification step.
+:::

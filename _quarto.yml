@@ -1,0 +1,137 @@
+project:
+  type: book
+  output-dir: _book
+
+book:
+  title: 'Statistical Computing in the Age of AI'
+  subtitle: 'A graduate textbook in biostatistics'
+  author: 'The rgtlab Curriculum Project'
+  date: today
+  date-format: 'YYYY-MM-DD'
+
+  cover-image: images/cover.png
+  favicon: images/favicon.png
+
+  site-url: https://rgtlab.org/scai
+  repo-url: https://github.com/rgt47/scai
+  repo-branch: main
+  repo-actions: [edit, issue]
+
+  search: true
+  page-navigation: true
+  bread-crumbs: true
+  sidebar:
+    style: docked
+    collapse-level: 1
+
+  chapters:
+    - half-title.qmd
+    - copyright.qmd
+    - index.qmd
+    - preface.qmd
+    - conventions.qmd
+    - 00-intro.qmd
+
+    - part: 'Foundations'
+      chapters:
+        - 01-intro-r.qmd
+        - 02-git.qmd
+        - 03-r-internals.qmd
+        - 04-functional.qmd
+
+    - part: 'Numerical Methods'
+      chapters:
+        - 05-matrix-algebra.qmd
+        - 06-decompositions.qmd
+        - 07-optimization.qmd
+
+    - part: 'Computational Statistics'
+      chapters:
+        - 08-simulation.qmd
+        - 09-bootstrap.qmd
+
+    - part: 'Statistical Models'
+      chapters:
+        - 10-linear-models.qmd
+        - 11-glm.qmd
+        - 12-mixed-models.qmd
+        - 13-survival.qmd
+        - 14-bayesian.qmd
+
+    - part: 'Visualization and Communication'
+      chapters:
+        - 15-viz-grammar.qmd
+        - 16-ggplot2-advanced.qmd
+        - 17-shiny.qmd
+
+    - part: 'Scaling and Software Engineering'
+      chapters:
+        - 18-parallel.qmd
+        - 19-packages.qmd
+        - 20-testing.qmd
+
+    - references.qmd
+
+  appendices:
+    - A-hw1.qmd
+    - B-hw2.qmd
+    - credits.qmd
+    - colophon.qmd
+
+format:
+  html:
+    theme:
+      - cosmo
+      - scai.scss
+    include-after-body: nav-toggle.html
+    code-annotations: hover
+    code-link: true
+    code-copy: hover
+    code-overflow: wrap
+    code-tools:
+      source: repo
+      toggle: false
+    code-block-bg: true
+    code-block-border-left: '#1f4e79'
+    highlight-style: arrow
+    fig-width: 7
+    fig-height: 4.5
+    fig-align: center
+    tbl-cap-location: top
+    toc-depth: 3
+    anchor-sections: true
+    smooth-scroll: true
+
+  pdf:
+    documentclass: scrbook
+    classoption: [11pt]
+    toc: false
+    code-annotations: below
+    highlight-style: arrow
+    geometry:
+      - paperwidth=6.5in
+      - paperheight=9in
+      - top=0.9in
+      - bottom=0.9in
+      - inner=0.9in
+      - outer=0.7in
+    include-in-header:
+      text: |
+        \usepackage{fontspec}
+        \setmonofont{DejaVu Sans Mono}[Scale=0.9]
+
+bibliography: references.bib
+csl: https://www.zotero.org/styles/apa
+
+execute:
+  freeze: auto
+  echo: true
+  warning: false
+  message: false
+
+knitr:
+  opts_chunk:
+    comment: '#>'
+    collapse: true
+    fig.retina: 2
+    dpi: 150

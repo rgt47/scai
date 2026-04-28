@@ -1,0 +1,764 @@
+# Interactive Visualization with Shiny {#sec-shiny}
+
+## Prerequisites
+
+Answer the following questions to see if you can bypass this
+chapter. You can find the answers at the end of the chapter in
+@sec-quiz-answers-17.
+
+1. What are the two top-level components of every Shiny
+   application?
+2. What does `reactive()` do, and how does its behaviour
+   differ from that of a plain R function?
+3. How are outputs wired between the UI and the server in
+   a Shiny application?
+
+## Learning objectives
+
+By the end of this chapter you should be able to:
+
+- Explain Shiny's reactive programming model: inputs,
+  outputs, reactive expressions, observers.
+- Build a single-file Shiny app with `ui`, `server`, and
+  `shinyApp()`.
+- Distinguish `reactive()` (cached, recomputed on
+  dependency change, used to *produce a value*) from
+  `observeEvent()` (run for side effects, no cached
+  return value).
+- Use `bindEvent()` (a more general decorator added in
+  Shiny 1.6 alongside `eventReactive()`) to control
+  when an expensive reactive recomputes.
+- Modularise an app using Shiny modules with namespace
+  isolation.
+- Deploy an app to `shinyapps.io` or a Posit Connect
+  server.
+- Debug reactivity with `reactlog` and trace through a
+  reactivity graph.
+
+## Orientation
+
+An interactive application lets collaborators explore a
+model's behaviour without running any code. For a
+biostatistician, this means writing less one-off code in
+response to every new question a collaborator asks: 'what
+does the predicted survival look like at age 70?' becomes
+a slider on a deployed app rather than a request for a new
+PDF. Shiny is the dominant tool for building such
+applications in R.
+
+The framework was created by Joe Cheng at RStudio (now
+Posit) and has matured over a decade into the standard for
+analytic dashboards in R. The Mastering Shiny book by
+Hadley Wickham (mastering-shiny.org) is the canonical
+modern reference.
+
+## The statistician's contribution {#sec-shiny-human}
+
+Shiny apps look easy until you maintain one. The pitfalls
+are predictable; the judgements that prevent them are not
+in the framework.
+
+**Decide what should be reactive.** Every input change can
+trigger every downstream computation. Sometimes that is
+right (a small dataset filter); sometimes it is disastrous
+(a 30-second model fit running every time the user moves a
+slider by 1). The right reactive granularity, often
+involving `bindEvent()` to delay expensive computations
+until a 'Run' button is pressed, is the analyst's
+judgement, not the framework's default.
+
+**Validate inputs.** A Shiny app is a public surface,
+even when 'public' means 'visible to your three
+collaborators'. Inputs that crash the server because the
+user uploaded a CSV with extra columns, or set a slider to
+zero, are bugs. `validate()` and `req()` catch them
+gracefully. Defensive validation is the cost of a robust
+app.
+
+**Modularise.** A single-file app of 200 lines is fine. A
+single file of 2000 lines is unmaintainable. Shiny modules
+let you encapsulate UI/server pairs that handle one
+component (a dataset selector, a plot, a table) and
+combine them with namespace isolation. Splitting the
+monolith is the difference between an app that survives a
+year of feature requests and one that gets rewritten.
+
+**Be deliberate about deployment.** A `shinyapps.io` free
+tier app times out after idle minutes. A self-hosted Shiny
+Server has different scaling and security
+characteristics. A Posit Connect deployment integrates
+with internal authentication. Pick the destination that
+matches the audience; do not assume.
+
+These judgements are what distinguishes a deployed,
+shared analysis from a local-only exploration toy.
+
+## Reactive programming in one page
+
+Shiny's reactive model has three building blocks:
+
+- **Reactive sources.** Inputs (`input$x`) and external
+  state. They produce values that change over time.
+- **Reactive expressions.** Computations that depend on
+  reactive sources. They are *lazy* (only run when their
+  output is needed) and *cached* (rerun only when a
+  dependency changes).
+- **Observers.** Computations that run for side effects
+  (writing files, updating an external database). Run
+  whenever a dependency changes; do not return a cached
+  value.
+
+The dependency graph is built automatically. When you write
+`reactive({ filter(data, year == input$year) })`, Shiny
+notes that the expression depends on `input$year`. When
+`input$year` changes, the expression's cached value is
+invalidated; the next time anything asks for it, the
+expression recomputes.
+
+This is a different mental model from imperative R. You
+do not call functions in order; you declare relationships
+and let the framework figure out execution. The payoff is
+that the UI updates automatically when inputs change. The
+cost is that bugs are about *when* things happen, which
+is harder to debug than *what* they compute.
+
+## A minimum Shiny app
+
+```r
+library(shiny)
+
+ui <- fluidPage(
+  titlePanel("Penguin scatter"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("xvar", "X variable",
+                  choices = c("flipper_length_mm",
+                              "bill_length_mm",
+                              "body_mass_g")),
+      selectInput("yvar", "Y variable",
+                  choices = c("body_mass_g",
+                              "bill_depth_mm"))
+    ),
+    mainPanel(
+      plotOutput("scatter")
+    )
+  )
+)
+
+server <- function(input, output, session) {
+  output$scatter <- renderPlot({
+    data <- na.omit(palmerpenguins::penguins)
+    ggplot(data,
+           aes(.data[[input$xvar]],
+               .data[[input$yvar]],
+               colour = species)) +
+      geom_point() +
+      theme_minimal()
+  })
+}
+
+shinyApp(ui, server)
+```
+
+Five things to notice:
+
+1. **`ui` is HTML in disguise.** `fluidPage`,
+   `sidebarLayout`, and friends are R functions that emit
+   HTML.
+2. **Each input has an id and a server-side counterpart.**
+   `selectInput("xvar", ...)` in the UI corresponds to
+   `input$xvar` in the server.
+3. **Each output has a UI placeholder and a server
+   `render*` function paired by id.** `plotOutput("scatter")`
+   in the UI; `output$scatter <- renderPlot({ ... })` in
+   the server.
+4. **`renderPlot({ ... })` is reactive.** It re-runs every
+   time any reactive value referenced in the body changes
+  , here, `input$xvar` and `input$yvar`.
+5. **`shinyApp(ui, server)` returns an app object** that
+   can be run interactively (in the console) or deployed.
+
+The `.data[[input$xvar]]` syntax inside `aes()` lets us
+use a string-valued input as a data column reference; this
+is the modern tidy-eval idiom for column selection by
+character.
+
+## Inputs, outputs, reactives
+
+Inputs are widgets the user controls:
+
+- `numericInput`, `sliderInput`, `selectInput`,
+  `checkboxInput`, `radioButtons`.
+- `textInput`, `passwordInput`, `dateInput`,
+  `dateRangeInput`.
+- `fileInput` for uploads, `actionButton` for triggering
+  events.
+
+Outputs are placeholders for content the server fills in:
+
+- `plotOutput`, `tableOutput`, `dataTableOutput`,
+  `verbatimTextOutput`, `textOutput`, `htmlOutput`,
+  `uiOutput`.
+
+`render*` functions on the server side populate them:
+
+- `renderPlot`, `renderTable`, `renderDT`,
+  `renderPrint`, `renderText`, `renderUI`.
+
+Reactives are intermediate computations:
+
+```r
+server <- function(input, output, session) {
+  # cached intermediate
+  filtered <- reactive({
+    data |> filter(year == input$year)
+  })
+
+  # plot uses filtered() (note the parentheses!)
+  output$plot <- renderPlot({
+    ggplot(filtered(), aes(x, y)) + geom_point()
+  })
+
+  # table uses the same filtered() value, not recomputed
+  output$table <- renderTable({
+    summarise(filtered(), n = n(), mean = mean(y))
+  })
+}
+```
+
+The reactive `filtered()` is shared by both outputs.
+Without it, `filter(data, year == input$year)` would run
+twice. With it, it runs once and the cached value is
+shared.
+
+## `reactive()` vs `observeEvent()`
+
+A `reactive()` produces a value (lazy, cached). An
+`observeEvent()` runs for side effects (eager, no cached
+return value):
+
+```r
+# computes a value, used by downstream code
+filtered <- reactive({ filter(data, year == input$year) })
+
+# performs an action, no value
+observeEvent(input$save_button, {
+  saveRDS(filtered(), "results.rds")
+  showNotification("Saved")
+})
+```
+
+Use `reactive()` when you want a cached intermediate
+value to be referenced by multiple downstream reactives or
+outputs. Use `observeEvent()` when you want to do
+something *because* an input changed (or a button was
+clicked) but do not need a return value.
+
+`observe()` (without `Event`) runs whenever any of its
+dependencies changes. `observeEvent(trigger, expr)` runs
+only when `trigger` changes; `expr` cannot reference
+reactives directly without isolation.
+
+## Controlling expensive recomputation
+
+The default reactive model recomputes whenever a
+dependency changes. For expensive computations (a long
+model fit, a database query, an external API call), this
+is unacceptable: the user wants the model to update only
+when they have finished entering parameters.
+
+`bindEvent()` (added in Shiny 1.6 alongside the older
+`eventReactive()`) does this:
+
+```r
+# expensive fit, only re-runs when run_button is clicked
+fit <- bindEvent(reactive({
+  Sys.sleep(5)            # pretend this is expensive
+  lm(y ~ x, data = filtered())
+}), input$run_button)
+
+# fit() returns the most recent fit (or NULL initially)
+output$summary <- renderPrint({ summary(fit()) })
+```
+
+For an `observeEvent`, the syntax is similar:
+
+```r
+observeEvent(input$run_button, {
+  fit <- lm(y ~ x, data = filtered())
+  saveRDS(fit, "fit.rds")
+})
+```
+
+The Mastering Shiny book ('Reactivity in depth' chapter)
+is essential reading for getting reactive timing right.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: reactive vs. observer
+
+**Question.** You want your Shiny app to fit a regression
+when the user clicks a 'Fit' button, then update both a
+plot and a table with the result. Should the fit be a
+`reactive()`, an `observeEvent()`, or both?
+
+**Answer.**
+
+A `reactive()` triggered by `input$run_button`:
+
+```r
+fit <- bindEvent(reactive({
+  lm(y ~ x, data = filtered())
+}), input$run_button)
+```
+
+The plot and table both reference `fit()`, so the fit is
+computed once and the cached result is shared. Using an
+`observeEvent` would not give you a cached return value
+to share. Using a plain `reactive()` would re-run on
+every input change, defeating the purpose of the button.
+The combination of `reactive()` and `bindEvent()` is the
+right pattern.
+
+:::
+
+## Validating inputs
+
+`validate()` and `req()` halt reactive evaluation when
+inputs are not in valid states:
+
+```r
+output$result <- renderPlot({
+  req(input$file)                    # need a file
+  data <- read.csv(input$file$datapath)
+  validate(
+    need(nrow(data) > 0,            "File is empty"),
+    need(ncol(data) >= 2,           "Need at least 2 columns"),
+    need(input$xvar %in% names(data), "Selected x variable not present")
+  )
+  ggplot(data, aes(.data[[input$xvar]], .data[[input$yvar]])) +
+    geom_point()
+})
+```
+
+`req(input$file)` halts evaluation silently if the user
+has not yet uploaded a file, nothing renders, no error
+shown.
+
+`validate(need(...))` halts evaluation and displays a
+human-readable message explaining why. Useful when the
+user has done something almost-but-not-quite right.
+
+Without these, an app with a missing file or invalid
+input throws server-side errors that may render as red
+text in the UI or stack traces in the log. Validate
+deliberately.
+
+## Shiny modules
+
+A Shiny module is a UI/server pair that handles one
+component, with its own namespace. Modules are how
+single-file apps become maintainable multi-file
+applications.
+
+```r
+# module: a dataset selector with a preview table
+dataset_ui <- function(id) {
+  ns <- NS(id)
+  tagList(
+    selectInput(ns("dataset"), "Dataset",
+                choices = c("mtcars", "iris", "penguins")),
+    tableOutput(ns("preview"))
+  )
+}
+
+dataset_server <- function(id) {
+  moduleServer(id, function(input, output, session) {
+    data <- reactive({
+      switch(input$dataset,
+             mtcars   = mtcars,
+             iris     = iris,
+             penguins = na.omit(palmerpenguins::penguins))
+    })
+
+    output$preview <- renderTable({ head(data()) })
+
+    return(data)            # return the reactive for caller to use
+  })
+}
+
+# top-level app uses the module
+ui <- fluidPage(
+  dataset_ui("data1"),
+  plotOutput("scatter")
+)
+
+server <- function(input, output, session) {
+  data <- dataset_server("data1")
+  output$scatter <- renderPlot({
+    ggplot(data(), aes(.data[[names(data())[1]]],
+                       .data[[names(data())[2]]])) +
+      geom_point()
+  })
+}
+```
+
+Three things modules give you:
+
+1. **Namespace isolation.** `NS(id)` ensures that two
+   instances of the same module do not collide on input
+   ids.
+2. **Reusability.** Define once, instantiate many.
+3. **Testability.** Each module can be tested in
+   isolation.
+
+For an app larger than a few hundred lines of code,
+modules are the canonical way to keep the codebase
+organised.
+
+## Deployment
+
+The three common destinations:
+
+**`shinyapps.io`** is Posit's hosted service. Free tier
+allows a few apps with limited active hours per month.
+`rsconnect::deployApp()` deploys with a few clicks. Public
+URLs; basic authentication available on paid plans.
+
+**Posit Connect** is the enterprise self-hosted
+platform. Integrates with internal authentication, scales
+across multiple servers, supports private deployments.
+Used by most large organisations running R in production.
+
+**Self-hosted Shiny Server (open source).** Free, but you
+manage the infrastructure: server provisioning, scaling,
+authentication, monitoring. The 'just run a Shiny app on
+my Linux box' option.
+
+For deployment to shinyapps.io:
+
+```r
+library(rsconnect)
+deployApp(appDir = ".", appName = "penguin-explorer",
+          forceUpdate = TRUE)
+```
+
+For each: read the deployment documentation. The
+`{rsconnect}` package handles the basics; production
+deployments often require attention to memory limits,
+session timeouts, and authentication.
+
+## Debugging reactivity
+
+`reactlog::reactlog_enable()` records every reactive
+event. Run the app, interact with it, then call
+`reactlog::reactlog_show()` to see the dependency graph
+and event history:
+
+```r
+options(shiny.reactlog = TRUE)
+runApp("my_app")
+# (interact)
+reactlog::reactlog_show()
+```
+
+The interactive viewer shows which reactives recomputed
+when, which dependencies triggered which updates, and
+which observers ran in response to which events. For
+debugging an app where things update at the wrong time
+or not at all, `reactlog` is the canonical tool.
+
+For server-side errors, `shiny::runApp(launch.browser = TRUE)`
+in development gives you a console that traces messages.
+For production, the deployment platform's logs (Posit
+Connect, shinyapps.io) capture stack traces.
+
+## Worked example: regression explorer
+
+```r
+library(shiny)
+library(palmerpenguins)
+library(ggplot2)
+library(broom)
+
+penguins_clean <- na.omit(penguins)
+
+ui <- fluidPage(
+  titlePanel("Penguin regression explorer"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("response", "Response",
+                  choices = c("body_mass_g",
+                              "bill_length_mm")),
+      checkboxGroupInput("predictors", "Predictors",
+                         choices = c("flipper_length_mm",
+                                     "bill_depth_mm",
+                                     "species",
+                                     "sex"),
+                         selected = c("flipper_length_mm",
+                                      "species")),
+      actionButton("fit", "Fit")
+    ),
+    mainPanel(
+      plotOutput("scatter"),
+      tableOutput("coefficients")
+    )
+  )
+)
+
+server <- function(input, output, session) {
+  formula <- reactive({
+    req(input$predictors)
+    as.formula(paste(input$response, "~",
+                     paste(input$predictors, collapse = " + ")))
+  })
+
+  fit <- bindEvent(reactive({
+    lm(formula(), data = penguins_clean)
+  }), input$fit)
+
+  output$scatter <- renderPlot({
+    req(fit())
+    diag <- augment(fit())
+    ggplot(diag, aes(.fitted, .resid)) +
+      geom_point() +
+      geom_smooth(method = "loess", se = FALSE) +
+      labs(title = "Residuals vs. fitted")
+  })
+
+  output$coefficients <- renderTable({
+    req(fit())
+    broom::tidy(fit(), conf.int = TRUE)
+  })
+}
+
+shinyApp(ui, server)
+```
+
+The user picks a response, predictors, and clicks 'Fit'.
+The fit recomputes only when the button is clicked, not
+on every checkbox change. The plot and table both share
+the cached `fit()`. `req()` ensures graceful handling
+before the first fit.
+
+This is a small but realistic pattern: an interactive
+exploration of a model where the expensive step (the fit)
+is gated behind a button.
+
+## Collaborating with an LLM on Shiny
+
+Shiny apps are an area where LLMs can produce a lot of
+working code quickly, and where reactivity bugs hide in
+plain sight.
+
+**Prompt 1: drafting an app.** Describe the app: what
+should the user see, what inputs should they have, what
+output should appear. Ask: 'write a single-file Shiny
+app implementing this. Use `bindEvent()` for any
+expensive computation that should be gated behind a
+button.'
+
+*What to watch for.* Default LLM apps tend to be too
+reactive: every input change triggers everything. For
+expensive computations, the gating with
+`bindEvent()` / `actionButton()` is essential.
+
+*Verification.* Run the app. Try moving sliders fast and
+see whether the app keeps up. If it stutters, the
+computation is too aggressive; refactor with `bindEvent`.
+
+**Prompt 2: diagnosing a reactivity bug.** Paste the
+relevant chunk of `server` code and describe the symptom:
+'when I change input X, output Y does not update' or
+'when I change input X, output Y updates twice'. Ask
+the LLM to diagnose.
+
+*What to watch for.* The LLM should recognise common
+patterns: missing parentheses on a reactive call (`fit`
+vs. `fit()`), `observeEvent` where `reactive` was needed,
+or vice versa. If the diagnosis is generic, push for
+specifics.
+
+*Verification.* Apply the fix and observe whether the bug
+goes away. Use `reactlog` if the bug is subtle.
+
+**Prompt 3: refactoring to modules.** Paste the
+single-file app and ask: 'refactor this into Shiny
+modules. Identify reasonable component boundaries.'
+
+*What to watch for.* The LLM should respect namespace
+boundaries (using `NS(id)` consistently). Common errors
+include forgetting `ns()` on input ids in the module UI,
+or using global state that breaks with multiple module
+instances.
+
+*Verification.* Run the refactored app. If you have used
+the module's input ids correctly, instantiating two
+copies of the module should not cause id collisions.
+
+## Principle in use
+
+Three habits define defensible Shiny development:
+
+1. **Match reactive granularity to cost.** Cheap
+   computations can run on every input change; expensive
+   ones need `bindEvent()` and an explicit trigger.
+2. **Validate inputs.** `req()` and `validate()` are a
+   small investment that produces graceful failure modes.
+3. **Modularise as the app grows.** Single-file apps
+   above a few hundred lines should be split into
+   modules. Modules also enable unit testing.
+
+## Exercises
+
+1. Build a Shiny app that lets the user pick a dataset
+   from a drop-down, choose x and y variables, and view a
+   scatter plot. Add a slider for the `loess` smoothing
+   span.
+2. Deploy the app from exercise 1 to shinyapps.io (free
+   tier). Share the URL with a classmate and have them
+   try to break it. Fix whatever they break.
+3. Convert the app into a two-module design: a
+   `dataset_ui/server` module for data selection and a
+   `plot_ui/server` module for plotting. Explain why
+   modular code is easier to test.
+4. Add an upload-CSV input that lets the user supply
+   their own data. Add `req()` and `validate()` calls so
+   the app handles bad uploads gracefully (empty file,
+   non-CSV file, file with no numeric columns).
+5. Use `reactlog` to inspect the dependency graph of your
+   app from exercise 4. Are any reactives being
+   re-evaluated more than necessary? Optimise.
+
+## Further reading
+
+- [@wickham2021shiny], *Mastering Shiny*, the canonical
+  modern reference, free at mastering-shiny.org.
+- [@sievert2020plotly], interactive graphics with
+  plotly, which pairs naturally with Shiny for dashboards.
+- The `shiny` package vignettes, especially 'Reactivity:
+  An overview'.
+
+## Practice test {#sec-practice-test-17}
+
+The following multiple-choice questions exercise the
+chapter's content. Attempt each question before expanding
+the answer.
+
+### Question 1
+
+What are the two main components that make up every
+Shiny application?
+
+- A) HTML and JavaScript functions
+- B) User Interface (UI) and Server components
+- C) Input widgets and reactive functions
+- D) Plotly objects and ggplot2 visualisations
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** Every Shiny app is defined by a UI (inputs and
+output placeholders) and a server (logic computing
+outputs from inputs).
+:::
+
+### Question 2
+
+What is the primary purpose of the `reactive()`
+function?
+
+- A) To render graphics that update automatically
+- B) To create user interface elements like sliders or
+  dropdown menus
+- C) To define computations that automatically update
+  when their inputs change, with caching
+- D) To establish a connection between the server and
+  the user's web browser
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**C.** `reactive()` caches its value and re-runs only
+when a reactive dependency changes.
+:::
+
+### Question 3
+
+How are outputs created in a Shiny application?
+
+- A) Outputs are created using HTML tags in the UI and
+  do not require server-side processing
+- B) Each output must be created with its own separate
+  `app.R` file
+- C) Output functions in the UI must have corresponding
+  render functions in the server, paired by id
+- D) Shiny outputs can only display static content
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**C.** UI output functions (e.g., `plotOutput("p")`) are
+paired by id with server render functions (e.g.,
+`output$p <- renderPlot({...})`).
+:::
+
+### Question 4
+
+You want a long-running model fit to recompute only when
+the user clicks a 'Run' button. Which Shiny construct
+implements this?
+
+- A) `reactive()` alone.
+- B) `observeEvent(input$run_button, ...)` returning a
+  value.
+- C) `reactive()` combined with `bindEvent()` (or
+  equivalently `eventReactive()`).
+- D) `isolate()`.
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**C.** `bindEvent()` (or its older synonym
+`eventReactive`) wraps a reactive so it recomputes only
+when the named trigger changes.
+:::
+
+### Question 5
+
+The recommended approach to debugging Shiny reactivity
+is:
+
+- A) Add `print()` statements throughout the server.
+- B) Use `reactlog::reactlog_show()` to inspect the
+  dependency graph and event history.
+- C) Run the app in a separate R process and read the
+  log files.
+- D) Avoid reactivity altogether by hardcoding values.
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** `reactlog` is the canonical tool for tracing
+which reactives ran when, in response to which events.
+:::
+
+## Prerequisites answers {#sec-quiz-answers-17}
+
+1. A user-interface (UI) function and a server function.
+   The UI defines inputs and output placeholders; the
+   server defines how outputs are computed from inputs.
+   `shinyApp(ui, server)` ties them into an app object.
+2. `reactive()` wraps a computation so that its value is
+   cached and recomputed only when a reactive dependency
+   (typically `input$*` or another reactive) changes. A
+   plain R function recomputes every time it is called,
+   regardless of whether its inputs have changed. Reactives
+   are referenced with parentheses (`fit()`) to retrieve
+   their current value.
+3. Each output placeholder in the UI has a companion
+   `render*()` function in the server, paired by a
+   shared id. For example, `plotOutput("p")` in the UI is
+   populated by `output$p <- renderPlot({ ... })` in the
+   server. Shiny tracks the dependencies of the
+   `renderPlot` body and re-runs it whenever a referenced
+   reactive value changes.

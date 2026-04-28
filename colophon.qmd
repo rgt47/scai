@@ -1,0 +1,23 @@
+# Colophon {.unnumbered}
+
+This book was written in Quarto using the `cosmo` theme with
+local overrides in `scai.scss`. R code is executed by
+`knitr` and rendered with `downlit` for function-level
+hyperlinks.
+
+Body text is set in Source Serif 4 (fallbacks Charter,
+Georgia, Times New Roman); headings and UI in the same face;
+code in JetBrains Mono (fallbacks Fira Mono, Menlo). Syntax
+highlighting uses the accessibility-tuned `arrow` palette,
+consistent between HTML and PDF output.
+
+PDF output is produced by `xelatex` with the `scrbook`
+document class at 6.5 × 9 inches. The PDF monofont is
+DejaVu Sans Mono for complete Unicode coverage of
+box-drawing and mathematical glyphs.
+
+Build reproducibility is managed through `renv` for R
+packages and a pinned `zzcollab` Docker image for the
+operating-system and system-library layer.
+
+Source available at <https://github.com/rgt47/scai>.

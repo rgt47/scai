@@ -1,0 +1,11 @@
+course:
+  code: 'PHB 228'
+  title: 'Statistical Computing'
+  program: 'UCSD Biostatistics Master of Science'
+  term: 'Spring 2026'
+  instructor: 'Ronald "Ryy" G. Thomas'
+
+book:
+  short_title: 'SCAI'
+  url: 'https://rgtlab.org/scai'
+  contact: 'rgthomas47@gmail.com'

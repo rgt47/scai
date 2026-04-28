@@ -1,0 +1,670 @@
+# Package Testing and Documentation {#sec-testing}
+
+## Prerequisites
+
+Answer the following questions to see if you can bypass this
+chapter. You can find the answers at the end of the chapter in
+@sec-quiz-answers-20.
+
+1. What is the difference between `expect_equal()` and
+   `expect_identical()` in `testthat`?
+2. What is a snapshot test, and in what situation is it
+   preferable to a direct value-comparison test?
+3. Name one check that `R CMD check` performs that
+   `devtools::test()` does not.
+
+## Learning objectives
+
+By the end of this chapter you should be able to:
+
+- Write unit tests with `testthat` (3rd edition) and
+  organise them in `tests/testthat/`.
+- Use test expectations (`expect_equal`, `expect_error`,
+  `expect_warning`, `expect_message`, `expect_snapshot`)
+  appropriately.
+- Choose between value-comparison and snapshot tests.
+- Measure test coverage with `covr` and identify gaps.
+- Produce a package vignette as a Quarto or R Markdown
+  document.
+- Run `R CMD check` and interpret its output.
+- Set up continuous integration via GitHub Actions with
+  `usethis::use_github_action_check_standard()`.
+
+## Orientation
+
+Tests are how you convince a future reader (including
+future-you) that your code does what you think it does.
+`R CMD check` is how you convince CRAN, your collaborators,
+and your build pipeline. Vignettes are how you convince a
+human to use your package at all.
+
+This chapter is the testing companion to the package-
+development chapter. It treats testing as a first-class
+activity rather than something to add at the end. A
+package without tests is a research script with extra
+ceremony; a package with tests is a tool that other people
+can rely on.
+
+The canonical R testing framework is `testthat` (currently
+version 3, accessed via `usethis::use_testthat(3)`). It is
+the standard, used by all of tidyverse, most of CRAN, and
+nearly every reproducible-research package.
+
+## The statistician's contribution {#sec-testing-human}
+
+Testing is software engineering, but the testing
+priorities for statistical code are specific.
+
+**Test the math, not just the syntax.** A test that
+verifies your function returns a tibble of the right shape
+is not the test you need; it is a structural check. The
+test you need is whether the function returns the right
+*answer* on a known case. Compare to a closed-form
+solution where one exists, to a reference implementation
+otherwise.
+
+**Test edge cases that change the math.** Empty input. All
+NA. Single observation. Floating-point near-machine-zero.
+Inputs that exercise type coercion (logical to numeric,
+integer to double). These are where statistical functions
+break, and they break silently, the function returns
+something, just not the right thing.
+
+**Snapshot tests for plots and printed output.** Direct
+equality fails for plots (rendering changes between
+ggplot2 versions) and for nicely-formatted print output
+(spacing varies). `expect_snapshot()` records a reference
+output and compares against it. Useful for things that are
+either too complex or too aesthetic to assert literally.
+
+**Coverage is a floor, not a ceiling.** 90% line coverage
+sounds good but does not guarantee the lines were tested
+*correctly*. A test that runs every line but checks
+nothing is worse than no test, because it produces a
+false sense of security. Track coverage; aim for high
+numbers; but never substitute it for actual thought about
+what could go wrong.
+
+**Tests are the spec.** When you cannot tell whether a
+piece of behaviour is a bug or a feature, the existence
+or absence of a test is the answer. A function that
+returns NA on an edge case has a test for that behaviour:
+it is intended. A function that crashes on the same input
+has no test: it is a bug. Tests document intentions in a
+machine-checkable form.
+
+These judgements are what make tests useful rather than
+performative.
+
+## Writing tests with `testthat`
+
+A test file lives in `tests/testthat/test-name.R`. Name
+your test files after the function they test:
+`R/summarise.R` → `tests/testthat/test-summarise.R`.
+
+```r
+# tests/testthat/test-summarise.R
+test_that("summarise_numeric works on a known input", {
+  result <- summarise_numeric(1:10)
+  expect_equal(result$mean, 5.5)
+  expect_equal(result$sd,   sd(1:10))
+  expect_equal(nrow(result), 1)
+})
+
+test_that("summarise_numeric handles NA correctly", {
+  x <- c(1, 2, NA, 4, 5)
+  result <- summarise_numeric(x)
+  expect_equal(result$mean, mean(x, na.rm = TRUE))
+  expect_false(is.na(result$mean))
+})
+
+test_that("summarise_numeric errors on non-numeric input", {
+  expect_error(summarise_numeric("a"))
+  expect_error(summarise_numeric(c(TRUE, FALSE)))
+})
+
+test_that("summarise_numeric handles empty input", {
+  expect_warning(result <- summarise_numeric(numeric(0)))
+  # what should it return on empty input? document and test that decision
+})
+```
+
+Each `test_that()` block is one test, with a
+human-readable name. Inside, one or more `expect_*` calls
+make assertions. If any fail, the test fails; if none
+fail, the test passes.
+
+To run all tests:
+
+```r
+devtools::test()
+```
+
+To run one file:
+
+```r
+testthat::test_file("tests/testthat/test-summarise.R")
+```
+
+In RStudio, the keyboard shortcut Cmd-Shift-T (Mac) or
+Ctrl-Shift-T (Windows/Linux) runs the full test suite for
+the current package.
+
+## Expectations
+
+The full library of `expect_*` functions:
+
+```r
+# value comparisons
+expect_equal(actual, expected)         # all.equal: numeric tolerance
+expect_identical(actual, expected)     # identical(): bit-exact
+expect_lt(actual, expected)            # less-than
+expect_gt(actual, expected)
+expect_lte(actual, expected)
+expect_gte(actual, expected)
+expect_true(actual)
+expect_false(actual)
+
+# class and type
+expect_s3_class(actual, "lm")
+expect_type(actual, "double")
+expect_length(actual, 5)
+expect_named(actual, c("x", "y", "z"))
+
+# conditions
+expect_error(expr, regexp = "must be numeric")
+expect_warning(expr)
+expect_message(expr)
+expect_silent(expr)               # no message/warning/error
+expect_no_error(expr)             # explicitly succeeds without error
+expect_no_warning(expr)
+
+# snapshots
+expect_snapshot(print(fit))       # captures printed output
+expect_snapshot_value(complex_obj, style = "json2")
+expect_snapshot_file(path)        # for non-text snapshot files
+```
+
+`expect_equal` uses `all.equal()` semantics: numeric values
+are compared with a small tolerance for floating-point
+round-off. `expect_identical` uses `identical()`: exact
+equality including types, attributes, and structure. For
+numeric tests, `expect_equal` is almost always the right
+choice; `expect_identical` for assertions about object
+structure (class, names, length, attributes).
+
+## Snapshot tests
+
+Snapshots are useful for output that is complex or
+aesthetic:
+
+```r
+test_that("summary prints correctly", {
+  fit <- lm(mpg ~ wt, data = mtcars)
+  expect_snapshot(summary(fit))
+})
+```
+
+On the first run, the printed output is captured to a file
+in `tests/testthat/_snaps/`. On subsequent runs, the
+output is compared against the saved snapshot. If they
+differ, the test fails and you are prompted to either
+accept the new output (`testthat::snapshot_accept()`) or
+investigate the difference.
+
+For plots:
+
+```r
+test_that("plot looks the same", {
+  expect_snapshot_file("path/to/plot.png", "regression_plot")
+})
+
+# or with vdiffr
+test_that("regression plot is unchanged", {
+  vdiffr::expect_doppelganger("regression-fit", create_my_plot())
+})
+```
+
+`vdiffr` is a separate package specifically for plot
+snapshot tests; it handles cross-platform rendering
+issues better than raw image comparison.
+
+When to use snapshots vs. value comparisons:
+
+- **Value comparison** when the answer is a small,
+  literal value (`expect_equal(result, 42)`). Easy to
+  understand at the test site, no separate file to
+  manage.
+- **Snapshot** when the output is large, formatted, or
+  not easily expressible as a literal. Trade-off: the
+  test asserts 'output is unchanged', not 'output is
+  correct'.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: equal vs. identical
+
+**Question.** You write
+`expect_equal(my_function(1:10), c(1, 4, 9, 16, 25, 36, 49, 64, 81, 100))`.
+The test passes. What if you used `expect_identical`?
+
+**Answer.**
+
+`expect_identical` is stricter: it requires bit-exact
+equality including types. `1:10` is an integer vector;
+`c(1, 4, 9, ...)` is a double vector (because the values
+are written as decimals). `my_function(1:10)`'s output
+type depends on the implementation. If your function
+returns `c(1, 4, 9, ..., 100)` (doubles), the
+`expect_identical` test passes. If it returns
+`(1:10)^2` (integers, since integer^integer is integer
+in R), `expect_identical` fails because integer ≠
+double, even though the values match. `expect_equal`
+ignores this distinction. The lesson: use
+`expect_identical` only when you genuinely care about
+the type as well as the value.
+
+:::
+
+## Coverage with `covr`
+
+`covr` measures which lines of your package are exercised
+by your test suite:
+
+```r
+library(covr)
+
+# package-level coverage
+cov <- package_coverage()
+cov
+
+# detailed report in a browser
+report(cov)
+```
+
+Lines marked red are uncovered: tests do not exercise
+them. Lines marked green are covered.
+
+Coverage thresholds vary by project. Tidyverse packages
+target 90%+ on average; a hard floor of 80% is reasonable
+for new packages. Some lines (defensive `stopifnot`s, error
+handlers for impossible-in-practice cases) are reasonably
+left uncovered.
+
+`use_github_action_test_coverage()` sets up automated
+coverage reporting via Codecov on GitHub Actions, with a
+badge for your README.
+
+## `R CMD check`
+
+`R CMD check` is the gold standard for package quality. It
+runs:
+
+- **Documentation completeness.** Every exported function
+  has documentation; every documented parameter exists.
+- **Examples.** Every example runs without error.
+- **Tests.** All tests pass.
+- **Imports/Suggests.** Declared dependencies are used;
+  used dependencies are declared.
+- **Namespace.** Imports/exports in `NAMESPACE` are
+  consistent with roxygen tags.
+- **CRAN policies.** A subset of CRAN's submission rules
+  (no use of `library()` in package code, no
+  `assignInNamespace`, etc.).
+
+```r
+devtools::check()
+```
+
+Output is one of:
+
+- **OK.** No errors, warnings, or notes. Submittable.
+- **NOTE.** Minor issues; usually acceptable for a private
+  package, sometimes acceptable for CRAN submission.
+- **WARNING.** Serious; almost always must be fixed.
+- **ERROR.** The package does not build or pass; must be
+  fixed.
+
+Run `check()` before every commit if possible, and at
+minimum before every release. The longer you let warnings
+accumulate, the harder they are to dismantle.
+
+## Vignettes
+
+Vignettes are long-form articles bundled with the package:
+
+```r
+usethis::use_vignette("intro")
+```
+
+This creates `vignettes/intro.Rmd` with a YAML header.
+Edit it; build with `devtools::build_vignettes()`. Users
+access it via `vignette("intro", package = "yourpkg")`.
+
+Format options:
+
+- **R Markdown** (`.Rmd`): the traditional choice.
+  Converted to HTML by default, optionally PDF.
+- **Quarto** (`.qmd`): the modern alternative. More
+  flexible, but requires Quarto installed on the user's
+  machine to build from source.
+
+For a CRAN-bound package, R Markdown is the safer choice
+because the build dependencies are universal. For
+internal packages, either works.
+
+A good vignette:
+
+- Introduces the problem the package solves.
+- Walks through a worked example end to end.
+- Highlights the key functions and how they fit together.
+- Is short enough to read in 10--15 minutes.
+
+A vignette is *not* a function-by-function reference; the
+help pages serve that purpose.
+
+## Continuous integration with GitHub Actions
+
+`usethis::use_github_action_check_standard()` sets up a
+GitHub Actions workflow that runs `R CMD check` on every
+push and pull request, on multiple OS/R-version
+combinations:
+
+```r
+usethis::use_github_action("check-standard")
+```
+
+This adds `.github/workflows/R-CMD-check.yaml`. On every
+push, GitHub runs `check()` on three platforms (macOS,
+Windows, Ubuntu) with the latest stable R. If anything
+fails, the commit is marked failed.
+
+For test coverage:
+
+```r
+usethis::use_github_action("test-coverage")
+```
+
+This runs `covr::package_coverage()` and uploads the
+results to Codecov, where you can see line-by-line
+coverage and how it has changed over time.
+
+Setting up CI is a one-time investment that pays off for
+the life of the package. Every change is automatically
+checked; regressions are caught before merge.
+
+## Worked example: testing `summarise_numeric()`
+
+```r
+# tests/testthat/test-summarise_numeric.R
+
+test_that("returns correct mean and sd on a simple vector", {
+  result <- summarise_numeric(1:10)
+  expect_equal(result$mean, 5.5)
+  expect_equal(result$sd, sd(1:10))
+})
+
+test_that("returns a 1-row tibble", {
+  result <- summarise_numeric(rnorm(50))
+  expect_s3_class(result, "tbl_df")
+  expect_equal(nrow(result), 1)
+})
+
+test_that("ignores NAs", {
+  x <- c(1, 2, 3, NA, 5)
+  result <- summarise_numeric(x)
+  expect_equal(result$mean, mean(x, na.rm = TRUE))
+  expect_equal(result$sd,   sd(x, na.rm = TRUE))
+})
+
+test_that("respects custom probs argument", {
+  result <- summarise_numeric(1:100, probs = c(0.1, 0.9))
+  expect_named(result, c("mean", "sd", "q10", "q90"))
+})
+
+test_that("errors on non-numeric input", {
+  expect_error(summarise_numeric("a"))
+  expect_error(summarise_numeric(list(1, 2, 3)))
+})
+
+test_that("handles all-NA input gracefully", {
+  result <- summarise_numeric(rep(NA_real_, 5))
+  expect_true(is.na(result$mean))
+  expect_true(is.na(result$sd))
+})
+
+test_that("printed output is stable", {
+  expect_snapshot(print(summarise_numeric(1:10)))
+})
+```
+
+This suite tests:
+
+- Happy path (correct values on a known input).
+- Structure (1-row tibble, correct column names).
+- Edge cases (NAs, all-NA input, non-numeric input).
+- Stability of printed output (snapshot).
+
+`devtools::test()` runs all of these in seconds.
+
+## Collaborating with an LLM on testing
+
+LLMs draft tests well; the judgement about which tests to
+write is harder for them.
+
+**Prompt 1: drafting tests.** Paste the function and ask:
+'write `testthat` tests covering happy path, edge cases,
+and error handling. The tests should be specific assertions,
+not just shape checks.'
+
+*What to watch for.* The default LLM tests tend to be
+shape-checks ('returns a tibble', 'has 5 columns'). Push
+for value-checks: 'the mean is 5.5 on input 1:10'. Edge
+cases: empty input, NA input, type mismatch input.
+
+*Verification.* The most useful test of test quality is to
+introduce a bug in the function and re-run the tests. If
+the tests catch the bug, they are useful. If not, they
+need to be more specific.
+
+**Prompt 2: snapshot tests.** Ask: 'when should I use
+snapshot tests, and when should I use direct value
+comparison?'
+
+*What to watch for.* Standard answer: snapshots for
+complex/aesthetic output, value comparison for literal
+values. The LLM should know this. If it suggests
+snapshots for everything, push for selectivity:
+snapshots that change frequently are noise.
+
+*Verification.* For each snapshot test, ask: 'what would
+this catch?' If the answer is 'it catches changes in
+the output, including refactors that don't change
+behaviour', the snapshot may produce false positives.
+
+**Prompt 3: diagnosing a `check()` warning.** Paste the
+warning verbatim and ask: 'how do I fix this?'
+
+*What to watch for.* Standard fixes for standard
+warnings. If the LLM suggests workarounds rather than
+fixes (e.g., 'just add it to .Rbuildignore'), push for
+the proper fix.
+
+*Verification.* Apply the suggested fix and re-run
+`check()`. The warning should be gone.
+
+## Principle in use
+
+Three habits define defensible testing practice:
+
+1. **Test the math.** Shape checks are useful; value
+   checks against known cases are essential. Tests of
+   structure alone produce false confidence.
+2. **Test edge cases deliberately.** Empty input, NA,
+   single observation, type mismatch. These are where
+   silent failures hide.
+3. **Use CI.** Tests that run only on your machine catch
+   only your bugs. Tests that run on every push, on
+   multiple OS/R-version combinations, catch the bugs
+   that affect your users.
+
+## Exercises
+
+1. Add a `tests/testthat/test-summarise_numeric.R` file to
+   the package from chapter 19 with at least three tests:
+   happy path, empty input, and all-NA input. Run
+   `devtools::test()` and make them pass.
+2. Run `covr::package_coverage()` on your package.
+   Identify the uncovered lines and write tests until
+   coverage is above 90%.
+3. Set up GitHub Actions via
+   `usethis::use_github_action_check_standard()` and
+   push. Verify that the workflow runs green on GitHub.
+4. Introduce a bug into `summarise_numeric()` (e.g.,
+   compute SD without `na.rm = TRUE`). Run the test
+   suite. Does it catch the bug? If not, add a test that
+   does.
+5. Add a snapshot test for the printed output of one of
+   your functions. Run the tests. Then make a small
+   formatting change to the function and re-run. Does
+   the snapshot fail? Accept or reject the change.
+
+## Further reading
+
+- [@wickham2023rpkgs] testing chapters, the canonical
+  `testthat` reference.
+- [@wickham2019advr] testing chapter, discusses tests
+  in the broader context of robust R programming.
+- The `testthat` and `covr` package documentation.
+
+## Practice test {#sec-practice-test-20}
+
+The following multiple-choice questions exercise the
+chapter's content. Attempt each question before expanding
+the answer.
+
+### Question 1
+
+What is the difference between `expect_equal()` and
+`expect_identical()` in `testthat`?
+
+- A) They are aliases for each other.
+- B) `expect_equal()` uses numeric tolerance (`all.equal`
+  semantics); `expect_identical()` requires bit-exact
+  equality including types and attributes.
+- C) `expect_equal()` checks length; `expect_identical()`
+  checks values.
+- D) `expect_identical()` works only on vectors.
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** Use `expect_equal()` for most numeric comparisons;
+`expect_identical()` when you specifically care about
+type and attribute exactness.
+:::
+
+### Question 2
+
+What is a snapshot test, and when is it preferable to a
+direct value comparison?
+
+- A) A test of the function's source code; preferable
+  when the source changes frequently.
+- B) A captured reference output that the test compares
+  against on subsequent runs; preferable when the output
+  is complex, formatted, or aesthetic.
+- C) A backup of the test database.
+- D) A test that runs in a sandbox.
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** Snapshots capture complex output (formatted text,
+plots) once and compare on later runs. Use them when
+output is too complex to assert literally.
+:::
+
+### Question 3
+
+Which of the following is a check that `R CMD check`
+performs that `devtools::test()` does not?
+
+- A) Running unit tests.
+- B) Verifying that every exported function is
+  documented and that examples run.
+- C) Running benchmarks.
+- D) Generating coverage reports.
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** `check()` runs the test suite *plus* documentation
+checks, example execution, namespace consistency, and
+CRAN policies. `test()` only runs the test suite.
+:::
+
+### Question 4
+
+You add a new feature and `devtools::test()` reports
+all tests pass. Should you trust the package is working?
+
+- A) Yes; passing tests guarantee correctness.
+- B) Mostly: passing tests are a good sign, but
+  `R CMD check` may still flag documentation,
+  namespace, or example issues.
+- C) No; tests are useless.
+- D) Only if coverage is exactly 100%.
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** Always run `check()` after `test()` before
+shipping. Test passes do not guarantee documentation is
+complete or examples run.
+:::
+
+### Question 5
+
+`covr::package_coverage()` reports 92% line coverage.
+Should you stop adding tests?
+
+- A) Yes, 90%+ is the goal.
+- B) No: coverage measures lines hit, not whether they
+  were tested correctly. The 8% uncovered may include
+  important edge cases; the 92% covered may include
+  shape-only checks. Treat coverage as a floor, not a
+  ceiling.
+- C) Run more tests until coverage is exactly 100%.
+- D) Coverage is irrelevant.
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** Coverage is necessary but not sufficient. Treat it
+as a floor and continue thinking about what could go
+wrong.
+:::
+
+## Prerequisites answers {#sec-quiz-answers-20}
+
+1. `expect_equal()` uses `all.equal()` semantics:
+   numerical closeness within a small tolerance, with
+   automatic handling of floating-point round-off.
+   `expect_identical()` uses `identical()`: exact bit-
+   level equality, including types and attributes. For
+   most numeric tests, `expect_equal` is the right
+   choice; for assertions about object structure, use
+   `expect_identical`.
+2. A snapshot test captures an expected output (printed
+   text, a complex data structure, or a plot) to a file
+   on first run, then compares against that saved
+   snapshot on subsequent runs. Use it when the output
+   is complex, plot-like, or not easily expressed as a
+   literal value. Trade-off: the test asserts 'output is
+   unchanged', not 'output is correct'.
+3. `R CMD check` runs static analysis: it checks
+   `DESCRIPTION` syntax, `NAMESPACE` consistency,
+   undocumented functions, Rd cross-references, that
+   examples run, and that the package installs cleanly
+   from source. `devtools::test()` only runs the
+   `tests/testthat/` suite.

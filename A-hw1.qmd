@@ -1,0 +1,23 @@
+# Homework 1: R Fundamentals, Matrix Algebra, and Simulation {#sec-hw1}
+
+::: {.callout-note}
+## Source
+
+Course-issued assignment. Source files:
+
+- Assignment: `../lectures/hw1_assignment.md`
+- Answer key: `../lectures/hw1_answerkey.md`
+
+Rendering note: answer-key content is included verbatim below.
+For a student-facing edition of this book, gate the 'Answer
+key' section behind a Quarto profile
+(`::: {.content-visible when-profile='instructor'} ... :::`).
+:::
+
+## Assignment
+
+{{< include ../lectures/hw1_assignment.md >}}
+
+## Answer key
+
+{{< include ../lectures/hw1_answerkey.md >}}

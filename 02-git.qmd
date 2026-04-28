@@ -1,0 +1,863 @@
+# Version Control with Git {#sec-git}
+
+## Prerequisites
+
+Answer the following questions to see if you can bypass this
+chapter. You can find the answers at the end of the chapter in
+@sec-quiz-answers-02.
+
+1. What is the primary purpose of version control, and how does
+   it differ from keeping backup copies of files with dated
+   filenames?
+2. What is the effect of running `git init` in a directory, and
+   when would you use it rather than `git clone`?
+3. What is the difference between `git add` and `git commit`,
+   and why does Git separate these two operations?
+
+## Learning objectives
+
+By the end of this chapter you should be able to:
+
+- Explain what a commit, a branch, and a remote are, and draw
+  the three-stage workflow (working directory, staging area,
+  repository).
+- Initialise a repository, make commits with informative
+  messages, and push to a remote on GitHub.
+- Use `git status`, `git diff`, `git log`, and `git blame` to
+  understand the current state and history of a project.
+- Create a feature branch, merge it back into `main`, and
+  resolve merge conflicts without losing work.
+- Write a `.gitignore` appropriate for an R project, including
+  entries for `renv`, RStudio scratch files, and large outputs.
+- Open a pull request, review a colleague's pull request, and
+  explain why pull requests are the dominant form of code
+  review in biostatistical teams.
+
+## Orientation
+
+Before we write any statistics, we need a way to keep track of
+the code we have written. Git is the tool almost every data
+scientist uses for this. It is notoriously user-hostile on the
+surface, the error messages are famously unhelpful and the
+man pages seem to assume you already understand what they are
+trying to explain, but its core ideas are simple, and the
+payoff of fluency is enormous. No more
+`analysis_final_v3_really.R`. No more emailing zipped folders
+back and forth. No more quiet dread when a collaborator asks
+'which version produced the numbers in Table 2?'.
+
+Version control is also the single best tool for building a
+defensible audit trail for a statistical analysis. When a
+regulator, a reviewer, or a future-you asks 'why did the point
+estimate change between the February and April drafts?', a
+well-kept Git history produces an immediate, specific answer.
+That answer is far more convincing than a remembered narrative.
+
+## The statistician's contribution {#sec-git-human}
+
+The mechanics of Git are boring: `add`, `commit`, `push`, `pull`,
+`merge`. Anyone, including an LLM, can recite them. What is not
+boring, and what no tool can automate, is the judgement about
+*what* and *when* to commit, *what* to write in the commit
+message, and *when* to branch.
+
+These judgements shape how trustworthy your analysis looks
+months or years later. They are the statistician's contribution
+to a workflow that would otherwise dissolve into an opaque pile
+of incrementally-edited files.
+
+**What belongs in a single commit.** A good commit is one
+logical change: a bug fix, a new function, a reorganisation of
+an analysis script. If the description of your commit uses the
+word 'and', you almost certainly should have split it in two.
+Atomic commits make `git bisect` usable (you can binary-search
+the history to find the commit that introduced a bug) and make
+pull-request review tractable. Lumping three unrelated changes
+into one commit is a small kindness to your present self and a
+substantial tax on everyone who reads the history later,
+including you in six months.
+
+**What a commit message should say.** The imperative first line
+('Add bootstrap CI helper', not 'Added bootstrap CI helper' or
+'Bootstrap CI stuff') is the convention; the first line should
+complete the phrase 'If applied, this commit will ____.' For
+any change whose motivation is not obvious, add a blank line
+and a longer paragraph explaining *why*. Statistical code
+especially benefits from this: 'Switch from OLS SEs to HC1
+sandwich estimators after residual diagnostics indicated
+heteroscedasticity' ages far better than 'update SEs'.
+
+**When to branch.** A branch is appropriate whenever you want
+to explore something that might not work out: a sensitivity
+analysis that could reveal the primary model is fragile, a
+refactor that might turn out to be worse than what you started
+with, a new collaborator's contribution that needs review
+before it lands. Trivial changes can go straight to `main`.
+The trap is in between, medium-sized changes where you
+tell yourself it will only take an hour. It usually does not.
+
+**What not to commit.** `renv.lock`, yes. `.Rproj.user/`, no.
+Raw data: almost never, and never if it is protected health
+information or subject to a data-use agreement. Rendered
+outputs (`.pdf`, `.html`) are usually derived artefacts and
+should be excluded unless they are the deliverable. This
+distinction, between source (commit) and output (ignore) ---
+is the same distinction that underlies reproducible research:
+the source should be sufficient to regenerate the outputs.
+
+These are judgement calls. They depend on the nature of the
+project, the sensitivity of the data, and the audience for the
+history you are building. An LLM can generate a `.gitignore`
+in five seconds, but it cannot tell you whether a particular
+intermediate file is a reproducible artefact or a costly
+computation whose result you should preserve.
+
+## Why version control?
+
+The concrete benefits of Git are easy to list:
+
+- It tracks every change to every file, with author, timestamp,
+  and message, producing a complete audit trail.
+- It allows parallel work: several analysts can edit the same
+  codebase simultaneously without stepping on each other.
+- It provides a safety net for experimentation. Branches let
+  you try a risky change knowing you can discard it cleanly.
+- It documents institutional knowledge. When a postdoc leaves
+  or a collaborator moves on, their thinking is preserved in
+  the history rather than lost.
+- It integrates with tooling (continuous integration, code
+  review, issue tracking) that compounds these benefits.
+
+The less concrete but arguably more important benefit is
+psychological. When you know you can revert any change in
+seconds, you become bolder about trying things. You refactor
+more aggressively, experiment more freely, and make fewer
+cautious edits hedged against a non-existent worst case. The
+net effect on code quality is large and compounding.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: Git vs. backup copies
+
+**Question.** What distinguishes Git from simply keeping
+backup copies of your files (`analysis_v1.R`,
+`analysis_v2.R`, `analysis_final.R`)?
+
+**Answer.**
+
+Three things. First, Git tracks *changes* (the diff between
+versions) rather than storing whole-file copies, so the
+history is compact and readable, you can ask 'what
+changed between these two versions?' and get a precise
+answer. Second, every change carries context: an author, a
+timestamp, and a message explaining *why* the change was
+made. Third, Git supports collaboration workflows that dated
+backups cannot: parallel branches, systematic merging,
+review of proposed changes before they land. The filename
+trick preserves file states; Git preserves the reasoning
+behind each state.
+
+:::
+
+## The three-stage workflow
+
+The single most important conceptual model in Git is its
+three-stage workflow:
+
+1. **Working directory**: the files as you are editing them.
+2. **Staging area** (also called the 'index'): changes you
+   have marked for inclusion in the next commit.
+3. **Repository**: the committed history.
+
+Many students initially find the staging area confusing. Why
+not just 'write code, commit code'? The answer is that the
+staging area gives you fine-grained control over what goes
+into each commit. Suppose you spend a morning fixing a bug in
+`clean.R`, adding a new function to `plot.R`, and adding a
+sentence to `README.md`. These are three logically distinct
+changes that should probably be three commits. The staging
+area lets you stage `clean.R`, commit it with the message 'Fix
+off-by-one error in age imputation'; then stage `plot.R`, commit
+it with 'Add density-ridge helper'; then stage the README. The
+resulting history tells three small, comprehensible stories
+instead of one sprawling one.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: Partial staging
+
+**Question.** Why might you want to stage only some changes
+rather than committing all modified files at once?
+
+**Answer.**
+
+In a typical analysis session you often make several
+logically unrelated changes at once: a fix to the data
+cleaning script, a new visualisation, and a tweak to the
+README. These should be three commits, not one. Staging
+only the relevant subset lets each commit carry a focused
+message. Future readers, including you, debugging this
+six months from now, can then read the history and
+understand each change on its own terms. Lumping everything
+into one commit makes `git bisect` useless and makes
+code-review discussions hopelessly tangled.
+
+:::
+
+## The minimum viable Git workflow
+
+For day-to-day work, the overwhelming majority of Git usage is
+a small cycle of commands.
+
+```bash
+# initialise a new repository in the current directory
+git init
+
+# see what is modified, staged, and untracked
+git status
+
+# stage one file, or stage everything changed
+git add scripts/clean.R
+git add .
+
+# record the staged snapshot in the history
+git commit -m "Fix missing-value handling in cleaning script"
+
+# see the history
+git log --oneline -10
+
+# push local commits to the remote (e.g. GitHub)
+git push
+
+# fetch remote commits and merge them into your branch
+git pull
+```
+
+Five of these, `status`, `add`, `commit`, `push`, `pull` ---
+cover perhaps 90% of daily Git use. Mastery of these basics is
+far more important than memorising obscure options.
+
+A disciplined loop looks like this:
+
+1. `git pull` before you start, to bring in any changes others
+   have pushed.
+2. Edit files.
+3. `git status` to see what you have changed.
+4. `git diff` to inspect the changes.
+5. `git add` the changes you want to include in this commit.
+6. `git commit -m "..."` with a clear, imperative message.
+7. Repeat from step 2 until the change is complete.
+8. `git push` to publish.
+
+Commit often, five to ten times per session is not
+unreasonable for an engaged working day. A granular history is
+cheap, and it is easier to squash small commits later than to
+split a big one.
+
+## Branches and merging
+
+A branch is a pointer to a commit that moves forward as you
+make new commits. Branches are, contrary to some intuitions,
+not copies of your files, switching branches changes which
+pointer you are on and updates the working directory to match.
+This is why creating and switching branches in Git is nearly
+instantaneous, and why branches are a first-class tool for
+parallel work rather than a heavyweight operation.
+
+```bash
+# create a branch
+git branch sensitivity-analysis
+
+# switch to it (traditional)
+git checkout sensitivity-analysis
+
+# create and switch in one step (modern, preferred)
+git switch -c sensitivity-analysis
+
+# merge it back into main when done
+git switch main
+git merge sensitivity-analysis
+```
+
+The standard mental model: `main` contains the 'truth' of your
+project, the primary, reviewed, runnable analysis. When you
+want to explore a sensitivity analysis, test a new method, or
+take on a risky refactor, you branch. Work proceeds in
+isolation. If the branch pans out, you merge it into `main`.
+If it does not, you discard it (`git branch -D branch-name`)
+and nothing is lost.
+
+Biostatistical examples where branches earn their keep:
+
+- **Sensitivity analyses** on a pre-registered primary model.
+  The main branch preserves the pre-registered analysis; a
+  `sensitivity-MNAR` branch explores missing-not-at-random
+  assumptions. Whether or not you merge, the pre-registered
+  analysis remains inviolate.
+- **Alternative methods** compared head-to-head. One branch
+  implements a Cox proportional hazards model, another a
+  parametric model, a third a random-forest approach. Each
+  develops independently; the final paper merges whichever
+  proves most defensible.
+- **A collaborator's contribution.** They work on a branch,
+  open a pull request, you review it, and it merges only after
+  the review passes.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: When to branch
+
+**Question.** In what scenarios would creating a branch be
+beneficial for a statistical analysis project?
+
+**Answer.**
+
+Any time you want to explore something that might not work
+out and you want `main` to keep representing a known-good
+state. Common examples: sensitivity analyses on a
+pre-registered primary model, comparisons between
+competing statistical methods, risky refactors,
+contributions from collaborators that need review before
+they land. For trivial edits, a typo fix, a small
+prose change, the overhead of a branch is not worth it.
+The judgement call is in the middle: medium-sized changes
+where the work is not trivially safe. In practice, err
+toward branching; the cost of a wasted branch is nearly
+zero.
+
+:::
+
+When branches have developed in parallel, merging them can
+either succeed automatically (when the changes touch disjoint
+lines) or produce a *conflict* (when the same lines were
+edited differently on each branch). We treat conflict
+resolution in its own section below.
+
+## Remotes: GitHub and collaboration
+
+A *remote* is a named reference to a copy of the repository
+hosted elsewhere, typically on GitHub. The conventional name
+for the primary remote is `origin`. Remotes are how
+repositories synchronise: `git push` sends your commits to the
+remote, `git pull` brings remote commits into your local copy.
+
+Git is the version control system; GitHub is a company that
+hosts Git repositories and provides a suite of collaboration
+tools on top. They are separate layers, even though in modern
+workflows they are deeply intertwined. GitLab, Bitbucket, and
+Gitea are similar hosted services; the concepts transfer
+directly.
+
+A minimal setup sequence for a new project:
+
+```bash
+# locally
+cd ~/research/my-analysis
+git init
+git add .
+git commit -m "Initial project structure"
+
+# create a repository on GitHub (via the web UI or gh CLI)
+gh repo create my-analysis --private --source=. --remote=origin
+
+# push the initial commit
+git push -u origin main
+```
+
+The `-u` flag on the first push sets `origin/main` as the
+upstream tracking branch, so subsequent `git push` and
+`git pull` commands need no arguments.
+
+RStudio integrates with Git as well. File modifications appear
+in the Git pane as checkboxes you can stage; commit, pull, and
+push buttons are one click away. The integration is convenient
+for the common cycle of pull, edit, stage, commit, push, but
+it is not a substitute for understanding the underlying
+concepts. When something goes wrong, and eventually
+something will, the command line is where you debug.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: RStudio integration
+
+**Question.** What advantages does using Git through RStudio
+provide compared to using Git from the command line?
+
+**Answer.**
+
+The RStudio Git pane gives a visual view of what files are
+modified, staged, and untracked, with checkboxes for
+staging and a built-in diff viewer for reviewing changes.
+For the common pull-edit-stage-commit-push loop, this is
+faster than typing commands and less error-prone for
+beginners. The trade-off is that RStudio exposes only a
+subset of Git's operations. For branching workflows,
+conflict resolution, interactive rebasing, or recovering
+from mistakes, you will fall back to the command line.
+Most practitioners end up using both: the pane for the
+simple cycle, the command line when anything unusual
+happens.
+
+:::
+
+## Pull requests and code review
+
+A pull request (PR) is a proposal to merge changes from one
+branch into another. Instead of pushing directly to `main`,
+you push a feature branch, open a PR against `main`, and
+invite review. A PR is far more than a merge mechanism: it is
+a checkpoint at which team members read the code, ask
+questions, request revisions, and approve.
+
+The typical PR lifecycle:
+
+1. Create a branch: `git switch -c fix-cleaning-bug`.
+2. Make commits.
+3. Push the branch: `git push -u origin fix-cleaning-bug`.
+4. Open a PR on GitHub with a description explaining *what*
+   and *why*.
+5. Reviewers comment; you push further commits to address
+   their concerns.
+6. Once approved, the PR is merged into `main`.
+
+PRs are the single most effective mechanism for catching bugs
+and spreading understanding across a team. In biostatistical
+projects they also double as a decision log: the PR
+description and comments capture the analytical reasoning
+behind a change, accessible years later when someone asks
+'why did we use HC1 standard errors here?'.
+
+For solo work, PRs may feel like ceremony. They are still
+worth using, because the diff view forces a careful read of
+your own changes before they land, the same hygienic
+function that a code review performs socially.
+
+## Resolving merge conflicts
+
+Conflicts happen when two branches edit the same region of a
+file in incompatible ways. When `git merge` cannot reconcile
+them automatically, it leaves markers in the file and stops:
+
+```
+<<<<<<< HEAD
+model <- lm(bp ~ age + sex, data = df)
+=======
+model <- lm(bp ~ age + sex + bmi, data = df)
+>>>>>>> feature-add-bmi
+```
+
+The text between `<<<<<<< HEAD` and `=======` is the version
+on your current branch; the text between `=======` and
+`>>>>>>>` is the version from the incoming branch. Resolving
+the conflict means editing the file to the state you want
+(which may be either version, or a combination, or something
+new), removing the markers, then staging and committing:
+
+```bash
+# edit cleaning.R to resolve the conflict, then
+git add cleaning.R
+git commit
+```
+
+A few rules of thumb:
+
+- Before resolving, understand *why* both changes exist. Each
+  was made with some purpose in mind. The resolution should
+  preserve both intents if possible.
+- Never resolve by deleting the markers without reading. A
+  surprisingly common failure mode is to 'resolve' by keeping
+  only one side and silently dropping the other.
+- If you are unsure, abort with `git merge --abort` and talk
+  to whoever wrote the other version before trying again.
+
+Conflicts are not a sign of failure. They are a sign that two
+people were working on the same thing, and Git is correctly
+refusing to guess. The alternative, silent, incorrect
+merging, would be worse.
+
+## `.gitignore` and R project structure
+
+Git tracks everything in the working directory by default.
+This is usually too much. RStudio creates a `.Rproj.user/`
+directory full of internal scratch files; R writes `.Rhistory`
+and `.RData` if you let it; renders produce PDFs and HTMLs
+that should be regenerated from source rather than committed.
+A `.gitignore` file in the repository root lists patterns that
+Git will exclude from tracking.
+
+A reasonable starting point for an R project:
+
+```
+# RStudio and R scratch
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+
+# renv package cache (lockfile IS committed; cache is not)
+renv/library/
+renv/local/
+renv/cellar/
+
+# rendered output (regenerate from source)
+*.html
+*.pdf
+_book/
+_site/
+_freeze/
+
+# OS detritus
+.DS_Store
+Thumbs.db
+
+# data (case by case)
+data/raw/
+!data/raw/README.md
+```
+
+Four rules for what to ignore:
+
+1. **User-specific scratch** (`.Rhistory`, `.RData`,
+   `.DS_Store`). Never useful to others, pure noise in
+   `git status`.
+2. **Regenerable outputs.** If you can rebuild it from
+   source with one command, exclude it. Commit the source,
+   not the build product. The exception is when a rendered
+   output is itself a deliverable and the rendering is
+   expensive or non-deterministic.
+3. **Large data.** Git is designed for source, not data. Over
+   about 10--50 MB per file, committing data starts to hurt.
+   Over about 100 MB, GitHub refuses. Options: store the data
+   externally and download in a script; use Git LFS; or
+   commit a small synthetic sample and document access to the
+   real data.
+4. **Sensitive information.** Protected health information,
+   passwords, API keys, data-use-agreement-covered datasets.
+   Never. Even if you delete a sensitive file in a later
+   commit, it persists in the history. The correct response
+   to an accidentally-committed secret is to rotate the
+   secret, not to rewrite history.
+
+The standard R project layout that works well with version
+control:
+
+```
+project/
+├── .git/               (hidden, Git internals)
+├── .gitignore
+├── .Rprofile           (project-local R startup)
+├── renv.lock           (committed)
+├── renv/               (partially committed; see above)
+├── README.md           (project description)
+├── project.Rproj       (RStudio project file)
+├── data/
+│   ├── raw/            (gitignored, with a README)
+│   └── processed/      (gitignored, regenerable)
+├── R/                  (reusable functions)
+├── analysis/           (numbered analysis scripts)
+└── output/             (figures, tables, mostly gitignored)
+```
+
+The principle behind this layout: clear separation of source
+(committed) from inputs and outputs (usually not), and an
+analysis pipeline where the source is sufficient to regenerate
+everything downstream.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: Sensitive data
+
+**Question.** What approaches work for managing sensitive
+clinical or biological data within a version-controlled
+project?
+
+**Answer.**
+
+Never commit raw sensitive data to a Git repository, even a
+private one. Once committed, it lives in the history
+permanently. The usual pattern: keep a `data/` directory
+that is `.gitignore`d, and include a
+`data/README.md` (which *is* committed) documenting the
+secure location of the data and the access procedures. For
+code testing and reviewer access, commit a small
+synthetic dataset in a separate `test_data/` directory
+that reproduces the schema of the real data without the
+PHI. Analysis scripts read from `data/` in production and
+from `test_data/` in continuous integration.
+
+:::
+
+## Commit message style and history hygiene
+
+A brief exhortation, because this is the single practice that
+most clearly separates experienced users from novices.
+
+**Imperative first line, under 50 characters.** 'Add Cox
+regression helper', not 'Added Cox regression helper stuff'.
+It should complete the phrase 'If applied, this commit will
+___'.
+
+**Blank line, then a paragraph for anything non-obvious.**
+Explain *why*, not *what*, the diff shows what. For
+statistical code, include the analytical reasoning:
+
+```
+Switch to HC1 sandwich estimators for all model SEs.
+
+Residual diagnostics on the primary outcome model showed
+clear heteroscedasticity (Breusch-Pagan p < 0.001), which
+invalidates OLS SEs. HC1 is the variant used in the
+preregistered analysis plan. This change affects all
+downstream CI widths but not point estimates.
+```
+
+**Reference issues or PRs** where relevant: `Closes #42`,
+`Related to #87`. GitHub auto-links these and will close the
+issue when the PR merges.
+
+**Match commit granularity to logical changes**, not to time
+elapsed. A commit is a unit of reasoning, not a unit of work.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: Commit message style
+
+**Question.** How might your commit message style differ
+between a personal project and a collaborative research
+project?
+
+**Answer.**
+
+Personal projects can get away with shorter, shorthand
+messages that make sense to you in the moment. Collaborative
+research projects need messages that explain not only what
+changed but *why*, because other readers (including future
+you) lack your context. For a research project, the commit
+log doubles as documentation of methodological decisions ---
+it becomes the primary source for the methods section of the
+paper months later. Good collaborative commit messages tend
+to have: an imperative first line under 50 characters, a
+blank line, and a paragraph of motivation referencing the
+analytical reason, prior discussion, or the specific bug
+being fixed.
+
+:::
+
+## Collaborating with an LLM on Git
+
+Git is a domain where LLM assistance is especially useful and
+especially prone to silent failure. The commands are precise,
+the error messages are cryptic, and the consequences of running
+the wrong command can be irreversible. Three patterns are worth
+learning explicitly.
+
+**Prompt 1: explaining the current state.** Paste the output
+of `git status` and `git log --oneline -10` and ask: 'summarise
+the state of this repository in two sentences, and tell me what
+I should probably do next.'
+
+*What to watch for.* The model will typically describe the
+state correctly but may invent a plausible-sounding 'next
+step' that does not match your actual intent. If it suggests
+`git push`, confirm that you actually want to publish these
+commits. If it suggests `git reset`, stop and verify what
+would be lost.
+
+*Verification.* Re-run `git status` after any action the model
+suggests. The state should match what the model said it would
+produce. If it does not, something went wrong.
+
+**Prompt 2: reading a merge conflict.** Paste the contents of
+a conflicted file, including the `<<<<<<<`, `=======`, and
+`>>>>>>>` markers, and ask: 'explain what each side of this
+conflict is doing, and propose a resolution that preserves
+both intents if possible.'
+
+*What to watch for.* The model is good at naming the
+surface-level difference (which lines are added on each side)
+and worse at inferring *why* each change was made. The
+intention behind a statistical change, 'we added the BMI
+covariate because the reviewer asked for it', is not
+visible in the diff. Bring that context yourself.
+
+*Verification.* After resolving, run the relevant tests or
+sanity checks (`devtools::test()`, spot-check key figures,
+rerun the analysis). A conflict is 'resolved' only when the
+downstream outputs are what they should be, not when the
+markers are gone.
+
+**Prompt 3: drafting a `.gitignore`.** Ask: 'draft a
+`.gitignore` for an R package project that uses renv, produces
+a Quarto book, and has a `data/` directory with sensitive
+CSVs.'
+
+*What to watch for.* LLM-generated `.gitignore` files tend to
+be thorough and sometimes over-broad. Read every line. In
+particular, watch for patterns that would exclude files you
+need, `*.yaml` will exclude `_quarto.yml`, for example.
+Also watch for missing entries: LLMs sometimes forget
+`.Rproj.user/`, `renv/library/`, or OS-specific files.
+
+*Verification.* Compare the model's output to
+`usethis::git_vaccinate()` and `usethis::use_git_ignore()`,
+which encode the community-standard defaults for R
+projects. Use the model's version as a draft and the
+`usethis` defaults as a safety check.
+
+The meta-lesson is the same as elsewhere in this book: the LLM
+produces a plausible candidate quickly. You are still the one
+responsible for verifying that it is correct for your
+situation.
+
+## Principle in use
+
+The statistician's contribution to a Git workflow is not the
+typing of commands; it is the curation of a history that a
+future reader, reviewer, collaborator, regulator, or
+yourself, can trust. Three habits do most of the work:
+
+1. Commits are atomic and carry messages that explain the
+   'why'. The history reads as a sequence of deliberate,
+   understandable decisions.
+2. Branches are used for anything non-trivial, so `main`
+   always represents a known-good state.
+3. What gets committed (source) is clearly distinguished from
+   what gets ignored (outputs, large data, secrets).
+
+When these habits are in place, an LLM can cheerfully generate
+the next `.gitignore` or draft the next commit message. When
+they are not, no amount of tooling will save you.
+
+## Exercises
+
+1. Create a new GitHub repository, clone it locally, add a
+   single `.R` file, and push one commit. Verify that the
+   commit appears on GitHub.
+2. Introduce a merge conflict on purpose: create a branch,
+   edit line 1 of `README.md`, commit. Switch back to `main`,
+   edit the same line differently, commit. Merge the branch
+   and resolve the conflict. Inspect the resulting history
+   with `git log --graph --oneline` and describe what you see.
+3. Using `git log --grep`, find every commit in a course or
+   project repository whose message contains the word
+   'bootstrap'. Pick one and run `git show <hash>` to inspect
+   the diff.
+4. Write a `.gitignore` for an R project that uses `renv` and
+   renders a Quarto book to PDF and HTML. Compare your
+   version to the output of `usethis::use_git_ignore()`.
+   Which entries did each version have that the other did
+   not, and are any of those differences important?
+5. Open a pull request against a repository (your own or a
+   collaborator's). In the PR description, explain *what* the
+   change is and *why* you are making it. Ask a colleague to
+   review it. Note which comments, if any, you would not have
+   caught on your own.
+
+## Further reading
+
+- [@bryan2019happygit], the standard reference for Git in
+  R workflows, including the non-obvious RStudio integration.
+- [@blischak2016git], motivates version control for
+  scientists in three pages.
+- [@chacon2014progit], the comprehensive Git reference.
+  Not a first-read book; a second-read-when-stuck reference.
+- [Learn Git Branching](https://learngitbranching.js.org) ---
+  an interactive visualisation of branching and merging.
+  Recommended for visual learners.
+
+## Practice test {#sec-practice-test-02}
+
+The following multiple-choice questions exercise the chapter's
+content. Attempt each question before expanding the answer.
+
+### Question 1
+
+What is the primary purpose of version control?
+
+- A) To make code run faster
+- B) To track changes to files over time
+- C) To automatically debug code
+- D) To optimise computer memory usage
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** Version control records a history of changes so you
+can review, revert, and collaborate.
+:::
+
+### Question 2
+
+Which git command creates a new repository?
+
+- A) `git clone`
+- B) `git push`
+- C) `git init`
+- D) `git commit`
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**C.** `git init` initialises a new empty repository in the
+current directory. `git clone` copies an existing remote
+repository.
+:::
+
+### Question 3
+
+Which of the following is the **worst** candidate for a
+commit message?
+
+- A) `Add sandwich SEs to primary model`
+- B) `Fix off-by-one error in date parsing`
+- C) `stuff`
+- D) `Switch bootstrap from 1000 to 10000 reps`
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**C.** 'stuff' conveys nothing about the change and is
+useless when reviewing history or bisecting. The other
+three are all imperative, specific, and informative.
+:::
+
+### Question 4
+
+A colleague accidentally commits a CSV containing protected
+health information to a private GitHub repository. What is
+the correct response?
+
+- A) Delete the file in a new commit.
+- B) Run `git reset --hard` to the previous commit.
+- C) Consider the data exposed, notify your data-use
+  compliance officer, and rotate any affected access.
+- D) Rewrite history with `git filter-branch` and continue.
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**C.** Once committed, the file exists in the history.
+Even aggressive history rewriting does not guarantee the
+file is gone from all clones, forks, or GitHub caches.
+Treat it as a disclosure incident and handle it through
+the appropriate compliance channel.
+:::
+
+## Prerequisites answers {#sec-quiz-answers-02}
+
+1. Version control tracks changes to files over time,
+   enabling you to review history, revert to earlier
+   states, and collaborate without overwriting each other's
+   work. Unlike dated backup copies, Git stores *differences*
+   between versions (not full copies), records metadata for
+   each change (author, time, message), and supports
+   workflows, branching, merging, review, that file
+   backups cannot.
+2. `git init` creates a new, empty repository by adding a
+   `.git/` directory to the current folder, making future
+   edits to that folder trackable. Use `git init` when you
+   have local files and want to start tracking them; use
+   `git clone` when you want a local copy of an existing
+   remote repository.
+3. `git add` stages changes by recording a snapshot of the
+   working tree for the next commit. `git commit`
+   permanently records the staged snapshot in the
+   repository's history, with an author and a message. Git
+   separates these operations so you can build up a
+   logically coherent commit from only a subset of the
+   changes in your working directory, rather than being
+   forced to commit everything modified at once.

@@ -1,0 +1,845 @@
+# Linear Models in Practice {#sec-linear-models}
+
+## Prerequisites
+
+Answer the following questions to see if you can bypass this
+chapter. You can find the answers at the end of the chapter in
+@sec-quiz-answers-10.
+
+1. Name three assumptions of the classical linear regression
+   model.
+2. What does $R^2$ represent, and what does an $R^2$ of 0.7
+   tell you about a fitted model?
+3. What is the primary purpose of residual diagnostic plots
+   in linear regression?
+
+## Learning objectives
+
+By the end of this chapter you should be able to:
+
+- Fit a linear model in R with `lm()` and interpret every
+  column of `summary()`.
+- Diagnose a fitted model using the four default plots:
+  residuals, Q-Q, scale-location, Cook's distance.
+- Build a model matrix `X` for a mix of continuous and
+  categorical predictors, including interactions and
+  polynomial terms.
+- Compute the coefficient vector by hand using the QR
+  decomposition and reproduce the output of `lm()`, point
+  estimates, standard errors, $R^2$, residual degrees of
+  freedom, from scratch.
+- Recognise and report violations of model assumptions:
+  heteroscedasticity, non-linearity, non-normality,
+  influential observations, multicollinearity.
+- Compute robust (sandwich) standard errors with
+  `sandwich::vcovHC()` when homoscedasticity fails.
+- Work with `broom::tidy()`, `glance()`, and `augment()` for
+  reproducible reporting of linear models.
+
+## Orientation
+
+`lm()` is the workhorse of applied statistics and the first
+real test of everything we have built so far: matrix algebra,
+QR decomposition, vectorised R, and the grammar of data
+frames. This chapter treats `lm()` as a white box. We will
+not invoke it until we have reimplemented most of what it
+does.
+
+The linear model assumes
+
+$$
+\mathbf{y} = \mathbf{X}\boldsymbol\beta + \boldsymbol\varepsilon, \quad \boldsymbol\varepsilon \sim N(0, \sigma^2 I).
+$$
+
+From chapter 5 we know the least-squares estimator is
+$\hat\beta = (X^T X)^{-1} X^T y$. From chapter 6 we know why
+`lm()` uses QR rather than the normal equations. This
+chapter adds the inferential machinery (standard errors, t-
+statistics, p-values, $R^2$), the diagnostics, and the
+working craft of actually fitting and interpreting linear
+models on real data.
+
+## The statistician's contribution {#sec-linear-models-human}
+
+`lm()` fits a model. The interesting questions are which
+model, on which variables, on which transformations, with
+which subset, and how to interpret the result. These are the
+statistician's contribution; they are not automatable.
+
+**Which variables to include.** The naive answer ('whichever
+predicts') is wrong for inference. In a randomised trial,
+the Table-1 covariates go in not because they improve
+prediction but because they were balanced at randomisation;
+adjusting for them gives the pre-registered estimand. In an
+observational study, the covariate set is the set that
+blocks non-causal paths between exposure and outcome,
+determined by a causal diagram drawn before the model is
+fit. Stepwise selection and similar algorithmic procedures
+produce standard errors that understate uncertainty and
+coefficients that do not mean what they appear to mean.
+
+**Which scale.** A coefficient on age is interpretable if
+age is in years; less so if centred at 50 but unscaled; less
+still if transformed to a z-score. The choice depends on the
+audience. For a clinical paper, a one-year increment is
+natural; for a methods paper, a z-score may read more
+cleanly. The transformation on the *outcome*, log, square
+root, Box-Cox, is a more consequential decision: it
+changes the estimand from 'additive effect on $y$' to
+'multiplicative effect on $e^y$', and these are not
+interchangeable.
+
+**Whether the model's claims are defensible.** A linear
+model's p-values and confidence intervals are valid under
+its assumptions. When the assumptions fail, the numbers are
+still computed and printed; they are just no longer
+meaningful. Detecting failure is the purpose of diagnostics.
+Choosing a remedy, a transformation, robust standard
+errors, a different model entirely, reporting a caveat, is
+the statistician's judgement.
+
+**Statistical vs. clinical significance.** A $p < 0.05$
+treatment effect of 0.2 mmHg on blood pressure is not
+clinically meaningful even if it is statistically certain.
+A $p = 0.07$ effect of 8 mmHg may be clinically very
+meaningful but imprecisely estimated. The statistician
+reports both; claiming importance because of $p$ alone, or
+dismissing importance for the same reason, is not defensible.
+
+These decisions shape whether a linear-model analysis is
+honest or misleading. An LLM will happily fit any model you
+describe; it will not tell you that the model is not the
+right one for your question.
+
+## Anatomy of `lm()`
+
+R's formula interface abstracts away the model matrix. The
+expression `lm(mpg ~ wt + hp, data = mtcars)` specifies that
+the outcome is `mpg`, the predictors are `wt` and `hp`, an
+intercept is included by default, and the data are in
+`mtcars`. Internally, R:
+
+1. Parses the formula into a list of terms.
+2. Builds the model matrix $X$ via `model.matrix()`,
+   converting factors to indicator columns and applying any
+   transformations mentioned in the formula.
+3. Computes the QR decomposition of $X$.
+4. Solves for $\hat\beta$ via `qr.coef(qrX, y)`.
+5. Computes residuals, fitted values, residual variance
+   $\hat\sigma^2 = \|y - X\hat\beta\|^2 / (n - p)$, and the
+   covariance matrix $\widehat{\mathrm{Var}}(\hat\beta) = \hat\sigma^2 (X^T X)^{-1}$
+  , the last via back-substitution on $R$, not by forming
+   $(X^T X)^{-1}$ explicitly.
+6. Returns all of this as an `lm` object.
+
+```r
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+class(fit)                  # "lm"
+names(fit)                  # what's in the object
+#>  [1] "coefficients"  "residuals"     "effects"       "rank"
+#>  [5] "fitted.values" "assign"        "qr"            "df.residual"
+#>  [9] "xlevels"       "call"          "terms"         "model"
+
+summary(fit)
+```
+
+The `summary()` output has four parts:
+
+1. **Residuals.** Min, 1Q, median, 3Q, max. Used for a quick
+   sanity check: median near zero, approximately symmetric
+   quantiles.
+2. **Coefficients.** Estimate, standard error, $t$-value, and
+   $\Pr(>|t|)$, for each coefficient.
+3. **Residual standard error.** $\hat\sigma$ and residual
+   degrees of freedom $n - p$.
+4. **F-statistic.** Tests whether the model as a whole
+   explains variation beyond the intercept.
+
+The coefficients table is the most important part.
+
+- **Estimate.** $\hat\beta_j$, the fitted coefficient.
+- **Std. Error.** $\widehat{\mathrm{SE}}(\hat\beta_j) = \sqrt{\hat\sigma^2 [(X^T X)^{-1}]_{jj}}$.
+- **t value.** Estimate divided by Std. Error.
+- **Pr(>|t|).** Two-sided p-value from a $t$-distribution
+  with $n - p$ degrees of freedom.
+
+Extract specific components via accessor functions:
+
+```r
+coef(fit)              # coefficient vector
+confint(fit)           # 95% CIs for coefficients
+fitted(fit)            # fitted values
+resid(fit)             # residuals
+vcov(fit)              # coefficient covariance matrix
+sigma(fit)             # residual standard error
+AIC(fit); BIC(fit)     # information criteria
+```
+
+Prefer these over `fit$coefficients`; accessor functions are
+stable across `lm`, `glm`, and many other model classes.
+
+## Building the model matrix
+
+`model.matrix()` converts a formula into the design matrix
+$X$ that `lm()` actually works with. Understanding this step
+makes interactions, contrasts, and coefficient
+interpretation far clearer.
+
+```r
+X <- model.matrix(mpg ~ wt + hp, data = mtcars)
+head(X)
+#>                   (Intercept)    wt  hp
+#> Mazda RX4                   1 2.620 110
+#> Mazda RX4 Wag               1 2.875 110
+#> Datsun 710                  1 2.320  93
+```
+
+Notice the intercept column of 1s, included by default.
+To suppress it: `lm(mpg ~ 0 + wt + hp)` or `lm(mpg ~ wt + hp - 1)`.
+
+### Categorical predictors and contrasts
+
+When a factor appears in a formula, R creates $k - 1$
+indicator columns for a factor with $k$ levels:
+
+```r
+fit <- lm(mpg ~ wt + factor(cyl), data = mtcars)
+head(model.matrix(fit))
+#>                   (Intercept)    wt factor(cyl)6 factor(cyl)8
+#> Mazda RX4                   1 2.620            1            0
+#> Datsun 710                  1 2.320            0            0
+```
+
+The factor's first level ('4' here) is the reference; the
+other two levels have their own indicator columns. The
+intercept represents the mean of the reference level (at
+$wt = 0$); the factor coefficients represent differences
+from the reference.
+
+To change the reference level:
+
+```r
+mtcars$cyl_f <- relevel(factor(mtcars$cyl), ref = "8")
+```
+
+Or via factor levels directly: `factor(mtcars$cyl, levels = c("8", "4", "6"))`.
+
+For a non-default contrast coding (e.g., sum-to-zero, which
+gives coefficients interpretable as deviations from the
+grand mean), set `contrasts()` on the factor:
+
+```r
+contrasts(mtcars$cyl_f) <- contr.sum
+```
+
+Default treatment contrasts are clinically interpretable and
+almost always the right choice. Sum contrasts are useful in
+some ANOVA presentations but confuse readers who expect
+reference-level interpretation.
+
+### Interactions
+
+Specified with `:` (interaction only) or `*` (both main
+effects and interaction):
+
+```r
+lm(mpg ~ wt * cyl, data = mtcars)    # wt, cyl, wt:cyl
+lm(mpg ~ wt + cyl + wt:cyl, data = mtcars)   # same thing
+```
+
+For an interaction between continuous `wt` and factor `cyl`,
+the model matrix gets an extra column for every non-
+reference level of `cyl`: `wt:cyl6`, `wt:cyl8`.
+Interpretation: the slope on `wt` for the reference level
+is the main-effect coefficient; the slope for non-reference
+levels is main-effect plus the interaction coefficient.
+
+### Polynomial and transformed terms
+
+`I()` insulates an expression from formula parsing:
+
+```r
+lm(mpg ~ wt + I(wt^2), data = mtcars)
+lm(mpg ~ log(hp) + wt, data = mtcars)
+```
+
+`poly()` creates orthogonal polynomial terms, which are
+easier to interpret and better-conditioned than raw powers:
+
+```r
+lm(mpg ~ poly(wt, 2), data = mtcars)
+```
+
+Orthogonal polynomials have the property that the coefficient
+on the linear term is not affected by whether you include the
+quadratic term.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: reference level choice
+
+**Question.** You fit `lm(outcome ~ treatment, data = trial)`
+where `treatment` is a factor with levels 'placebo',
+'low-dose', and 'high-dose'. The `Intercept` coefficient
+in the output estimates 18.2, and the `treatmentlow-dose`
+coefficient is -4.1. What are the mean outcomes in the
+placebo and low-dose groups?
+
+**Answer.**
+
+The default reference level is alphabetical: 'high-dose'.
+So the intercept estimates the mean outcome in the high-
+dose group (18.2), and the low-dose coefficient gives the
+difference between low-dose and high-dose (-4.1), meaning
+low-dose mean is 14.1. To get placebo as the reference ---
+usually what you want in a trial, use
+`factor(treatment, levels = c("placebo", "low-dose", "high-dose"))`
+or `relevel(treatment, ref = "placebo")`. This is a
+classic source of misreporting: the intercept does not
+mean 'baseline' in any natural sense; it means 'the
+reference level that R picked'. Always set the reference
+level deliberately.
+
+:::
+
+## Reimplementing `lm()` in 10 lines
+
+```r
+set.seed(1)
+n <- 100; p <- 3
+X <- cbind(1, matrix(rnorm(n * p), n, p))
+y <- X %*% c(2, 1, -0.5, 0.3) + rnorm(n)
+
+qrX <- qr(X)
+beta <- qr.coef(qrX, y)
+resids <- qr.resid(qrX, y)
+rss <- sum(resids^2)
+df_resid <- n - ncol(X)
+sigma2 <- rss / df_resid
+
+# coefficient covariance: sigma^2 * (X'X)^-1 = sigma^2 * solve(R) %*% t(solve(R))
+R <- qr.R(qrX)
+Rinv <- backsolve(R, diag(ncol(R)))
+vcov_beta <- sigma2 * tcrossprod(Rinv)
+se_beta <- sqrt(diag(vcov_beta))
+
+# R-squared
+tss <- sum((y - mean(y))^2)
+r2 <- 1 - rss / tss
+
+# compare to lm()
+lm_fit <- lm(y ~ X - 1)
+all.equal(as.vector(beta), unname(coef(lm_fit)))
+#> [1] TRUE
+all.equal(as.vector(se_beta),
+          unname(summary(lm_fit)$coefficients[, "Std. Error"]))
+#> [1] TRUE
+```
+
+Everything `lm()` reports, coefficients, SEs, $R^2$,
+residual SD, df, comes from the QR decomposition, the
+residuals, and $(X^T X)^{-1}$. No magic, no Bayesian prior,
+no hidden regularisation.
+
+## Diagnostics
+
+`plot(fit)` produces four diagnostic plots that together
+cover the main assumption checks.
+
+**Plot 1: Residuals vs. Fitted.** Checks linearity and
+homoscedasticity. Looks for: no systematic trend (linear
+relationship holds), consistent spread (variance constant).
+A curve → non-linearity. A funnel → heteroscedasticity.
+
+**Plot 2: Q-Q plot of standardised residuals.** Checks
+approximate normality. Points should lie near the 45° line.
+Heavy tails show up as an 'S' shape; skewness shows up as a
+curved deviation from the line.
+
+**Plot 3: Scale-Location.** The square root of the absolute
+standardised residual against fitted values. Another view
+of homoscedasticity, more sensitive than plot 1 to trends in
+spread. A monotonic increasing trend → variance increases
+with the mean, a classical pattern for count or proportion
+data.
+
+**Plot 4: Residuals vs. Leverage.** Identifies influential
+observations. Cook's distance contours (dashed lines) mark
+the regions of concern. Points far to the right
+(high-leverage: unusual covariate values) with large
+residuals deserve scrutiny.
+
+```r
+par(mfrow = c(2, 2))
+plot(fit)
+par(mfrow = c(1, 1))
+```
+
+What none of these plots can check is **independence**. For
+time-series or clustered data, plot the residuals against
+time or against the cluster ID and look for structure.
+Independence violations usually require a different model
+(mixed-effects, GEE, or an explicit correlation structure).
+
+### Leverage, influence, Cook's distance
+
+Not every observation matters equally. **Leverage** ($h_i$,
+the $i$th diagonal of the hat matrix $H = X(X^T X)^{-1} X^T$)
+measures how unusual observation $i$'s predictor values are;
+high-leverage observations pull the fit toward themselves.
+
+```r
+h <- hatvalues(fit)
+```
+
+**Cook's distance** combines leverage and residual size into
+a single measure of how much the regression would change if
+observation $i$ were removed:
+
+$$
+D_i = \frac{e_i^2}{p \hat\sigma^2} \cdot \frac{h_i}{(1 - h_i)^2}.
+$$
+
+```r
+cd <- cooks.distance(fit)
+```
+
+A rule of thumb: $D_i > 4/n$ warrants investigation; $D_i > 1$
+is a red flag. Do not blindly delete influential
+observations. Instead: check whether the observation is
+correctly coded, whether it is part of a class of points the
+model is not designed for, or whether re-fitting without it
+changes substantive conclusions.
+
+**DFBETA** (or DFBETAS, its studentised version) measures the
+change in each coefficient when each observation is removed:
+
+```r
+db <- dfbetas(fit)
+```
+
+Useful when you want to know *which* coefficients an
+influential point is moving.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: heteroscedasticity
+
+**Question.** The residuals-vs-fitted plot shows a clear
+fan shape: residuals small for small fitted values and
+large for large fitted values. What does this violate, and
+what are your remedies?
+
+**Answer.**
+
+The assumption violated is constant error variance
+(homoscedasticity). Consequences: point estimates are
+still unbiased, but standard errors and their derived
+quantities (CIs, p-values) are wrong. Remedies: (a)
+variance-stabilising transformation of the outcome (log
+for variance proportional to mean^2, square-root for
+variance proportional to mean), (b) weighted least
+squares with weights inversely proportional to estimated
+variance, or (c) robust (sandwich / HC) standard errors
+that stay consistent under heteroscedasticity without
+re-fitting the model, `sandwich::vcovHC(fit, type = "HC3")`
+is the default recommendation. The choice depends on
+whether you also care about efficient estimation (use
+WLS or transform) or whether you just want honest SEs
+with the existing fit (use sandwich).
+
+:::
+
+## Robust (sandwich) standard errors
+
+When homoscedasticity is implausible but the model is
+otherwise defensible, the sandwich estimator gives
+heteroscedasticity-consistent SEs without changing the point
+estimates:
+
+```r
+library(sandwich)
+library(lmtest)
+
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+coeftest(fit, vcov. = vcovHC(fit, type = "HC3"))
+```
+
+HC3 is the default recommendation for moderate sample sizes;
+HC0 through HC2 are alternatives that differ in how they
+weight by leverage. Do not use robust SEs as a substitute
+for diagnosing why homoscedasticity fails; they correct SEs
+but do not address a mis-specified mean function.
+
+## Multicollinearity
+
+Highly correlated predictors produce unstable coefficient
+estimates. The **variance inflation factor** (VIF)
+quantifies the inflation:
+
+$$
+\mathrm{VIF}_j = \frac{1}{1 - R_j^2}
+$$
+
+where $R_j^2$ is from regressing $x_j$ on all other
+predictors. VIF > 5 is a warning; VIF > 10 is usually a
+problem.
+
+```r
+library(car)
+vif(fit)
+```
+
+Remedies:
+
+- Drop one of a near-redundant pair of predictors.
+- Combine them (mean, principal component).
+- Use ridge regression, which introduces a small bias in
+  exchange for large variance reduction.
+
+Multicollinearity does not bias coefficient estimates; it
+just makes them imprecise. If the goal is prediction, some
+degree of multicollinearity is tolerable. If the goal is
+inference on individual coefficients, it is not.
+
+## Model comparison
+
+Nested models can be compared with an F-test via `anova()`:
+
+```r
+fit_small <- lm(mpg ~ wt, data = mtcars)
+fit_large <- lm(mpg ~ wt + hp + disp, data = mtcars)
+anova(fit_small, fit_large)
+```
+
+Non-nested models can be compared by AIC or BIC:
+
+```r
+AIC(fit_small, fit_large)
+BIC(fit_small, fit_large)
+```
+
+Lower is better for both. AIC estimates expected prediction
+error; BIC approximates model posterior probability under a
+unit-information prior. BIC penalises complexity more
+heavily than AIC at large $n$, so BIC tends to prefer
+smaller models.
+
+Neither is a substitute for cross-validation when the goal
+is genuine prediction. For inference, neither is a
+substitute for thinking carefully about which predictors
+belong in the model based on subject-matter knowledge.
+
+## Reproducible reporting with `broom`
+
+`broom` converts model objects to tidy data frames, suitable
+for further manipulation and rendering in reports:
+
+```r
+library(broom)
+
+tidy(fit)        # per-coefficient: estimate, SE, t, p
+glance(fit)      # per-model: R2, adj R2, sigma, AIC, BIC, df, ...
+augment(fit)     # per-observation: fitted, residuals, hat values, cooks
+```
+
+Pair with `gt` or `kableExtra` for publication-quality
+tables; with `ggplot2` for coefficient forest plots, fitted-
+value overlays, and diagnostic plots customised beyond
+`plot(fit)`.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: extracting model output
+
+**Question.** You want to produce a coefficient plot with
+95% CIs for a linear model fit to 12 predictors. Which
+`broom` function gives you the right data shape with
+minimal further work?
+
+**Answer.**
+
+`broom::tidy(fit, conf.int = TRUE)` returns one row per
+coefficient with columns for estimate, standard error,
+statistic, p-value, and (with `conf.int = TRUE`) lower
+and upper CI bounds. That is exactly the shape
+`ggplot2::geom_pointrange()` expects. `glance()` gives
+per-model summaries; `augment()` gives per-observation
+data. For the coefficient plot, `tidy()` with
+`conf.int = TRUE` is the one-line answer.
+
+:::
+
+## Collaborating with an LLM on linear models
+
+LLMs can produce correct linear-model code almost instantly.
+They are less reliable when it comes to the judgement that
+surrounds the code: what to include, how to interpret, when
+to worry about assumptions.
+
+**Prompt 1: drafting a model specification.** Describe the
+study and the question, and ask: 'write a `lm()` call that
+addresses this question, explain why each predictor is
+included, and flag any assumptions that may be
+questionable.'
+
+*What to watch for.* LLMs tend to put kitchen-sink models
+together (lots of predictors) rather than models matched to
+the question. Check whether the predictors are there for
+causal blocking, for adjustment, for prediction, or just
+because they were in the dataset. If the justification is
+'it was in the data', push back.
+
+*Verification.* Compare the LLM's specification to what the
+study's analysis plan (or a similar published paper) would
+have pre-specified. Discrepancies are prompts for thought,
+not red flags in themselves.
+
+**Prompt 2: interpreting coefficients.** Paste the
+`summary(fit)` output and ask: 'interpret each coefficient
+in the context of the scientific question, being explicit
+about the reference level for categorical predictors.'
+
+*What to watch for.* LLMs occasionally paraphrase column
+names as if they were interpretations ('the estimate is
+0.42, the standard error is 0.12'). A real interpretation
+includes the direction of the effect, its magnitude on the
+outcome scale, and the scientific meaning of a one-unit
+change in the predictor. If the interpretation does not
+read like something a clinical collaborator would write,
+rewrite it.
+
+*Verification.* Double-check any mention of the intercept
+and any categorical coefficient: reference-level confusion
+is the single most common LLM error in regression
+interpretation.
+
+**Prompt 3: diagnosing a failed fit.** Describe symptoms
+(weird coefficients, huge SEs, non-convergence) and ask:
+'what is likely going wrong, and what diagnostics would
+clarify?'
+
+*What to watch for.* LLMs are reasonable at proposing
+diagnostics (VIF, residual plots, Cook's distance) but
+less reliable at prioritising them. For an analysis
+deadline, start with the cheapest diagnostics (check for
+linear combinations among predictors, plot residuals)
+before the expensive ones (Cook's distance on every
+observation, bootstrap SEs).
+
+*Verification.* Run the suggested diagnostics and compare
+results across them. If all point the same way, trust the
+conclusion. If they disagree, the problem is more subtle
+than any one diagnostic is detecting.
+
+## Worked example: Arthritis trial
+
+```r
+data("Arthritis", package = "vcd")
+Arthritis$Improved_n <- as.numeric(Arthritis$Improved)   # 1/2/3
+# technically ordinal ,  see next chapter for a proper ordinal model
+
+fit <- lm(Improved_n ~ Treatment + Age + Sex, data = Arthritis)
+summary(fit)
+broom::tidy(fit, conf.int = TRUE)
+
+# diagnostics
+par(mfrow = c(2, 2))
+plot(fit)
+par(mfrow = c(1, 1))
+```
+
+The Treatment effect (Treated vs. Placebo, adjusting for age
+and sex) appears in the coefficient table. Interpretation
+must be cautious: the outcome is ordinal and the 0-1-2
+coding imposes equal spacing that may not be clinically
+valid. The next chapter's proportional-odds model is a
+better fit; this example is here to demonstrate workflow,
+not to claim that linear regression on an ordinal outcome is
+the right model.
+
+## Principle in use
+
+Three habits define defensible linear-model practice:
+
+1. **Pre-specify the model.** Predictors, transformations,
+   reference levels chosen before looking at the data (or at
+   least before looking at any outcome-by-predictor
+   relationship). Ex post data-driven model choice destroys
+   the nominal error rates.
+2. **Inspect diagnostics before interpreting.** A
+   pathological residual pattern means the p-values on the
+   table are not what they appear to be. Fix or acknowledge
+   the violation before writing the results paragraph.
+3. **Interpret on the scale of the outcome and the
+   audience.** A clinical reader wants 'mmHg per 10-year
+   increase in age'; a methods reader may want a
+   standardised coefficient. Write for the reader who will
+   actually use the result.
+
+## Exercises
+
+1. Using `palmerpenguins::penguins`, fit
+   `body_mass_g ~ flipper_length_mm + species`. Extract the
+   coefficient vector with `coef()` and reproduce it with
+   `qr.coef(qr(X), y)` where `X` is the model matrix.
+2. For the same fit, reproduce the residual standard error,
+   the $R^2$, and the standard errors of the coefficients
+   without calling `summary()`. Verify every number agrees
+   with `summary(fit)`.
+3. Find the observation with the largest Cook's distance
+   and re-fit the model without it. Report the change in
+   coefficients and the change in $\hat\sigma$.
+4. Fit a model with interactions between species and
+   flipper length. Use `emmeans::emmeans()` or a hand-
+   computed contrast to estimate the species-specific slope
+   on flipper length. Compare to a simple pooled slope.
+5. Apply `sandwich::vcovHC()` to a linear model where the
+   residuals-vs-fitted plot shows heteroscedasticity.
+   Compare the robust and classical standard errors. How
+   much do the p-values change?
+
+## Further reading
+
+- [@legler2019bysh] Chapter 1, OLS assumption review.
+- [@gelman2020regression], a modern reference for
+  applied regression in R.
+- [@harrell2015regression], detailed treatment of model
+  building, interactions, and nonlinearity. The standard
+  reference for practising biostatisticians.
+- [@ucla-regdiag], a thorough walkthrough of residual
+  diagnostics in R.
+
+## Practice test {#sec-practice-test-10}
+
+The following multiple-choice questions exercise the
+chapter's content. Attempt each question before expanding
+the answer.
+
+### Question 1
+
+Which of the following is an assumption of linear
+regression models?
+
+- A) The predictor variables must follow a normal
+  distribution
+- B) The response variable must be categorical
+- C) The error terms have constant variance
+  (homoscedasticity)
+- D) The relationship between predictors must be linear
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**C.** Homoscedasticity is one of the Gauss-Markov
+assumptions. The predictors need not be normal, the
+response need not be categorical, and the assumption is
+on the mean function, not on inter-predictor linearity.
+:::
+
+### Question 2
+
+In a linear regression model, what does $R^2$ represent?
+
+- A) The probability that the null hypothesis is true
+- B) The proportion of variance in the response variable
+  explained by the predictors
+- C) The regression coefficient for the main predictor
+  variable
+- D) The expected change in the response for a one-unit
+  change in a predictor
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** $R^2$ is the fraction of the total response
+variance accounted for by the fitted model.
+:::
+
+### Question 3
+
+What is the primary purpose of residual diagnostic plots
+in linear regression?
+
+- A) To determine the statistical significance of
+  coefficient estimates
+- B) To calculate confidence intervals for predictions
+- C) To check whether model assumptions are satisfied
+- D) To identify which predictors should be included in
+  the model
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**C.** Residual plots check linearity, homoscedasticity,
+normality, and independence.
+:::
+
+### Question 4
+
+A fitted linear model has one predictor with $\mathrm{VIF} = 12$
+and another with $\mathrm{VIF} = 3$. What does this indicate?
+
+- A) The first predictor is a better predictor than the
+  second.
+- B) The first predictor is highly collinear with other
+  predictors; its coefficient will have inflated
+  standard error.
+- C) The second predictor should be removed.
+- D) The model is over-fit.
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** VIF > 10 is usually a problem; the first
+predictor's coefficient is imprecisely estimated because
+of collinearity with other predictors. Consider dropping
+it, combining it with a correlated predictor, or using
+ridge regression.
+:::
+
+### Question 5
+
+Your residual plot shows a clear curve. Which diagnosis
+is most appropriate?
+
+- A) Heteroscedasticity; use robust standard errors.
+- B) Non-linearity in the mean function; add a polynomial
+  or transformation, or consider a non-linear model.
+- C) Non-normal residuals; transform the outcome.
+- D) Influential observations; remove outliers.
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** A curved residual pattern indicates the linear
+mean function is misspecified. Fit a polynomial term,
+log or Box-Cox the outcome, or use a generalised
+additive model (`mgcv::gam`). Robust SEs do not fix a
+wrong mean function.
+:::
+
+## Prerequisites answers {#sec-quiz-answers-10}
+
+1. Linearity of the mean function, independence of
+   observations, constant error variance
+   (homoscedasticity), and, for inference, approximate
+   normality of the errors. Point estimates are unbiased
+   under linearity and independence alone; CIs and
+   p-values additionally require homoscedasticity and
+   normality (or a large enough sample that the CLT
+   rescues normality).
+2. $R^2$ is the proportion of variance in the response
+   explained by the predictors. $R^2 = 0.7$ means the
+   model accounts for 70% of the total variation in the
+   response. It does *not* measure goodness of fit in any
+   absolute sense: a high $R^2$ does not rule out bias,
+   non-linearity, or other misspecifications; a low $R^2$
+   does not rule out a correctly specified model in a
+   high-noise setting.
+3. Residual diagnostics check whether the model's
+   assumptions (linearity, homoscedasticity, normality,
+   independence) are reasonable. Systematic patterns in
+   the residuals signal model misspecification: a curve
+   signals non-linearity, a funnel signals
+   heteroscedasticity, heavy tails on the Q-Q plot signal
+   non-normality, and autocorrelation in the residuals
+   (not shown by `plot(fit)`) signals violation of
+   independence.

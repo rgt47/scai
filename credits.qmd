@@ -1,0 +1,33 @@
+# Credits {.unnumbered}
+
+## Cover
+
+TODO: add source and licence of the cover image here once
+chosen.
+
+## Portraits
+
+The portraits of foundational figures in statistical computing
+appear in this book with attribution to their original
+sources. Each image is reproduced under the terms stated; please
+contact the book author for removal if any attribution is
+incorrect.
+
+| Figure            | Where             | Source                                   | Licence          |
+| ----------------- | ----------------- | ---------------------------------------- | ---------------- |
+| Gene H. Golub     | @sec-decompositions | TODO                                   | TODO             |
+| Jorge Nocedal     | @sec-optimization | TODO                                     | TODO             |
+| Bradley Efron     | @sec-bootstrap    | TODO                                     | TODO             |
+| John A. Nelder    | @sec-glm          | TODO                                     | TODO             |
+| Douglas Bates     | @sec-mixed-models | TODO                                     | TODO             |
+
+## Data sources
+
+- `palmerpenguins::penguins` under CC0.
+- Examples drawn from `ADNIMERGE` are subject to the ADNI Data
+  Use Agreement and are not redistributed.
+
+## Code snippets
+
+Unless otherwise stated, code blocks in this book are released
+under the MIT License.

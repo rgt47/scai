@@ -1,0 +1,737 @@
+# Survival Analysis {#sec-survival}
+
+## Prerequisites
+
+Answer the following questions to see if you can bypass this
+chapter. You can find the answers at the end of the chapter in
+@sec-quiz-answers-13.
+
+1. What is 'right censoring', and how does it differ from a
+   missing outcome?
+2. What does the Kaplan-Meier estimator estimate, and how
+   does it handle censored observations?
+3. In the Cox proportional hazards model
+   $\lambda(t \mid x) = \lambda_0(t) \exp(x'\beta)$, what is
+   the 'proportional hazards' assumption, and how do you
+   check it in R?
+
+## Learning objectives
+
+By the end of this chapter you should be able to:
+
+- Construct a `Surv()` object from an event time and an
+  event indicator, including for time-varying covariates.
+- Fit and interpret a Kaplan-Meier curve with `survfit()`,
+  and compare survival curves with the log-rank test.
+- Fit a Cox proportional hazards model with `coxph()` and
+  interpret hazard ratios on the response scale.
+- Check the proportional-hazards assumption with
+  `cox.zph()` and diagnose violations.
+- Handle time-varying covariates via the `(start, stop, event)`
+  counting-process format.
+- Recognise competing risks and use cumulative incidence
+  functions or Fine-Gray models when they apply.
+
+## Orientation
+
+Time-to-event outcomes are the defining feature of most
+clinical trials, most epidemiological cohort studies, and
+most survival analyses in cancer, cardiovascular, and
+infectious-disease research. The outcome is not 'did the
+event happen' (that is a binary outcome and would be
+analysed as a GLM) but 'when did it happen, if at all'.
+
+The distinguishing challenge is *censoring*: for many
+participants the event is not observed before the study
+ends, before they withdraw, or before some other time-
+bounded reason for follow-up to stop. A naive analysis
+that drops censored observations is biased; a naive
+analysis that imputes their event times is more biased
+still. Survival methods are the principled response.
+
+R's `survival` package, written by Terry Therneau, is the
+canonical implementation. It is one of the oldest and
+best-tested packages in R; the API has been stable for
+decades.
+
+## The statistician's contribution {#sec-survival-human}
+
+Survival analysis is a domain where the mechanics
+(`survfit`, `coxph`, `cox.zph`) are well-supported by
+software, but the assumptions and the interpretation are
+where most analyses go wrong.
+
+**Independent censoring is an assumption, not a
+default.** The Kaplan-Meier estimator and the Cox model
+both assume that censoring is independent of the event:
+participants who drop out are similar in event risk to
+participants who remain. This often fails. Patients who
+withdraw because of side effects may be at different risk
+of the event than those who tolerate the treatment.
+Hospital-administrative censoring (the patient's chart was
+lost) is usually independent; clinical censoring (the
+patient stopped attending follow-up because their disease
+progressed) is usually not. Detecting violations of
+independent censoring is rarely possible from the data
+alone; it is a substantive judgement.
+
+**The proportional hazards assumption matters.** Cox
+regression's coefficient $\exp(\beta)$ is interpretable as
+a hazard ratio *only if* that ratio is constant over time.
+When PH fails, and it often does for treatments whose
+effect wanes over time, the reported HR is an average
+across the follow-up period whose interpretation depends
+on follow-up length. Reporting a single HR for a non-PH
+effect is misleading.
+
+**Hazard ratio versus risk difference.** Hazard ratios are
+mathematically convenient but clinically opaque. A reader
+who sees 'HR = 0.7, p < 0.001' wants to know: how many more
+patients survived to 5 years on treatment vs. control?
+That is a *survival difference at $t = 5$*, easily
+extracted from the model. Reporting only the HR misses
+the substantive answer.
+
+**Time-varying covariates need the counting-process
+format.** A baseline covariate that the patient acquires
+during follow-up (e.g., a complication, a dose change) is
+not a baseline covariate. Treating it as one, using its
+final value or its baseline value with a single row per
+patient, biases the estimated effect. The counting-
+process format with one row per follow-up interval is the
+correct representation.
+
+**Competing risks change everything.** If a patient can
+die from the cause of interest, from another cause, or
+remain alive at study end, naive Kaplan-Meier on cause-
+specific death overstates the cumulative incidence. The
+correct estimator is the cumulative incidence function;
+the correct regression model is Fine-Gray's
+subdistribution hazards. Forgetting this is a classic
+error in cardiovascular and oncology analyses.
+
+These judgements are what distinguishes survival
+analysis from a mechanical execution of `coxph()`.
+
+## Censoring
+
+A right-censored observation has its event time bounded
+*below* by the censoring time $C$: the event happens at
+some unknown $T > C$. The participant was followed to
+time $C$ without an event being observed. Common reasons:
+
+- The study ended before the event occurred (administrative
+  censoring).
+- The participant withdrew or was lost to follow-up.
+- A non-event 'absorbing' state was reached (e.g., received
+  a transplant, was deemed ineligible).
+
+Right censoring is the dominant pattern in survival
+analysis. Left censoring (event known to occur before some
+time) and interval censoring (event known to occur in a
+time interval) appear in screening and disease-progression
+studies; the `survival` package supports them via
+`Surv(..., type = ...)`.
+
+**Independent censoring** is the standard assumption: a
+participant censored at time $C$ has the same event
+distribution beyond $C$ as a participant who is still
+event-free at $C$. Violations are *informative* censoring,
+which biases the estimator. Diagnostics are limited; the
+defence is mostly substantive.
+
+## The `Surv()` object
+
+A `Surv()` object packages an event time and an event
+indicator (1 = event, 0 = censored) into a single object
+that survival functions can use:
+
+```r
+library(survival)
+
+# right-censored
+s <- Surv(time = lung$time, event = lung$status == 2)
+head(s)
+#> [1] 306    455    1010+   210    883    1022+
+
+# the '+' marks censoring
+```
+
+Conventions vary in coding the indicator. Many R datasets
+use `event = 1, censored = 0`. Many CDISC datasets use the
+opposite (`CNSR = 1` for censored, `0` for event). Read the
+data dictionary; the wrong coding produces an analysis on
+the wrong cohort.
+
+For time-varying covariates, the `(start, stop, event)`
+form represents one interval of constant covariate values:
+
+```r
+Surv(time = start, time2 = stop, event = event)
+```
+
+For interval-censored data:
+
+```r
+Surv(time = lower, time2 = upper, type = "interval2")
+```
+
+## Kaplan-Meier estimator
+
+The Kaplan-Meier (product-limit) estimator estimates the
+survivor function $S(t) = P(T > t)$ nonparametrically,
+allowing for right censoring:
+
+$$
+\hat S(t) = \prod_{t_j \leq t} \frac{n_j - d_j}{n_j}
+$$
+
+where the product is over distinct observed event times
+$t_j$, $n_j$ is the number at risk just before $t_j$, and
+$d_j$ is the number of events at $t_j$. Censored
+observations contribute to the risk set up to (but not
+beyond) their censoring time.
+
+```r
+library(survival)
+data(lung)
+
+# overall KM
+fit <- survfit(Surv(time, status == 2) ~ 1, data = lung)
+plot(fit, mark.time = TRUE,
+     xlab = "Days", ylab = "Survival probability")
+
+# by sex (1 = male, 2 = female)
+fit_sex <- survfit(Surv(time, status == 2) ~ sex, data = lung)
+plot(fit_sex, col = c("blue", "red"))
+legend("topright", legend = c("Male", "Female"),
+       col = c("blue", "red"), lty = 1)
+```
+
+A more polished plot:
+
+```r
+library(survminer)
+ggsurvplot(fit_sex, data = lung,
+           conf.int = TRUE, risk.table = TRUE,
+           pval = TRUE, surv.median.line = "hv")
+```
+
+The median survival time is the time at which $\hat S(t)$
+crosses 0.5. With CIs:
+
+```r
+summary(fit_sex)$table
+```
+
+The log-rank test compares survival across groups:
+
+```r
+survdiff(Surv(time, status == 2) ~ sex, data = lung)
+```
+
+It tests the null hypothesis of equal hazard at every time
+point, against the (unspecified) alternative that they
+differ. Like all rank tests, it is most powerful when the
+true hazard ratio is roughly constant over time, the
+same setting in which the Cox model is the right tool.
+
+## Cox proportional hazards model
+
+The Cox model:
+
+$$
+\lambda(t \mid \mathbf{x}) = \lambda_0(t) \exp(\mathbf{x}^T \boldsymbol\beta).
+$$
+
+The hazard at time $t$ is the baseline hazard
+$\lambda_0(t)$ multiplied by an exponential function of the
+covariates. Importantly, $\lambda_0(t)$ is left
+*unspecified* and is not estimated, only the relative
+hazards (the $\boldsymbol\beta$) are.
+
+```r
+fit <- coxph(Surv(time, status == 2) ~ age + sex + ph.ecog,
+             data = lung)
+summary(fit)
+```
+
+The output shows coefficients $\hat\beta_j$ on the log-
+hazard scale and $\exp(\hat\beta_j)$ as **hazard ratios**.
+A hazard ratio of 1.5 means the instantaneous risk of the
+event is 1.5× higher per unit increase in $x_j$, holding
+other covariates fixed.
+
+`exp(coef(fit))` gives the HRs; `confint()` gives 95% CIs
+on the log-hazard scale, which exponentiate to CIs on the
+HR scale.
+
+`broom::tidy()` produces a tidy data frame:
+
+```r
+broom::tidy(fit, exponentiate = TRUE, conf.int = TRUE)
+```
+
+### Tied event times
+
+When multiple events occur at the same recorded time, the
+partial likelihood is ambiguous. `coxph()` defaults to the
+Efron approximation, which is accurate and fast. The
+Breslow alternative is faster but less accurate when ties
+are common. For data with extensive tying (e.g., daily
+follow-up on slowly-progressing disease), use exact methods
+(`method = "exact"`), which are the most accurate but
+slowest. The Efron default is the right choice for almost
+all clinical data.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: hazard ratio vs. survival difference
+
+**Question.** A Cox model reports HR = 0.7 (95% CI 0.55,
+0.89) for treatment vs. control. The 5-year survival is
+65% in control and 75% in treatment. Which number should
+you report to a clinical reader, and why?
+
+**Answer.**
+
+Report both. The HR is the standard way to summarise the
+treatment effect for the methods-literate, and it is the
+quantity the regression actually estimates. The 5-year
+survival difference (10 percentage points) is what
+clinicians and patients understand. Reporting only the HR
+loses the absolute scale of the benefit; reporting only
+the difference loses the time-summary character of the
+HR. Modern reporting practice (e.g., CONSORT for trials)
+recommends both. The HR speaks to whether the treatment
+helps; the absolute difference speaks to how much.
+
+:::
+
+## Checking proportional hazards
+
+`cox.zph()` computes a test based on scaled Schoenfeld
+residuals: under the null of proportional hazards, the
+scaled residuals should not trend with time.
+
+```r
+zph <- cox.zph(fit)
+zph
+plot(zph)            # residuals vs. time, one panel per covariate
+```
+
+A small p-value for a particular covariate flags that
+its hazard ratio changes with time. Visual inspection of
+the plot is essential: a small p-value driven by one
+outlying time point is different from a clear monotonic
+trend.
+
+When PH fails, options:
+
+1. **Stratify** by the offending covariate. The Cox model
+   with `+ strata(x)` allows a separate baseline hazard for
+   each level of `x` but does not estimate its main
+   effect. Use when the variable's effect is not of direct
+   interest (e.g., centre in a multicentre trial).
+2. **Time-varying coefficient.** Allow the coefficient on
+   the variable to vary with time, e.g., via the
+   `tt = function(x, t, ...)` argument in `coxph()`. This
+   is the right move when you want to report the time
+   pattern of the effect.
+3. **Switch to AFT.** Accelerated failure time models do
+   not assume PH; they assume the covariate accelerates or
+   decelerates the time scale.
+4. **Time-period-specific HRs.** Split follow-up at a
+   landmark time (e.g., 1 year) and report HRs for each
+   period.
+
+## Time-varying covariates
+
+A patient's covariate may change during follow-up: a
+laboratory value updates, a treatment changes, a side
+effect develops. Treating only the baseline value as the
+covariate is biased.
+
+The counting-process format expands the dataset so that
+each row represents an interval over which the covariate
+is constant:
+
+```
+id  start  stop  event  drug  age  sex
+ 1    0     30      0    A    65    M
+ 1   30     60      0    B    65    M
+ 1   60    150      1    B    65    M
+```
+
+Patient 1 had drug A from day 0 to 30, drug B from 30 to
+150, and the event at 150. Each row is one interval.
+
+```r
+fit_tv <- coxph(Surv(start, stop, event) ~ drug + age + sex,
+                data = expanded)
+```
+
+`survival::tmerge()` is the canonical tool for converting
+wide-format longitudinal data into the counting-process
+format. The package vignette
+(`vignette("timedep", package = "survival")`) is the
+authoritative reference.
+
+## Competing risks
+
+When a patient can die from the cause of interest, from
+another cause, or remain alive (or in a similar three-way
+state), naive Kaplan-Meier on the cause of interest, by
+treating death from other causes as censoring, *over*-
+states the cumulative incidence. The reason: the
+estimator implicitly assumes that the patient who died
+of another cause might still have died of the cause of
+interest later, which is impossible.
+
+The correct nonparametric estimator is the **cumulative
+incidence function** (CIF):
+
+```r
+library(cmprsk)
+cif <- cuminc(ftime = data$time, fstatus = data$status,
+              group = data$treatment)
+plot(cif)
+```
+
+For regression on the *subdistribution* hazard (the hazard
+of the cause of interest among those who have not yet
+experienced any of the competing events), use the
+Fine-Gray model:
+
+```r
+library(cmprsk)
+fg <- crr(ftime = data$time, fstatus = data$status, cov1 = X,
+          failcode = 1, cencode = 0)
+```
+
+The `tidycmprsk` package provides a tidier interface.
+Cause-specific Cox models (`coxph` with the competing
+event treated as censoring) are also valid but answer a
+different question: the rate among the still-at-risk,
+rather than the cumulative incidence.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: competing risks
+
+**Question.** In a study of cardiovascular mortality, you
+treat death from any non-cardiovascular cause as
+censoring and use Kaplan-Meier. What is wrong with this
+analysis?
+
+**Answer.**
+
+KM with non-CV death treated as censoring assumes that
+patients who die of non-CV causes might still have died
+of CV causes later, that censoring is independent of
+the event of interest. With death as the censoring
+mechanism, this is mechanically false: a patient who has
+died cannot subsequently experience the event. The KM
+estimator therefore overstates the cumulative incidence
+of CV death. The correct estimator is the cumulative
+incidence function (CIF), which acknowledges that
+non-CV death removes the patient from being at risk for
+CV death. Use `cmprsk::cuminc` for the nonparametric
+estimate and `cmprsk::crr` for Fine-Gray regression.
+This error is widespread in older cardiovascular and
+oncology literature.
+
+:::
+
+## Worked example: NCCTG lung cancer trial
+
+```r
+library(survival)
+library(survminer)
+data(lung)
+
+# KM by sex
+km <- survfit(Surv(time, status == 2) ~ sex, data = lung)
+ggsurvplot(km, data = lung, conf.int = TRUE,
+           risk.table = TRUE, pval = TRUE,
+           legend.labs = c("Male", "Female"))
+
+# Cox model
+fit <- coxph(Surv(time, status == 2) ~ age + sex + ph.ecog,
+             data = lung)
+summary(fit)
+broom::tidy(fit, exponentiate = TRUE, conf.int = TRUE)
+
+# PH check
+zph <- cox.zph(fit)
+zph
+plot(zph)
+
+# adjusted survival curves at typical ages, by sex
+new_data <- expand.grid(age = c(50, 70), sex = c(1, 2),
+                        ph.ecog = 1)
+sf <- survfit(fit, newdata = new_data)
+plot(sf)
+```
+
+The fixed effects table shows that being female and lower
+ECOG score are associated with longer survival; age has
+weaker effect. The PH check should be inspected before any
+HR is reported.
+
+## Collaborating with an LLM on survival analysis
+
+Survival analysis has more silent failure modes than most
+modelling areas. LLMs are competent at the standard
+operations and prone to the standard mistakes.
+
+**Prompt 1: writing the analysis.** Describe the data
+(time variable, event indicator including its coding,
+covariates) and ask: 'fit Kaplan-Meier curves and a Cox
+model, check proportional hazards, and report hazard
+ratios with CIs.'
+
+*What to watch for.* The single most common error is event
+indicator coding: the LLM may use `status == 2` when the
+data have `status == 1` for events, or vice versa. Always
+verify by looking at the table of events and how the model
+counts them. Reading `summary(fit)$nevent` against the
+table of `status` values catches this.
+
+*Verification.* Run the analysis and check three things:
+the number of events in the model output matches the data,
+the direction of the HRs makes clinical sense, and the
+log-rank p-value (if reported) is consistent with the
+visual KM curves.
+
+**Prompt 2: handling time-varying covariates.** Describe
+a covariate that updates during follow-up and ask: 'set up
+the counting-process data and fit a time-varying Cox
+model.'
+
+*What to watch for.* The expansion to counting-process
+format is error-prone; LLMs sometimes produce expansions
+that double-count events or have incorrect risk sets. The
+canonical tool is `survival::tmerge()`. If the LLM does
+not use it, push back.
+
+*Verification.* After expansion, check that the total
+number of events is correct (one event per patient who
+experienced one), that no row has `start >= stop`, and
+that the per-patient sum of follow-up matches the
+original. These three checks catch most expansion bugs.
+
+**Prompt 3: competing risks.** Describe the outcome and
+the competing event. Ask: 'should I use Cox or Fine-Gray,
+and why?'
+
+*What to watch for.* Both are defensible answers depending
+on the question. Cause-specific Cox models the rate among
+those still at risk; Fine-Gray models the cumulative
+incidence. For prognosis ('what is the patient's
+probability of CV death?'), Fine-Gray is usually more
+appropriate. For aetiology ('does the treatment affect the
+biological pathway to CV death?'), cause-specific Cox is.
+The LLM should distinguish these; if it does not, ask.
+
+## Principle in use
+
+Three habits define defensible survival analyses:
+
+1. **Verify the censoring coding before any analysis.**
+   The single most common error in applied survival work
+   is reversed event/censoring indicators.
+2. **Always check proportional hazards.** Reporting a Cox
+   coefficient without checking PH is reporting a number
+   whose interpretation depends on follow-up length.
+3. **Report on the survival scale, not just the hazard
+   scale.** Hazard ratios are for methods sections;
+   absolute differences in survival probability are for
+   results sections.
+
+## Exercises
+
+1. Using `survival::lung`, fit a Cox model for overall
+   survival on age and sex. Produce hazard-ratio
+   estimates with 95% CIs. Check the proportional-hazards
+   assumption and report the conclusion.
+2. Simulate a two-arm trial with exponential survival,
+   true hazard ratio of 0.7, median follow-up 18 months,
+   and 20% loss to follow-up. Estimate the observed power
+   at $n = 300$ total from 1000 replicates.
+3. Construct a dataset with one baseline covariate that is
+   a strong predictor of *censoring* (not the event). Show
+   by simulation that naive KM overstates survival because
+   censoring is informative; discuss remedies.
+4. Use `survival::tmerge()` to expand a wide-format
+   longitudinal dataset to the counting-process format.
+   Verify the expansion did not change the total number of
+   events or total follow-up.
+5. Simulate competing risks with a 30% rate of competing
+   death. Compare KM (treating competing as censoring),
+   the cumulative incidence function, and a Fine-Gray
+   regression. Quantify the bias of KM relative to CIF.
+
+## Further reading
+
+- Therneau and Grambsch (2000), *Modeling Survival Data:
+  Extending the Cox Model*, Springer, the standard
+  extended-Cox reference; the `survival` package is its
+  companion implementation.
+- Kleinbaum and Klein (2012), *Survival Analysis: A
+  Self-Learning Text*, 3rd ed., Springer, the most
+  readable introduction at MS level.
+- The `survival` package vignettes on CRAN, run
+  `vignette(package = "survival")` for the full list. The
+  'timedep' vignette is essential for time-varying
+  covariates.
+- Andersen and Geskus (2010), 'Cumulative incidence in
+  competing risks data and competing risks regression
+  analysis', *Clinical Cancer Research*, a clear
+  motivation for Fine-Gray.
+
+## Practice test {#sec-practice-test-13}
+
+The following multiple-choice questions exercise the
+chapter's content. Attempt each question before
+expanding the answer.
+
+### Question 1
+
+Right censoring of an observation means:
+
+- A) The participant's outcome value is missing.
+- B) The participant's event time is known to exceed
+  some observed time, but is otherwise unknown.
+- C) The participant is dropped from the analysis.
+- D) The data were collected at the wrong time.
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** Censoring preserves partial information ('event
+did not occur before time $C$') that a missing-outcome
+analysis would discard.
+:::
+
+### Question 2
+
+In the Cox proportional hazards model, the coefficient
+$\beta$ is interpreted on the:
+
+- A) Probability scale (a one-unit change in $x$
+  changes the probability of the event by $\beta$).
+- B) Hazard scale (a one-unit change in $x$ multiplies
+  the hazard by $\exp(\beta)$).
+- C) Time scale (a one-unit change in $x$ changes
+  median survival by $\beta$ time units).
+- D) Odds scale.
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** $\exp(\beta)$ is the hazard ratio. The
+interpretation is multiplicative on the instantaneous
+hazard, conditional on having survived to that time.
+:::
+
+### Question 3
+
+`cox.zph()` produces a small p-value for one of your
+covariates. Which is the most appropriate response?
+
+- A) Drop the covariate from the model.
+- B) Acknowledge that the proportional-hazards
+  assumption is violated for that covariate, inspect the
+  scaled-Schoenfeld plot, and consider stratification or a
+  time-varying coefficient.
+- C) Add an interaction with another covariate.
+- D) Switch to a logistic regression.
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** A PH violation does not mean the covariate is
+unimportant; it means its effect changes with time.
+Remedies preserve the variable while modelling the time
+dependence honestly.
+:::
+
+### Question 4
+
+In a study of cardiovascular mortality, you treat death
+from non-cardiovascular causes as censoring and apply
+Kaplan-Meier. The estimated cumulative incidence of CV
+death will be:
+
+- A) Unbiased.
+- B) Biased downward (underestimated).
+- C) Biased upward (overstated).
+- D) Unrelated to the competing-risks issue.
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**C.** KM treating competing death as censoring overstates
+the cumulative incidence because it implicitly assumes
+patients who died of other causes might have later died
+of CV causes. Use the cumulative incidence function or
+Fine-Gray regression.
+:::
+
+### Question 5
+
+Your dataset has a covariate that changes during
+follow-up. The correct way to fit a Cox model with
+this covariate is:
+
+- A) Use only the baseline value.
+- B) Use only the final value.
+- C) Use the time-average value.
+- D) Expand the data to the counting-process format
+  with one row per interval of constant covariate value
+  and fit `coxph(Surv(start, stop, event) ~ ...)`.
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**D.** Counting-process format is the correct
+representation. Options A--C all introduce bias.
+:::
+
+## Prerequisites answers {#sec-quiz-answers-13}
+
+1. Right censoring occurs when a participant's event
+   time is known to exceed some observed time $C$ (for
+   example, they are still alive at the end of the
+   study, or they withdrew at time $C$). The event *did*
+   occur for some participants, and for those the event
+   time is observed; for censored participants, the
+   event time is partially observed (bounded below by
+   $C$). This is different from a missing outcome
+   because we retain information (the event did not
+   occur before $C$); a missing outcome provides no such
+   information and must be handled as missing data (see
+   the Missing Data chapter of the companion *Practicum*
+   volume).
+2. The Kaplan-Meier estimator estimates the survivor
+   function $S(t) = P(T > t)$, where $T$ is the event
+   time. It multiplies the conditional probabilities of
+   surviving each observed event time, where the
+   conditional probability at time $t_j$ is
+   $(n_j - d_j) / n_j$ with $n_j$ the risk set and $d_j$
+   the number of events. Censored participants
+   contribute to the risk set until the moment of their
+   censoring and are dropped afterward. The estimator is
+   nonparametric and unbiased under independent
+   censoring.
+3. The proportional-hazards assumption is that the
+   hazard ratio $\exp(x' \beta)$ is *constant over
+   time*. Equivalently, the log hazard functions of any
+   two groups defined by the covariates are parallel.
+   You check it in R with `survival::cox.zph(fit)`,
+   which tests whether the scaled Schoenfeld residuals
+   have a non-zero slope against time, and graphically
+   with `plot(cox.zph(fit))`. A significant global test
+   or a visibly trending residual indicates violation;
+   common remedies include stratification on the
+   offending covariate or modelling time-varying
+   coefficients.

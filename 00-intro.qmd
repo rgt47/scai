@@ -1,0 +1,299 @@
+# Introduction {#sec-intro .unnumbered}
+
+## What is statistical computing?
+
+Statistical computing sits at the intersection of three
+disciplines:
+
+1. **Statistics** provides the *questions*, how to
+   estimate parameters, quantify uncertainty, and test
+   hypotheses.
+2. **Computer science** provides the *tools* ---
+   algorithms, data structures, numerical stability, and
+   software engineering practices.
+3. **Domain science** (here, biomedicine) provides the
+   *data*, messy, irregular, and consequential.
+
+A biostatistician who is weak in any of the three produces
+work that is incorrect, slow, or irrelevant. This book
+aims to build competence in all three, and one more: the
+ability to collaborate effectively with a large language
+model while retaining full professional responsibility
+for the analysis.
+
+## The question this chapter answers
+
+Why learn any of this when an LLM will produce working R
+code on request? The preface gave the short answer; this
+chapter gives the long one.
+
+The answer has two parts. The first part is *practical*:
+LLMs fail in specific, learnable, predictable ways, and a
+statistician who cannot detect those failures will sign
+her name to analyses that are wrong. The second part is
+*structural*: certain decisions in statistical computing
+cannot be delegated to an LLM in principle, because they
+depend on information the LLM does not have and cannot
+obtain through prompting.
+
+## A framework for human-LLM collaboration
+
+For every topic in this book, the statistician-LLM
+division of labour sorts into four categories.
+
+**Category 1: Things the LLM does reliably.**
+
+- Translating a correctly stated mathematical or
+  algorithmic description into syntactically valid R
+  code.
+- Refactoring working code for style, readability, or
+  idiom.
+- Generating unit tests for a function whose behaviour
+  is well specified.
+- Explaining a familiar concept from canonical sources.
+- Producing boilerplate for common patterns (a
+  `purrr::map_dfr()` over a list of files; an `lm()`
+  diagnostic quartet).
+
+For these tasks an LLM is a fast, tireless collaborator,
+and you should use it freely. Verification is usually
+trivial: the code runs and produces the expected output.
+
+**Category 2: Things the LLM does unreliably.**
+
+- Choosing a method when several are plausible (`lm`
+  versus `glm` versus `lmer` given a particular data
+  structure).
+- Handling edge cases it has not encountered many times
+  in training (rare distributions, unusual study
+  designs, combinations of features).
+- Producing numerically stable implementations of
+  classical algorithms without explicit guidance.
+- Reading recent (post-training-cutoff) package APIs or
+  conventions correctly.
+
+For these tasks the LLM's output is often plausible but
+wrong. Verification requires you to know the answer
+yourself, at least at the level of 'what should the
+output look like?' The book trains you in that knowledge.
+
+**Category 3: Things the LLM cannot do because it lacks
+information.**
+
+- Knowing whether the data you are analysing were
+  collected by a process that justifies the method the
+  LLM proposes.
+- Recognising dependence structures (clustering, time
+  series, pedigrees) from the data itself, when those
+  structures are not explicit in variable names.
+- Judging whether an assumption 'holds' in your specific
+  scientific context.
+- Deciding what research question the analysis is meant
+  to answer when the question is stated ambiguously.
+
+These tasks require context the LLM does not and cannot
+have. They require the statistician's judgment by
+definition.
+
+**Category 4: Things the LLM cannot do because of
+professional accountability.**
+
+- Taking responsibility for an analysis submitted to a
+  regulatory body or a journal.
+- Standing behind the interpretation when challenged by
+  a referee or a sceptical principal investigator.
+- Certifying the reproducibility of the compendium.
+- Signing the paper.
+
+These responsibilities rest with the statistician,
+irrespective of how capable the LLM becomes.
+
+## What LLMs cannot do: concrete examples
+
+Abstract categories are less convincing than concrete
+failures. Here are four, one from each part of this book,
+all of which an LLM will cheerfully answer incorrectly if
+you do not guide it.
+
+**Bootstrap a confidence interval for the maximum of a
+sample (@sec-bootstrap).** The LLM will produce working
+code. The code will return a CI whose upper endpoint
+equals the observed sample maximum, because the
+bootstrap maximum cannot exceed the observed maximum.
+This is a known pathology of the bootstrap for extrema.
+An LLM will not warn you.
+
+**Fit a Cox proportional-hazards model to a data frame
+with recurring patient visits (@sec-survival).** The LLM
+will produce `coxph(Surv(time, event) ~ x, data = df)`.
+The fit will ignore the dependence between visits from
+the same patient and report standard errors that are too
+narrow. A robust-sandwich option exists (`cluster()`) but
+the LLM will not add it unless you know to ask.
+
+**Apply a mixed-effects model to a small dataset with
+three clusters (@sec-mixed-models).** The LLM will fit
+`lmer()`. The REML variance-component estimate for the
+cluster effect will be almost entirely driven by the
+finite-sample prior implicit in REML; the user will read
+the coefficient as an estimate of a population quantity
+it does not meaningfully estimate. The LLM will not
+distinguish a well-posed LMM from a poorly-posed one.
+
+**Iteratively re-weighted least squares on a
+non-identifiable GLM (@sec-glm).** The LLM will run IRLS
+and return coefficients. IRLS on a non-identifiable model
+produces results that depend on the starting value; the
+LLM will return whichever answer its seed produced and
+present it with confidence. Detecting non-identifiability
+requires examining the design matrix or the likelihood,
+a step the LLM will not take unprompted.
+
+Each of these failures corresponds to a content chapter
+of this book. The chapter teaches the concept; the
+*statistician's contribution* section at its head tells
+you what the LLM will get wrong on this topic; the
+*Collaborating with an LLM* section at its foot practises
+the verification that catches the error.
+
+## The position this book takes
+
+Given the four-category framework:
+
+> **Use LLMs as an amplifier, not a replacement.** Treat
+> every line of generated code as a hypothesis to be
+> tested, not a result to be trusted.
+
+Specifically, the book recommends that students:
+
+- **Write the first version of any non-trivial function
+  without AI assistance.** This ensures you understand
+  the problem. An LLM-generated solution you did not
+  attempt yourself is a solution whose bugs are
+  invisible to you.
+- **Use the LLM to critique, refactor, or generate test
+  cases for code you wrote.** The LLM is excellent at
+  these jobs, and you will be faster with its help.
+- **Never submit code whose behaviour you cannot explain
+  in plain English.** If you cannot say what each line
+  does and why, you cannot verify it, and you should
+  not present it as your work.
+
+## Why the hard work still pays
+
+Students occasionally ask whether this training is
+obsolete, whether, in five years, the LLM will be
+good enough that these warnings no longer apply. The
+honest answer is: maybe, and maybe not. But three
+arguments remain even under the optimistic assumption:
+
+1. **Professional accountability does not transfer.**
+   However capable the LLM becomes, when an FDA reviewer
+   questions your submission or a referee challenges
+   your paper, you, not the model, answer the questions.
+2. **Verification always requires a second perspective.**
+   Even perfect LLMs cannot audit their own output; you
+   need the skills to do it.
+3. **Your scientific contribution is the judgment, not
+   the code.** A biostatistician who cannot contribute
+   judgment is not a biostatistician; she is a prompt
+   engineer. The market pays considerably more for the
+   former.
+
+In short: learning this material is not a hedge against
+LLM failure. It is the substance of what a
+biostatistician is for.
+
+## What you will be able to do
+
+By the end of this book, you should be able to:
+
+- Write clean, vectorised, functional R code that is
+  easy for collaborators to read and maintain.
+- Manage your work with Git and GitHub, including
+  resolving merge conflicts and collaborating via pull
+  requests.
+- Implement the core numerical algorithms of statistics
+ , linear system solvers, decompositions, and
+  optimizers, from first principles, and explain why
+  packaged implementations are usually preferable.
+- Design and execute a simulation study that produces
+  defensible answers to a research question.
+- Fit, diagnose, and interpret linear, generalised
+  linear, mixed-effects, survival, and Bayesian models on
+  real biomedical data, including recognising when each
+  is and is not appropriate.
+- Bootstrap inferential quantities for statistics whose
+  analytic standard errors are unavailable, and
+  recognise the cases where the bootstrap fails.
+- Produce publication-quality graphics with `ggplot2`
+  and build an interactive exploratory tool with Shiny.
+- Scale a computation across cores with the `future`
+  framework.
+- Package a set of analysis functions as an R package,
+  with unit tests and automated documentation.
+
+And, across all of these:
+
+- Collaborate productively with a large language model
+  while retaining full professional responsibility for
+  the analysis.
+
+## How each chapter is structured
+
+Every content chapter follows a consistent structure
+designed to make the human-LLM division of labour
+explicit:
+
+1. **Prerequisites**, three open-ended diagnostic
+   questions. Answer them honestly; if all three are
+   easy, you can bypass the chapter. Answers appear in
+   the *Quiz answers* section at the foot of the
+   chapter.
+2. **Learning objectives**, what you will be able to
+   do by the end.
+3. **Orientation**, why this chapter, in this place.
+4. **The statistician's contribution**, the two to
+   five decisions about this chapter's topic that the
+   LLM cannot make on your behalf. Read this section
+   first, and revisit it after you finish the chapter.
+5. **Content sections**, substantive material, worked
+   examples, and *Check your understanding* collapsible
+   callouts placed at natural pause points.
+6. **Collaborating with an LLM on [topic]**, three
+   adversarial prompts paired with Verification steps,
+   exercising the decisions from (4).
+7. **Exercises**, three to five, to be attempted
+   without LLM assistance the first time through.
+8. **Further reading**, curated pointers for deeper
+   study.
+9. **Quiz answers**, responses to the Prerequisites
+   questions.
+10. **Practice test** (chapters with matching content in
+    the course's exam bank), multiple-choice questions
+    drawn from the course test bank.
+
+## How to work through this book
+
+For each chapter, the recommended workflow is:
+
+1. **Read** the chapter through once, without running
+   code. Do the Prerequisites quiz honestly.
+2. **Replicate** the examples in your own R session.
+   Type, do not copy-paste.
+3. **Do** the exercises without consulting an LLM. Start
+   over if you get stuck; check against the quiz answers
+   or ask a peer before falling back on the LLM.
+4. **Extend** by pasting the chapter's LLM prompts into
+   a model and critiquing the responses. Confirm that
+   each verification step actually catches the failure
+   mode the prompt was designed to expose.
+5. **Reflect** on what, concretely, the LLM contributed
+   and what it could not. That reflection is the skill
+   this book is designed to build.
+
+Students who follow this workflow learn the material.
+Students who skip steps 2 and 3 do not, and within a
+year they cannot distinguish their own contributions
+from the LLM's, which means they cannot professionally
+account for either.

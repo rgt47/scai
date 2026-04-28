@@ -1,0 +1,789 @@
+# Simulation Study Design {#sec-simulation}
+
+## Prerequisites
+
+Answer the following questions to see if you can bypass this
+chapter. You can find the answers at the end of the chapter in
+@sec-quiz-answers-08.
+
+1. What is the primary reason for calling `set.seed()` at the
+   start of a simulation?
+2. In a Monte Carlo simulation, how does the standard error
+   of a simulated quantity change as the number of
+   replications increases from $R$ to $4R$?
+3. When comparing two statistical methods by simulation, what
+   is the benefit of using common random numbers across
+   methods?
+
+## Learning objectives
+
+By the end of this chapter you should be able to:
+
+- State what a simulation study can and cannot establish.
+- Design a simulation with a clear data-generating mechanism,
+  estimands, methods, and performance measures (the ADEMP
+  framework).
+- Use `set.seed()` and `RNGkind()` correctly to produce
+  reproducible output.
+- Generate random variates from common parametric families
+  with `r*()` functions and from multivariate normal
+  distributions via Cholesky or `MASS::mvrnorm`.
+- Assess Type-I error, power, coverage, and bias for a
+  proposed method, and report each with a Monte Carlo
+  standard error.
+- Use common random numbers across competing methods to
+  reduce variance in a simulation comparison.
+- Recognise when parallelisation is worth the overhead, and
+  use `parallel::clusterSetRNGStream()` for reproducible
+  parallel simulations.
+
+## Orientation
+
+A simulation study is an experiment in which you know the
+truth. You specify a data-generating mechanism (so you know
+the true parameter values), run a method on the simulated
+data, and compare the method's output to the known truth.
+Iterating across many replicates produces estimates of how
+the method behaves.
+
+Well-designed simulations tell you whether a proposed method
+controls error rates, is efficient, and is robust to
+violations of its assumptions. Badly designed simulations
+mislead, and the misleading conclusions often look convincing
+because the methodology has the superficial shape of an
+experiment. This chapter is about how to tell the two apart.
+
+The basic ingredients are always the same: a data-generating
+mechanism (DGM) under your control, an estimand (the true
+quantity you want to estimate), one or more methods (the
+procedures you are evaluating), and performance measures
+(bias, variance, coverage, error rates, computational cost).
+The ADEMP framework assembles these into a reporting
+structure that has become the de facto standard in
+biostatistical methodology papers.
+
+## The statistician's contribution {#sec-simulation-human}
+
+Simulation studies are not automation-friendly. An LLM can
+generate a simulation loop quickly; what it cannot generate
+is the research question that makes the simulation
+meaningful or the adversarial checks that make its
+conclusions trustworthy.
+
+**Ask the right question.** The most common simulation
+failure is not a bug in the code; it is a simulation that
+does not address any question worth asking. 'Does method A
+outperform method B?' is rarely a precise enough question.
+'At what sample size, under what distributional conditions,
+for what effect size, does method A control Type-I error
+while method B does not?' is specific enough to be
+answerable. The sharpening of question is the
+statistician's job.
+
+**Make the DGM honest.** A simulation in which every
+assumption of the method is exactly met will make every
+reasonable method look great. The interesting question is
+robustness: what happens when assumptions are violated in
+ways the method's theory does not cover? Heavy-tailed
+errors, heteroscedasticity, missing data, measurement error,
+contamination, these are what real data bring. A
+simulation that omits them proves the method works on
+simulation data, which is a weaker claim than it sounds.
+
+**Pick performance measures that match the claim.** If the
+paper's claim is 'method A has correct coverage', measure
+coverage. If it is 'method A has smaller MSE', measure MSE.
+If it is 'method A is robust to contamination', measure bias
+under contamination. Measuring power when the claim is about
+coverage is a category error that peer reviewers miss more
+often than they should.
+
+**Report Monte Carlo uncertainty.** Every simulation result
+is an estimate based on $R$ replicates. It has its own
+standard error. Reporting 'method A's power is 0.82 vs.
+method B's 0.81' without the Monte Carlo SE (about 0.013 at
+$R = 1000$) is dishonest: the difference is within the
+simulation noise. Reporting the SE makes this visible.
+
+**Resist the temptation to keep simulating until the
+answer looks right.** Pre-register the design, the number
+of replicates, and the performance measures before running
+the simulation. Simulation experiments are as susceptible
+to garden-of-forking-paths bias as real experiments.
+
+These judgements are what separate a simulation that could
+have been a data dredge from a simulation that survives
+adversarial review. An LLM will happily execute a poorly
+designed simulation as efficiently as a well-designed one.
+
+## The ADEMP framework
+
+Morris, White, and Crowther (2019) propose ADEMP as the
+standard reporting framework for simulation studies:
+
+- **A**ims. What question is the simulation answering?
+- **D**ata-generating mechanism. How are the simulated
+  datasets created? What distributions, parameter values,
+  sample sizes, and correlation structures are used?
+- **E**stimand. What true quantity is the method trying to
+  estimate? Be explicit: a regression coefficient, a
+  treatment effect, a tail probability, a coverage
+  probability.
+- **M**ethods. Which procedures are being evaluated? State
+  each method precisely enough that another researcher
+  could reproduce it.
+- **P**erformance measures. Which properties are being
+  measured? Bias, mean squared error, coverage of a
+  $(1 - \alpha)$ confidence interval, Type-I error rate,
+  power at specific alternatives. Each should be quantified
+  with a Monte Carlo standard error.
+
+An ADEMP-structured methods section makes a simulation study
+reviewable; a narrative description that conflates the
+components is much harder to assess. When designing your
+own simulation, write the ADEMP specification *before*
+writing any code. When reading someone else's simulation,
+map their description onto ADEMP; gaps in their exposition
+usually point to weaknesses in their design.
+
+## Random number generation in R
+
+R generates pseudorandom numbers with the Mersenne Twister by
+default, a high-quality generator with period $2^{19937} - 1$,
+vastly longer than any simulation will ever consume. The
+generator is deterministic: given the same seed, it produces
+the same sequence of draws.
+
+```r
+set.seed(42)
+runif(3)
+#> [1] 0.9148060 0.9370754 0.2861395
+
+set.seed(42)
+runif(3)
+#> [1] 0.9148060 0.9370754 0.2861395   # identical
+```
+
+`set.seed(42)` initialises the generator's state to a
+deterministic value derived from the integer 42. Subsequent
+calls to random functions draw from the resulting sequence.
+For reproducible simulations, call `set.seed()` at the
+beginning.
+
+**Reproducibility in the face of refactoring.** A simulation
+that gives results 'exactly' as reported in the paper
+requires that (a) R's default RNG has not changed between
+the original run and the reproduction, (b) the order of RNG
+calls is preserved, and (c) the simulation was run with the
+same number of replicates. Bit-identical reproduction across
+R versions is not guaranteed; approximate reproduction
+(results within Monte Carlo noise) is the more realistic
+goal.
+
+**`.Random.seed`** is a special variable holding the current
+state of the RNG. You can save and restore it:
+
+```r
+saved_state <- .Random.seed
+x <- runif(1)
+.Random.seed <- saved_state
+y <- runif(1)           # identical to x
+```
+
+This is occasionally useful when you want two independent
+replicates to share a specific random draw, or when
+debugging a simulation that fails on a particular replicate.
+
+**`RNGkind()`** selects the generator. For parallel
+simulations, `RNGkind("L'Ecuyer-CMRG")` is recommended
+because it provides independent streams across workers (see
+the parallelisation section below). Changing `RNGkind`
+changes the sequence even for the same seed, so document it
+if you use anything other than the default.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: set.seed before a simulation
+
+**Question.** Why call `set.seed()` at the start of a
+simulation, and what does setting the seed *not* guarantee?
+
+**Answer.**
+
+`set.seed()` fixes the pseudorandom stream, so running the
+simulation twice produces identical output, essential
+for reproducibility of tables, figures, and results
+reported in a paper. It does *not* guarantee that different
+R versions will produce identical output (RNG
+implementations have occasionally changed), that different
+operating systems will agree bit-for-bit, or that a
+simulation whose code calls random functions in a different
+order will produce the same results. For cross-version
+reproducibility, record the R version, the `RNGkind()`, and
+the seed, and store a copy of the simulated data or
+results alongside the code.
+
+:::
+
+## Generating random variates
+
+R's `r*()` functions cover the common distributions:
+
+```r
+runif(n)                       # uniform
+rnorm(n, mean, sd)             # normal
+rbinom(n, size, prob)          # binomial
+rpois(n, lambda)               # Poisson
+rexp(n, rate)                  # exponential
+rgamma(n, shape, rate)         # gamma
+rbeta(n, shape1, shape2)       # beta
+rt(n, df)                      # t
+rchisq(n, df)                  # chi-square
+rf(n, df1, df2)                # F
+rmultinom(n, size, prob)       # multinomial
+```
+
+Each has a corresponding `d*()` (density), `p*()`
+(distribution function), and `q*()` (quantile function).
+
+**Inverse transform.** For any distribution with a
+computable quantile function, if $U \sim \mathrm{Uniform}(0,1)$,
+then $F^{-1}(U)$ has distribution $F$. This is why
+`qnorm(runif(n))` is equivalent to `rnorm(n)`. For custom
+distributions where only `qdist` is available, the inverse
+transform is the standard constructor.
+
+**Acceptance-rejection.** For distributions without a
+convenient quantile function, generate a candidate from a
+proposal distribution and accept with probability equal to
+the ratio of target to envelope densities. R's internals
+use specialised acceptance-rejection schemes for many of
+the standard distributions.
+
+**Custom distributions.** If you need to sample from a
+density $f$ you can evaluate (up to a constant), MCMC is
+usually more reliable than hand-rolling rejection sampling.
+`MCMCpack`, `rstan`, and `nimble` are the standard tools.
+
+## Multivariate normal
+
+For a covariance matrix $\Sigma$ and mean $\mu$, a draw from
+$N(\mu, \Sigma)$ is constructed as $\mu + L z$ where $L$ is
+the Cholesky factor of $\Sigma$ and $z \sim N(0, I)$:
+
+```r
+Sigma <- matrix(c(1, 0.5, 0.5, 1), 2, 2)
+mu    <- c(0, 1)
+L     <- t(chol(Sigma))                # lower triangular
+z     <- matrix(rnorm(2 * 1000), 1000, 2)
+x     <- matrix(mu, 1000, 2, byrow = TRUE) + z %*% t(L)
+```
+
+`MASS::mvrnorm(n, mu, Sigma)` wraps this (using
+eigendecomposition by default for better behaviour on
+near-singular $\Sigma$). For large simulations where $\Sigma$
+is fixed across replicates, factor once and reuse $L$ rather
+than re-factoring every iteration.
+
+## Designing a simple simulation
+
+A concrete example: compare the t-test and the Wilcoxon
+rank-sum test under log-normal data.
+
+**A.** Does the t-test remain valid when the outcome is
+log-normal with a mean shift? How does its power compare to
+the Wilcoxon rank-sum test?
+
+**D.** Two independent samples of size $n$, one from
+$\mathrm{Lognormal}(0, 1)$, one from
+$\mathrm{Lognormal}(\delta, 1)$ for $\delta \in \{0, 0.5, 1\}$.
+Sample sizes $n \in \{20, 50, 200\}$.
+
+**E.** The difference in means (corresponding to a location
+shift of $\delta$ on the log scale). Under $\delta = 0$, the
+null hypothesis is true.
+
+**M.** The two-sided two-sample t-test with `t.test()` and
+the Wilcoxon rank-sum test with `wilcox.test()`, each at
+$\alpha = 0.05$.
+
+**P.** Type-I error (rejection rate under $\delta = 0$) and
+power (rejection rate under $\delta > 0$).
+
+```r
+simulate_one <- function(n, delta) {
+  y1 <- rlnorm(n, meanlog = 0,      sdlog = 1)
+  y2 <- rlnorm(n, meanlog = delta,  sdlog = 1)
+  c(
+    t_reject = t.test(y1, y2)$p.value       < 0.05,
+    w_reject = wilcox.test(y1, y2)$p.value  < 0.05
+  )
+}
+
+run_scenario <- function(n, delta, R = 5000) {
+  results <- replicate(R, simulate_one(n, delta))
+  rowMeans(results)
+}
+
+design <- expand.grid(
+  n     = c(20, 50, 200),
+  delta = c(0, 0.5, 1)
+)
+
+set.seed(1)
+design$results <- Map(run_scenario, design$n, design$delta)
+```
+
+This is a 3×3 factorial design with 5000 replicates per
+cell. At $\delta = 0$, the 'rejection rate' estimates the
+Type-I error; at $\delta > 0$, it estimates the power.
+
+## Monte Carlo error
+
+Every simulation output is an estimate. For a rejection
+rate $\hat p$ estimated from $R$ independent replicates, the
+standard error is
+
+$$
+\mathrm{SE}(\hat p) = \sqrt{\hat p (1 - \hat p) / R}.
+$$
+
+At $R = 1000$ and $\hat p = 0.80$, this is about 0.013.
+Differences in power smaller than roughly 0.03 are within
+Monte Carlo noise and should not be reported as real.
+
+For continuous outputs (bias, MSE), the Monte Carlo SE is
+$s / \sqrt{R}$ where $s$ is the SD of the per-replicate
+estimates.
+
+**How many replicates?** Target the precision you need.
+For a Type-I error of 0.05, a Monte Carlo SE of 0.005
+requires about $R = 2000$. For detecting power differences
+of 0.01, you need $R \approx 20{,}000$. Report whatever $R$
+you used, and always report the Monte Carlo SE.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: Monte Carlo SE scaling
+
+**Question.** At $R = 1000$ the Monte Carlo SE of an
+estimated power of 0.8 is about 0.013. What $R$ would
+reduce the SE to 0.005?
+
+**Answer.**
+
+SE $\propto 1/\sqrt{R}$. Reducing the SE by a factor of
+$0.013 / 0.005 = 2.6$ requires increasing $R$ by a factor
+of $2.6^2 \approx 6.8$. So $R \approx 6800$. More
+generally, doubling precision requires quadrupling
+replicates, which is the same inverse-square-root law
+that governs all Monte Carlo error. Plan the computational
+budget before running: if $R = 10^6$ replicates would take
+a week on your laptop, reconsider the target precision.
+
+:::
+
+## Common random numbers
+
+When comparing two methods on the same simulated dataset,
+use *the same* simulated dataset for both methods. This
+'common random numbers' (CRN) scheme induces positive
+correlation between the two methods' estimates, reducing
+the variance of their difference:
+
+$$
+\mathrm{Var}(\hat\theta_A - \hat\theta_B) =
+\mathrm{Var}(\hat\theta_A) + \mathrm{Var}(\hat\theta_B)
+- 2\mathrm{Cov}(\hat\theta_A, \hat\theta_B).
+$$
+
+If the methods are applied to independent datasets, the
+covariance is zero. If they are applied to the same dataset,
+the covariance is positive (both estimates see the same
+noise), and the variance of the difference drops.
+
+Practically: generate one dataset per replicate; apply both
+methods to it. The pattern already appears in the
+`simulate_one` function above.
+
+CRN is essentially the simulation analogue of a paired
+design in experimental statistics. The variance reduction
+can be dramatic, factors of 5 or more are common for
+methods that are correlated in their responses to the data.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: common random numbers
+
+**Question.** You want to compare the power of method A vs.
+method B. Why is generating one dataset per replicate and
+applying both methods to it better than generating two
+separate datasets (one for each method)?
+
+**Answer.**
+
+Because the methods see the same random noise, their
+rejection decisions are positively correlated. The
+variance of the difference in their rejection rates is
+therefore smaller than it would be under independent
+datasets. For a given $R$, CRN produces a tighter estimate
+of the difference. This is the Monte Carlo analogue of a
+paired study: comparing within a unit is more powerful
+than comparing across units when the unit-level
+variability is large. The variance reduction is often a
+factor of 3--10 in practice, buying the equivalent of many
+thousands of extra replicates for free.
+
+:::
+
+## Parallelisation
+
+Simulation studies are 'embarrassingly parallel': each
+replicate is independent of the others. Scaling to multiple
+cores is straightforward and usually produces near-linear
+speedup until the number of workers approaches the number of
+physical cores.
+
+```r
+library(parallel)
+
+RNGkind("L'Ecuyer-CMRG")             # supports independent streams
+set.seed(1)
+
+cl <- makeCluster(4)
+clusterSetRNGStream(cl, iseed = 1)   # reproducible, independent streams
+
+clusterExport(cl, c("simulate_one"))
+
+results <- parSapply(cl, seq_len(5000),
+                     function(i) simulate_one(n = 50, delta = 0.5))
+
+stopCluster(cl)
+
+rowMeans(results)
+```
+
+Two things are going on here:
+
+1. `RNGkind("L'Ecuyer-CMRG")` plus `clusterSetRNGStream` set
+   up a generator that can produce independent, non-
+   overlapping streams for each worker. Without this,
+   different workers may produce correlated (or identical)
+   sequences, silently biasing results.
+2. `clusterExport` copies named objects to each worker.
+   Functions and data the workers will need must be exported.
+
+For modern code, `future`, `future.apply`, and `furrr`
+provide a cleaner interface that abstracts over
+sequential/parallel/distributed execution:
+
+```r
+library(future.apply)
+plan(multisession, workers = 4)
+results <- future_sapply(seq_len(5000),
+                         function(i) simulate_one(n = 50, delta = 0.5),
+                         future.seed = TRUE)
+```
+
+`future.seed = TRUE` handles the RNG setup automatically,
+which is the main source of bugs in parallel simulations.
+
+**When is parallelisation worth it?** The overhead of
+starting workers and shipping data is non-trivial. For a
+replicate that takes milliseconds, parallelising 5000
+replicates across 4 cores may be slower than the
+serial version. For a replicate that takes seconds or more,
+parallelisation scales well. A rule of thumb: if your serial
+simulation takes more than about 10 minutes, parallelisation
+is worth setting up.
+
+## Reporting simulation results
+
+Simulation output is high-dimensional: methods × scenarios ×
+performance measures × replicates. Effective reporting
+extracts the headline findings into a small number of
+carefully designed figures.
+
+**Faceted line plots** work well for performance-by-
+sample-size curves. Sample size on x-axis, performance
+metric on y-axis, methods as colours, scenarios as facets.
+Add error bars or confidence bands for Monte Carlo error.
+
+**Heatmaps** work well for two-factor designs with many
+levels. Scenario on one axis, method on another, colour
+encodes performance.
+
+**Tables** complement figures when precise values matter.
+Report performance measures and Monte Carlo SEs side by
+side. Do not report differences smaller than the Monte Carlo
+SE as if they were real.
+
+An often-neglected piece: explicitly report what was
+simulated (ADEMP), how many replicates, the RNG used, the
+seed, and the compute environment (R version, OS, number of
+cores). This information is what makes the simulation
+reproducible.
+
+## Worked example: coverage of a confidence interval
+
+A classical use case: does a 95% confidence interval achieve
+its nominal coverage?
+
+```r
+simulate_coverage <- function(n, R = 5000) {
+  set.seed(42)
+  covered <- logical(R)
+  for (i in seq_len(R)) {
+    x <- rnorm(n, mean = 3, sd = 2)
+    ci <- t.test(x)$conf.int
+    covered[i] <- ci[1] <= 3 & 3 <= ci[2]
+  }
+  cov_rate <- mean(covered)
+  mcse <- sqrt(cov_rate * (1 - cov_rate) / R)
+  c(coverage = cov_rate, mcse = mcse)
+}
+
+simulate_coverage(n = 30)
+#> coverage     mcse
+#>    0.949    0.003
+```
+
+A coverage rate within about 2 Monte Carlo SEs of the
+nominal 0.95 is consistent with correct coverage.
+Substantial deviations flag a problem, either an
+incorrect CI procedure, a violation of assumptions the CI
+requires, or a bug in the simulation code itself.
+
+## Collaborating with an LLM on simulation design
+
+Simulation studies are a domain where LLMs can generate
+working code very quickly, and where the most important
+errors are design errors the LLM would not flag.
+
+**Prompt 1: drafting an ADEMP specification.** Describe the
+question in plain English and ask: 'write an ADEMP
+specification for a simulation study addressing this
+question. Make every component explicit.'
+
+*What to watch for.* The output will usually be
+well-structured but may pick default choices (sample sizes,
+effect sizes, distributions) that do not match the
+scientific question. Treat it as a draft. In particular,
+the 'D' (data-generating mechanism) is where most
+simulations go wrong: make sure the DGM reflects the real
+data, not a convenient idealisation.
+
+*Verification.* Have a second person (or yourself a day
+later) read the ADEMP and predict what the simulation will
+conclude. If the prediction is obvious from the DGM, the
+simulation is not adding information. If the prediction is
+unclear, the simulation is worth running.
+
+**Prompt 2: writing the simulation loop.** Paste the ADEMP
+and ask: 'write an R implementation using `set.seed()`,
+parallel execution via future.apply, and returning a tibble
+with one row per (scenario, replicate, method).'
+
+*What to watch for.* The loop will probably be correct for
+the serial case. For the parallel case, watch for the RNG
+setup: the L'Ecuyer-CMRG generator and `future.seed = TRUE`
+are the standard incantation, and LLMs sometimes forget
+them. Silent RNG correlation across workers is a classic
+failure mode.
+
+*Verification.* Run the simulation with a small $R$ and
+print intermediate results. Check: are the scenarios all
+there? Do both methods appear? Is the output shape right?
+Then scale up.
+
+**Prompt 3: computing Monte Carlo SEs.** Paste the summary
+output and ask: 'compute the Monte Carlo standard error for
+each performance measure. For proportions use
+$\sqrt{p(1-p)/R}$; for continuous measures use the empirical
+SD divided by $\sqrt{R}$.'
+
+*What to watch for.* LLMs sometimes produce confidence
+intervals using the wrong formula (e.g., treating coverage
+like a continuous measurement and using empirical SD).
+Match the formula to the type of quantity.
+
+*Verification.* For a proportion, the MCSE can be
+double-checked against `binom.test` or a bootstrap. For a
+continuous measure, the MCSE is the sample SD of the
+per-replicate estimates, divided by $\sqrt R$.
+
+The meta-lesson: an LLM can write a simulation loop faster
+than you can, but it cannot ensure that the simulation is
+asking a useful question or that the conclusions are robust
+to Monte Carlo noise. Those remain the analyst's job.
+
+## Principle in use
+
+Three habits define a defensible simulation study:
+
+1. **Write the ADEMP before writing code.** Aims, DGM,
+   estimand, methods, performance, explicit in writing.
+   If any of these is vague, sharpen before continuing.
+2. **Report Monte Carlo standard errors for every
+   performance measure.** Differences smaller than 2 MCSEs
+   are noise. Make the noise visible.
+3. **Treat the DGM as where the interesting judgement
+   lives.** Simulating only idealised data proves only that
+   a method works on idealised data. Include violations of
+   assumptions the method depends on.
+
+## Exercises
+
+1. Design a simulation to assess the Type-I error of a
+   one-sample t-test under three distributions: normal,
+   log-normal, and $t_3$. Report error rates with Monte
+   Carlo SEs for each.
+2. Extend exercise 1 to a $3 \times 3$ factorial design
+   (sample size $n \in \{20, 100, 500\}$; distribution
+   $\in \{\text{normal}, \text{log-normal}, t_3\}$).
+   Present results as a `ggplot2` faceted plot.
+3. Use `set.seed()` to produce a simulation whose output
+   is bit-reproducible. Change your R version (or run on a
+   different OS) and confirm that results remain identical.
+4. Run the t-test vs. Wilcoxon simulation from this chapter
+   with and without common random numbers. Compare the
+   Monte Carlo SE of the difference in power. How large is
+   the variance reduction?
+5. Parallelise the simulation from exercise 2 using
+   `future.apply::future_sapply()`. Verify that you get the
+   same results (within Monte Carlo noise) as the serial
+   version. Time both. At what $R$ does parallel become
+   faster?
+
+## Further reading
+
+- [@morris2019ademp], the ADEMP framework is the
+  standard for biostatistical simulation studies.
+- [@rizzo2019computing], book-length coverage of
+  statistical computing in R.
+- [Pawel et al. on simulation study reporting](https://www.bmj.com/content/367/bmj.l6802)
+ , concrete examples of good and bad simulation reports.
+
+## Practice test {#sec-practice-test-08}
+
+The following multiple-choice questions exercise the
+chapter's content. Attempt each question before expanding
+the answer.
+
+### Question 1
+
+What is the primary reason for setting a specific random
+seed in simulation studies?
+
+- A) To make the simulation run faster
+- B) To ensure reproducibility of results
+- C) To reduce the number of required replications
+- D) To eliminate Monte Carlo error
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** Setting a seed fixes the pseudorandom stream so
+the same simulation run produces the same results each
+time.
+:::
+
+### Question 2
+
+In a Monte Carlo simulation study, what happens to the
+standard error as the number of replications increases?
+
+- A) It increases proportionally
+- B) It remains constant
+- C) It decreases at a rate proportional to the square
+  root of the number of replications
+- D) It decreases linearly with the number of replications
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**C.** Monte Carlo standard error is $O(1/\sqrt{R})$.
+:::
+
+### Question 3
+
+When comparing statistical methods in a simulation study,
+which technique helps reduce extraneous variation and
+provides a more fair comparison?
+
+- A) Using different random seeds for each method
+- B) Using common random numbers across methods
+- C) Always using the default random number generator
+- D) Increasing the sample size until all methods converge
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** Common random numbers couple the realisations
+across methods, cancelling sampling variability that is
+not due to the methods themselves.
+:::
+
+### Question 4
+
+A simulation reports a power of 0.82 for method A and 0.80
+for method B, with $R = 1000$ replicates. Which of the
+following is the most defensible conclusion?
+
+- A) Method A has higher power than method B; the
+  difference is real.
+- B) The difference of 0.02 is smaller than roughly 2
+  Monte Carlo SEs at this $R$, so the simulation cannot
+  distinguish the two.
+- C) Method A is worse than method B because 0.82 < 0.80
+  on a reverse scale.
+- D) The simulation must be rerun with the same seed.
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** At $R = 1000$, the Monte Carlo SE for a
+proportion near 0.8 is roughly 0.013, and the SE for the
+*difference* is larger still. The nominal 0.02 gap is
+within sampling noise. Either increase $R$ or report the
+result as inconclusive.
+:::
+
+### Question 5
+
+In a parallel simulation using `parallel::clusterSetRNGStream()`,
+the purpose of the L'Ecuyer-CMRG generator is to:
+
+- A) Speed up random number generation by 10×.
+- B) Produce independent, non-overlapping streams of
+  random numbers across workers, preventing silent
+  correlation between workers.
+- C) Provide cryptographically secure random numbers.
+- D) Replace the need for `set.seed()`.
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** Without it, workers can draw from correlated (or
+identical) sequences, silently invalidating the
+simulation.
+:::
+
+## Prerequisites answers {#sec-quiz-answers-08}
+
+1. To ensure reproducibility: setting a seed before the
+   simulation makes the same sequence of pseudorandom
+   draws appear on each run, so results are exactly
+   reproducible. This is essential for papers, reviewable
+   work, and debugging.
+2. The Monte Carlo standard error is proportional to
+   $1/\sqrt{R}$. Multiplying $R$ by 4 halves the standard
+   error. This inverse-square-root law means that
+   increasing precision is expensive: quadrupling $R$ to
+   halve the SE, a 100-fold increase in $R$ to reduce SE
+   by 10.
+3. Common random numbers (CRN) force both methods to be
+   evaluated on the same realised random draws, so any
+   difference in their outputs reflects the methods
+   themselves rather than sampling noise in the inputs.
+   This reduces variance in the comparison and allows
+   smaller true differences to be detected. It is the
+   simulation analogue of a paired design in experimental
+   statistics.

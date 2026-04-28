@@ -1,0 +1,807 @@
+# R Internals {#sec-r-internals}
+
+## Prerequisites
+
+Answer the following questions to see if you can bypass this
+chapter. You can find the answers at the end of the chapter in
+@sec-quiz-answers-03.
+
+1. Given `x <- list(a = 1, b = 2, c = 3)`, what is the type
+   and value returned by `x[["b"]]`, and how does it differ
+   from what is returned by `x["b"]`?
+2. What is the primary structural difference between a data
+   frame and a matrix in R, and when does the difference
+   matter?
+3. When you modify a single element of a long vector that
+   another variable name also binds to, what does R do
+   internally, and why does this have performance
+   consequences?
+
+## Learning objectives
+
+By the end of this chapter you should be able to:
+
+- Describe R's memory model in terms of names and values, and
+  explain what 'copy-on-modify' means.
+- Use `lobstr::obj_addr()` and `tracemem()` to verify whether
+  a modification triggers a copy.
+- Predict and diagnose the O(n²) cost of growing a vector in
+  a loop; rewrite such code as O(n) with pre-allocation or
+  O(1) with vectorisation.
+- Explain lists as recursive vectors, and the semantic
+  distinction between `[`, `[[`, and `$`.
+- Explain data frames as lists of columns, and the
+  performance consequences for column-wise vs. row-wise work.
+- Use `bench::mark()` to compare implementations rigorously,
+  and `Rprof()`/`summaryRprof()` (or `profvis`) to locate
+  bottlenecks.
+
+## Orientation
+
+Writing fast R code requires knowing where your R code is
+slow, and that requires knowing a little about how R
+represents objects in memory. This chapter is the minimum you
+need to reason about performance without leaving R.
+
+It is also the bridge between 'R works' and 'R works
+efficiently'. Every practising R user has written code that
+felt inexplicably slow. Most of those incidents trace back to
+a small number of misunderstandings about R's memory model.
+The payoff for internalising these ideas is disproportionate:
+100× speedups on real analyses are common.
+
+## The statistician's contribution {#sec-r-internals-human}
+
+Memory semantics are objective facts about R. An LLM can
+summarise them in a paragraph. What an LLM cannot do is make
+the judgement calls that separate working code from defensible
+analysis code.
+
+**When to optimise, and when not to.** The dominant cost in
+most statistical analyses is not R's execution time; it is the
+analyst's time to reason about the model, check results, and
+communicate findings. Premature optimisation, rewriting
+clear code into obscure code to save milliseconds, is a
+common self-inflicted wound. The statistician's judgement is
+to optimise only the parts of a pipeline that are actually a
+bottleneck, and to preserve readability everywhere else. This
+is what profiling is for: it tells you where to spend the
+effort.
+
+**When to leave R.** Some statistical problems genuinely need
+more than R's interpreted loops can deliver. Rcpp, data.table,
+and (for pure-numeric work) vectorised BLAS calls are the
+standard escape hatches. The question is not 'is this faster?'
+--- C++ is almost always faster, but 'is the speedup worth
+the cost in code clarity, testability, and maintainability?'
+For a function run once per analysis, probably not. For a
+function inside an MCMC or a bootstrap loop that runs millions
+of times, probably yes.
+
+**What to trust.** Benchmarks are noisy. A `system.time()`
+call that runs once can mislead you by 2× either direction for
+reasons that have nothing to do with your code. Treat a single
+timing as a rough signal; treat `bench::mark()` output as a
+measurement. When the stakes are high, a paper's central
+claim about computational feasibility, or a regulatory
+submission's runtime, run benchmarks on a quiet machine,
+repeat them, and report variability.
+
+**Which data structure for which job.** Matrices and data
+frames look interchangeable until they are not. A simulation
+that produces a million numeric values per iteration should
+return a matrix, not a tibble. A downstream analysis that
+merges, filters, and groups should use a data frame or
+tibble, not a matrix. The choice is a judgement about what
+dominates: numeric throughput or ergonomics. Getting it right
+is worth more than any micro-optimisation.
+
+These decisions shape whether an analysis is fast enough to
+be practical, readable enough to be reviewed, and correct
+enough to be trusted. None of them can be automated.
+
+## R's memory model: names and values
+
+Every R object has two components: the **value** (the actual
+data) and the **name** or names that bind to that value.
+Multiple names can point to the same value, and R does not
+copy the underlying data until a modification makes the copy
+necessary. This is 'copy-on-modify'.
+
+```r
+library(lobstr)
+
+x <- c(1, 2, 3, 4, 5)
+y <- x              # y and x now point to the SAME vector
+
+obj_addr(x)
+#> [1] "0x7fd7..."
+obj_addr(y)
+#> [1] "0x7fd7..."  (identical)
+```
+
+The `obj_addr()` function returns the hex address where R has
+stored the object. After `y <- x`, both names point to the
+same address. No copying has occurred.
+
+Copy-on-modify kicks in when you try to change a shared
+object:
+
+```r
+y[1] <- 99          # modification triggers a copy
+
+obj_addr(x)
+#> [1] "0x7fd7..."          (unchanged)
+obj_addr(y)
+#> [1] "0x7fe9..."          (new address)
+```
+
+R sees that another name (`x`) still refers to the original
+vector, so it makes a copy, modifies the copy, and points `y`
+at the copy. `x` is untouched.
+
+This design trades some performance for a lot of safety.
+Without copy-on-modify, assigning `y <- x` and then modifying
+`y` could silently change `x`, as happens in Python with
+mutable objects. R chose predictability. For most statistical
+work, this is the right trade-off.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: Why memory matters
+
+**Question.** Why does understanding R's memory model matter
+for statistical programming?
+
+**Answer.**
+
+Memory knowledge is what separates code that feels fast from
+code that feels sluggish for reasons you cannot explain. The
+copy-on-modify rule is the direct cause of the classic
+growing-vector-in-a-loop trap (O(n²) behaviour). The
+modify-in-place exception for single-binding objects
+explains why pre-allocation rescues that same loop.
+Understanding when R copies and when it does not lets you
+write functions that run dozens of times faster on identical
+inputs. Ignorance of these rules costs 10--100× speedups on
+routine analysis code, silently.
+
+:::
+
+## Modify-in-place: the single-binding exception
+
+When an object has only one binding, R modifies it in place.
+No copy is made. This is a crucial exception that underlies
+most R performance advice.
+
+```r
+x <- c(1, 2, 3, 4, 5)
+obj_addr(x)
+#> [1] "0x7fa1..."
+
+x[1] <- 99          # only one name; R modifies in place
+obj_addr(x)
+#> [1] "0x7fa1..."         (same address)
+```
+
+The address is unchanged. R's reference counting saw that `x`
+was the only binding, concluded that it was safe to modify
+the existing memory, and did so.
+
+This is what makes pre-allocation effective: once you
+allocate a result vector and assign it to a single name,
+further writes into that vector modify it in place. The cost
+of each write is O(1), and the loop is O(n).
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: Without copy-on-modify
+
+**Question.** How would code behave differently if R did not
+use copy-on-modify semantics?
+
+**Answer.**
+
+Without copy-on-modify, `y <- x` would make `y` an alias for
+`x`. Modifying `y[1] <- 10` would also change `x[1]`. This
+is how Python lists behave. It would be faster (no copying)
+but error-prone: any function that modifies one of its
+arguments would have effects that ripple outward in ways
+that are hard to reason about. For interactive statistical
+work, where reproducibility and readability matter more
+than raw speed, R chose safety. Environments and some
+specialised packages (e.g., data.table) opt out of
+copy-on-modify when the speed gain is worth the added
+cognitive load.
+
+:::
+
+## Growing vectors: the quadratic trap
+
+The single most common self-inflicted performance wound in R
+code is growing a vector inside a loop:
+
+```r
+# SLOW: O(n^2)
+result <- c()
+for (i in 1:50000) {
+  result <- c(result, i^2)
+}
+```
+
+Each iteration copies the entire current vector, appends one
+element, and re-binds `result` to the new, longer vector. On
+iteration `i` the vector has size `i - 1`, so the copy costs
+`i - 1` operations. Summing over `i = 1, 2, ..., n` gives
+`n(n+1)/2 ≈ O(n²)`.
+
+On a laptop, `n = 50000` takes several seconds. On `n =
+500000`, the naive loop is unreasonable. This is not because
+R is slow; it is because the algorithm is accidentally
+quadratic.
+
+Three rewrites, in increasing order of goodness:
+
+```r
+# OK: pre-allocated, O(n)
+result <- numeric(50000)
+for (i in seq_len(50000)) {
+  result[i] <- i^2
+}
+
+# Better: vectorised, effectively O(1) in interpreter calls
+result <- seq_len(50000)^2
+```
+
+The pre-allocated version works because `result` has a single
+binding after allocation; each assignment modifies in place.
+The vectorised version pushes the loop into C code inside R's
+internals, which is both algorithmically better and avoids
+the interpreter overhead.
+
+Concretely, on typical hardware:
+
+- Grown vector: ~8 seconds.
+- Pre-allocated: ~0.05 seconds (160× faster).
+- Vectorised: ~0.0005 seconds (10,000× faster than grown).
+
+This is not a pathological example. It is exactly the shape
+of code many people write when first learning R. The
+diagnosis is easy once you know what to look for: if a loop
+ends with `x <- c(x, new_value)` or `x <- rbind(x, new_row)`,
+you have the quadratic trap.
+
+## Lists as recursive vectors
+
+Atomic vectors hold values of a single type, stored
+contiguously in memory. Lists are different: each element can
+hold any R object, including another list, and the elements
+are stored as independent objects with the list holding
+pointers to them.
+
+```r
+my_list <- list(
+  numbers = 1:5,
+  label   = "Alice",
+  model   = list(method = "Cox", df = 3)
+)
+```
+
+This is the recursive part: a list can contain a list can
+contain a list. Almost every composite object in R is
+ultimately built on lists: data frames, model outputs,
+S3/S4/R6 objects, function environments. Learning to think
+about lists fluently pays enormous dividends.
+
+### `[` vs `[[` vs `$`
+
+This is the most frequently confused piece of R syntax. The
+distinction is simple once stated plainly:
+
+- `[` returns a subset *of the container type*. For a list,
+  it returns a list. For a vector, it returns a vector. This
+  is called 'preserving'.
+- `[[` extracts *one element, at its own type*. For a list,
+  it returns whatever that element is (a vector, a number, a
+  nested list). This is called 'simplifying'.
+- `$` is a shorthand for `[[` by name: `my_list$numbers` is
+  exactly `my_list[["numbers"]]`.
+
+```r
+my_list[1]       # list of length 1, containing 1:5
+my_list[[1]]     # 1:5 itself
+my_list$numbers  # 1:5 itself
+```
+
+Using `[` when you meant `[[` is a subtle bug generator:
+downstream code expects a vector but receives a length-1
+list, and either fails or silently coerces.
+
+The old mnemonic (Wickham): if a list is a train, `[` returns
+a smaller train, `[[` returns the contents of one car, and
+`$` returns the contents of the car with the matching label.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: `[` vs `[[`
+
+**Question.** What is the difference between `my_list[1]` and
+`my_list[[1]]`?
+
+**Answer.**
+
+`my_list[1]` returns a list containing one element, the
+first element of `my_list` wrapped in a length-1 list.
+`my_list[[1]]` returns the element itself, at its own type:
+a vector, a scalar, a nested list, whatever was stored
+there. If downstream code expects a vector and you pass
+`my_list[1]`, it will fail or silently coerce. The `$`
+operator is a shorthand for `[[` by name. Mastery of this
+distinction prevents a lot of hours of debugging.
+
+:::
+
+## Data frames are lists of columns
+
+A data frame is, internally, a list whose elements are
+equal-length vectors. Each column is a separate vector stored
+at its own address; the data frame is a list of pointers to
+those vectors.
+
+This has three important consequences.
+
+**Column-wise operations are fast.** `df$x` is just retrieving
+a vector from the list, constant-time, no copying.
+Arithmetic on a column is a plain vector operation.
+
+**Row-wise operations are slow.** To take row 3, R must pull
+element 3 from each column vector and assemble them into a
+new structure. For a data frame with 50 columns, that is 50
+pointer dereferences and 50 small copies per row. Running
+`for (i in seq_len(nrow(df)))` is almost always the wrong
+approach for more than a few hundred rows. Vectorise along
+columns, or use `dplyr::group_by()` / `data.table` idioms
+that are column-oriented under the hood.
+
+**Subsetting preserves the list structure.** `df[1]` returns a
+data frame with one column (the preserving `[`). `df[[1]]`
+returns the vector of the first column (the simplifying `[[`).
+`df$name` returns the column. This is exactly the list
+semantics from the previous section, applied to a particular
+kind of list.
+
+Matrices are different: they store all elements as one
+contiguous vector with a `dim` attribute. This is why:
+
+- Matrix multiplication (`%*%`), decompositions (`solve`,
+  `qr`), and many linear algebra operations are fast on
+  matrices and absent or slow on data frames.
+- Matrices require all elements to share a type. Mixing
+  numeric and character columns forces everything to
+  character, usually silently and usually wrong.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: Matrix vs. data frame
+
+**Question.** When should you convert a data frame to a
+matrix for analysis?
+
+**Answer.**
+
+Convert when: (1) every column is numeric, (2) you are
+about to do linear algebra, `%*%`, `solve()`, `qr()`,
+`svd()`, or pass the data to a function that expects a
+matrix, and (3) the dataset is large enough that the
+memory-contiguity advantage matters. The conversion itself
+is cheap. Keep it as a data frame when types are mixed,
+when you want dplyr/tidyr ergonomics, or when you will
+display or export it. The common mistake is either
+extreme: keeping numeric-only data in a tibble through an
+expensive simulation loop, or coercing mixed-type data to a
+matrix and silently corrupting the character columns.
+
+:::
+
+## Factors: efficient categorical storage
+
+A factor stores a categorical variable as integer codes with
+a separate `levels` attribute mapping codes to labels.
+
+```r
+f <- factor(c("high", "low", "high", "medium"))
+typeof(f)
+#> [1] "integer"
+as.integer(f)
+#> [1] 1 2 1 3
+levels(f)
+#> [1] "high"   "low"    "medium"
+```
+
+For 1,000,000 observations of a two-level variable, storing
+integers is vastly cheaper than storing 1,000,000 copies of
+the strings. Factors also make grouping operations (`tapply`,
+`split`, `dplyr::group_by`) fast: the engine groups on the
+integer codes, not on string equality.
+
+The classic pitfall: `as.numeric(f)` returns the integer codes,
+not the original numeric values (if the labels were
+numeric-looking). For `factor(c("10", "20", "30"))`,
+`as.numeric(f)` gives `1 2 3`, not `10 20 30`. The correct
+idiom is `as.numeric(as.character(f))` or `as.numeric(levels(f))[f]`.
+This trap catches working statisticians frequently enough
+that it deserves naming.
+
+## Benchmarking: `bench::mark()`
+
+`system.time()` measures elapsed time for a single evaluation.
+It is a useful rough gauge, 'does this take 0.1 seconds or
+10 seconds?', but noisy. For comparing implementations,
+`bench::mark()` is the standard.
+
+```r
+library(bench)
+
+grow <- function(n) {
+  result <- c()
+  for (i in seq_len(n)) result <- c(result, i^2)
+  result
+}
+
+preallocate <- function(n) {
+  result <- numeric(n)
+  for (i in seq_len(n)) result[i] <- i^2
+  result
+}
+
+vectorise <- function(n) seq_len(n)^2
+
+bench::mark(
+  grow(5000),
+  preallocate(5000),
+  vectorise(5000),
+  check = TRUE
+)
+```
+
+`bench::mark()` runs each expression multiple times and
+reports median, min, max, allocations, and throughput. The
+`check = TRUE` argument (the default) verifies that every
+expression returns the same value, which catches bugs where
+an 'optimised' version silently produces different output.
+
+For honest results, run benchmarks on a quiet machine.
+Background applications, file indexing, and active browsers
+all add noise. When results differ by less than 2×, suspect
+noise; when they differ by 10× or more, suspect a real
+algorithmic difference.
+
+## Profiling: `Rprof()` and `profvis`
+
+Benchmarking tells you how fast *one piece of code* is.
+Profiling tells you *where* a larger program is spending its
+time. You cannot optimise effectively without profiling,
+because you cannot guess where bottlenecks are.
+
+`Rprof()` samples the call stack at regular intervals and
+writes the samples to a file. `summaryRprof()` aggregates the
+results:
+
+```r
+Rprof("profile.out")
+result <- my_analysis()
+Rprof(NULL)
+summaryRprof("profile.out")$by.self
+```
+
+The `by.self` column shows time spent in each function
+excluding the time it spent calling other functions. The
+functions at the top of that list are where to focus
+optimisation effort.
+
+The `profvis` package provides an interactive visualisation
+of the same data:
+
+```r
+library(profvis)
+profvis({
+  result <- my_analysis()
+})
+```
+
+`profvis` opens an HTML widget in RStudio with a flame graph
+and line-by-line timing. It is usually the fastest way to
+find the bottleneck in a function you are unfamiliar with.
+
+The Pareto rule applies strongly to performance: typically
+20% of the code accounts for 80% of the runtime. Optimising
+outside the bottleneck wastes time. Profiling turns that
+principle into action.
+
+## Reference material: environments
+
+Environments are the one major exception to copy-on-modify.
+When you assign `env2 <- env1` (where both are environments),
+both names point to the same environment; modifying one
+modifies the other.
+
+```r
+e1 <- new.env()
+e1$x <- 10
+e2 <- e1
+e2$x <- 99
+e1$x
+#> [1] 99       # e1 sees the change made through e2
+```
+
+Environments are used deliberately when mutable state is
+needed: package namespaces, closures, R6 classes,
+`data.table` internals. For day-to-day statistical
+programming, the practical consequence is a caveat: if you
+pass an environment into a function and the function
+modifies it, the modification is visible outside the
+function. For all other R objects, function arguments are
+effectively pass-by-value (because any modification triggers
+a copy).
+
+## Collaborating with an LLM on R internals
+
+Memory semantics are an area where LLMs are often helpful,
+sometimes subtly wrong, and occasionally confidently wrong in
+ways that are dangerous. Three patterns work well.
+
+**Prompt 1: explaining observed behaviour.** Paste a short
+script showing surprising memory or timing behaviour
+(addresses from `obj_addr()`, timings from `system.time()`)
+and ask: 'what is R doing here, and why?'
+
+*What to watch for.* LLMs are generally correct about
+copy-on-modify at the level of explanation, but they sometimes
+invent plausible-sounding intermediate details (e.g.,
+specific R internal function names that don't exist). Treat
+the high-level explanation as a starting point; verify the
+low-level claims against `?lobstr::obj_addr` and Wickham's
+*Advanced R*, chapters 2--5.
+
+*Verification.* Reproduce the behaviour in an R session. If
+the LLM predicts 'this operation triggers a copy', check with
+`tracemem()` or `obj_addr()` before and after. Predictions
+that match observation stay; predictions that don't get
+corrected.
+
+**Prompt 2: rewriting a slow function.** Paste the function,
+any benchmark output, and ask the LLM to rewrite it for
+speed. Ask it to explain the rewrite.
+
+*What to watch for.* The rewrite will usually be faster. The
+explanation may or may not be accurate; LLMs tend to cite
+'vectorisation' or 'pre-allocation' even when the actual
+speedup comes from something else (e.g., switching to a BLAS
+matrix op, or avoiding a repeated lookup). Do not copy the
+explanation into a methods section without verifying it
+against profiling evidence.
+
+*Verification.* Benchmark both versions with `bench::mark(..., check = TRUE)`.
+The `check = TRUE` argument ensures the rewritten function
+returns the same value. If the rewritten version is a lot
+faster, profile it to confirm the claimed reason.
+
+**Prompt 3: Rcpp implementation.** For a tight numerical loop
+inside a simulation or MCMC, ask the LLM to write the same
+loop in C++ with Rcpp.
+
+*What to watch for.* Rcpp code compiled incorrectly still runs
+and still returns plausible numbers, a silent-wrong
+scenario that is much more dangerous than an R error. Edge
+cases (empty input, `NA`, infinity, integer overflow) are
+common sources of silent miscalculation in LLM-generated C++.
+Also watch for index-off-by-one: R is 1-indexed, C++ is
+0-indexed, and translations between them are error-prone.
+
+*Verification.* Write a test suite comparing the Rcpp output
+to the pure-R version on a battery of inputs, including edge
+cases (zero-length input, `NA`, values near machine
+precision). Only trust the Rcpp version after it matches R
+on every test case and the speedup is confirmed on realistic
+input sizes.
+
+The meta-pattern: for R internals work, an LLM is a good
+research assistant and a poor authority. It can generate a
+candidate answer quickly; you are responsible for turning
+that candidate into a trustworthy one.
+
+## Principle in use
+
+Three habits define effective use of R's memory semantics:
+
+1. **Measure before optimising.** Profile first to find the
+   bottleneck. Benchmark before and after to verify the
+   change actually helped.
+2. **Pre-allocate or vectorise by default.** The quadratic
+   trap is avoidable once you recognise its shape. Making
+   pre-allocation automatic saves you from ever paying its
+   cost.
+3. **Match data structure to workload.** Matrix for dense
+   numeric computation; data frame for mixed-type,
+   column-oriented analysis. Convert between them as the
+   analysis moves between phases.
+
+Internalise these three habits and most R performance
+problems become non-problems. The deeper memory model ---
+copy-on-modify, reference counting, environments, is the
+explanation for *why* the habits work, and the material you
+reach for when the habits are not enough.
+
+## Exercises
+
+1. Use `bench::mark()` to compare three implementations of a
+   running mean over a vector of length 10^6: a `for` loop
+   that grows a vector, a `for` loop that pre-allocates, and
+   `cumsum(x) / seq_along(x)`. Which is fastest, and why?
+2. Using `lobstr::obj_size()`, measure the size of a list of
+   1,000 numeric vectors of length 1,000 versus a single
+   numeric vector of length 10^6. Explain the difference.
+3. Profile the body of your favourite function from chapter
+   1 with `profvis`. Identify the line that accounts for the
+   most self-time. Does it match where you would have
+   guessed the bottleneck was?
+4. Write a function that simulates a random walk of length
+   `n`. Implement it three ways: growing a vector, with
+   pre-allocation, and with `cumsum(rnorm(n))`. Benchmark
+   all three for `n = 10^3`, `10^4`, `10^5`.
+5. Create a factor `f <- factor(c("10", "20", "30"))`. Show
+   what `as.numeric(f)` returns, and then compute the correct
+   numeric vector from `f`. Explain to yourself why
+   `as.numeric(f)` behaves the way it does.
+
+## Further reading
+
+- [@wickham2019advr] Chapters 2--5, names, values, copy-on-modify,
+  and function environments. The canonical reference.
+- [@dowle2021datatable], `data.table`'s design illustrates
+  the performance implications of opting out of copy-on-modify.
+- `?bench::mark` and `?profvis::profvis`, the tool
+  documentation is excellent, short, and includes runnable
+  examples.
+
+## Practice test {#sec-practice-test-03}
+
+The following multiple-choice questions exercise the
+chapter's content. Attempt each question before expanding
+the answer.
+
+### Question 1
+
+What does the following R code display?
+
+```r
+x <- list(a = 1, b = 2, c = 3)
+x[["b"]]
+```
+
+- A) The entire list
+- B) A list containing only element 'b'
+- C) The value 2
+- D) NULL
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**C.** `[[` extracts the element at its own type, here the
+scalar `2`. `x["b"]` would return a list of length 1.
+:::
+
+### Question 2
+
+What is the primary difference between a data frame and a
+matrix in R?
+
+- A) Matrices can only contain numbers, while data frames
+  can contain different types in each column
+- B) Data frames can only have row names, while matrices can
+  have both row and column names
+- C) Matrices can have any number of dimensions, while data
+  frames are limited to 2 dimensions
+- D) Data frames must have unique column names, while
+  matrices cannot have named columns
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**A.** A matrix is a single atomic vector with dimensions
+(uniform type throughout). A data frame is a list of
+equal-length vectors, so each column can carry a different
+type.
+:::
+
+### Question 3
+
+In R, what is the result of the following code?
+
+```r
+x <- 1:3
+names(x) <- c("a", "b", "c")
+x["b"]
+```
+
+- A) 1
+- B) 2
+- C) 'b'
+- D) An error because you can't name a numeric vector
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** Numeric vectors can carry names; subsetting by name
+returns the element with the matching name, preserving the
+name as well as the value.
+:::
+
+### Question 4
+
+Consider:
+
+```r
+x <- c(1, 2, 3, 4, 5)
+y <- x
+y[1] <- 99
+```
+
+After this code runs, what are `x` and `y`?
+
+- A) `x = c(99, 2, 3, 4, 5)`, `y = c(99, 2, 3, 4, 5)`
+- B) `x = c(1, 2, 3, 4, 5)`, `y = c(99, 2, 3, 4, 5)`
+- C) Both are `c(99, 2, 3, 4, 5)` because R uses reference
+  semantics.
+- D) An error: you cannot modify a vector in place.
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** Copy-on-modify. Assigning `y <- x` makes both names
+point to the same underlying vector. Modifying `y[1]`
+triggers a copy, so `y` gets a new modified vector while
+`x` continues pointing to the original.
+:::
+
+### Question 5
+
+Which of the following is an example of the O(n²) 'growing
+vector' trap?
+
+- A) `result <- numeric(n); for (i in seq_len(n)) result[i] <- f(i)`
+- B) `result <- purrr::map_dbl(seq_len(n), f)`
+- C) `result <- c(); for (i in seq_len(n)) result <- c(result, f(i))`
+- D) `result <- f(seq_len(n))`
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**C.** Repeatedly using `c(result, new_value)` copies the
+full current vector at every iteration. Total work is
+n(n+1)/2 = O(n²). Options A, B, and D are all O(n) or
+better.
+:::
+
+## Prerequisites answers {#sec-quiz-answers-03}
+
+1. `x[["b"]]` extracts the element at key `'b'` and returns
+   it at its own type, here the numeric scalar `2`. `x["b"]`
+   returns a *list* of length one containing that element.
+   The difference matters whenever the next operation
+   expects a scalar (or a vector) and cannot cope with a
+   list wrapper.
+2. A matrix is a single atomic vector with dimensions: every
+   element has the same type, and values are stored
+   contiguously in memory. A data frame is a list of
+   equal-length vectors, so each column can have a
+   different type. The difference matters whenever a column
+   is character, factor, or logical (forcing a matrix would
+   coerce the whole thing), and whenever performance of
+   linear algebra matters (matrices are much faster for
+   `%*%`, `solve()`, decompositions).
+3. R uses copy-on-modify. When another name references the
+   same vector, R creates a copy, modifies the copy, and
+   re-binds the assigned name to the copy, leaving the
+   other name pointing at the unchanged original. The
+   performance consequence: if the vector is long and the
+   operation occurs inside a loop (as in growing a vector
+   with `c()`), the total work becomes O(n²) rather than
+   O(n). The fix is pre-allocation (so there is only one
+   binding, triggering modify-in-place) or vectorisation.

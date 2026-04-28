@@ -1,0 +1,45 @@
+# Copyright {.unnumbered}
+
+::: {.content-visible when-format='pdf'}
+\thispagestyle{empty}
+\vspace*{\fill}
+:::
+
+**Statistical Computing in the Age of AI**\
+A graduate textbook in biostatistics.
+
+Copyright &copy; 2026 Ronald "Ryy" G. Thomas.
+
+This work is licensed under a Creative Commons
+Attribution-NonCommercial-NoDerivatives 4.0 International
+License. To view a copy of this license, visit
+<https://creativecommons.org/licenses/by-nc-nd/4.0/>.
+
+No ISBN has been assigned; this is an open-access teaching
+text. Citations should use the form:
+
+> Thomas, R. G. (2026). *Statistical Computing in the Age of
+> AI*. La Jolla, California. Retrieved from
+> <https://rgtlab.org/scai>.
+
+Typeset in Source Serif 4 and JetBrains Mono using Quarto
+and `xelatex`. Source available at
+<https://github.com/rgt47/scai>.
+
+First draft: Spring 2026.
+
+::: {.content-visible when-format='pdf'}
+```{=latex}
+\clearpage
+\tableofcontents
+\clearpage
+```
+:::
+
+::: {.content-visible when-format='pdf'}
+```{=latex}
+\clearpage
+\tableofcontents
+\clearpage
+```
+:::

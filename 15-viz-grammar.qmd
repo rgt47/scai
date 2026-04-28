@@ -1,0 +1,642 @@
+# Visualization and the Grammar of Graphics {#sec-viz-grammar}
+
+## Prerequisites
+
+Answer the following questions to see if you can bypass this
+chapter. You can find the answers at the end of the chapter in
+@sec-quiz-answers-15.
+
+1. Name the seven main components of a statistical plot
+   according to the Grammar of Graphics.
+2. In `ggplot2`, what does an aesthetic mapping (`aes()`)
+   specify?
+3. What is the primary advantage of the Grammar of Graphics
+   approach compared with traditional per-chart-type
+   plotting functions?
+
+## Learning objectives
+
+By the end of this chapter you should be able to:
+
+- State the components of the grammar of graphics: data,
+  aesthetic mapping, geom, stat, scale, coord, facet.
+- Build a plot with `ggplot2` by composing layers.
+- Choose an appropriate geom for a given combination of
+  variable types (continuous-continuous, continuous-discrete,
+  discrete-discrete, count, time, etc.).
+- Apply scales for colour, fill, size, and shape, including
+  colour-blind-safe palettes.
+- Use facets to display the same plot conditioned on a
+  third variable.
+- Recognise and avoid common visualisation errors:
+  truncated axes, dual y-axes, double-encoding, default
+  rainbow colour scales, pie charts.
+- Distinguish 'good plots' (one message, truthful, clear
+  encoding) from 'bad plots' that decorate rather than
+  communicate.
+
+## Orientation
+
+A good plot conveys a single message quickly and
+truthfully. A bad plot does neither: it either decorates
+without communicating or communicates a wrong impression
+of the data.
+
+The Grammar of Graphics, codified by Leland Wilkinson and
+implemented for R by Hadley Wickham as `ggplot2`, makes the
+*structure* of a plot explicit. Every plot is a composition
+of seven kinds of element: data, aesthetic mappings, geoms,
+stats, scales, a coordinate system, and facets. Once you
+think in these pieces, the universe of statistical
+graphics becomes a small set of swappable parts rather than
+a zoo of named chart types.
+
+This chapter teaches the grammar conceptually and applies
+it through `ggplot2`. The next chapter goes deeper on
+advanced ggplot techniques (themes, extensions,
+interactivity).
+
+## The statistician's contribution {#sec-viz-grammar-human}
+
+Software can produce a plot from any data; software cannot
+choose what plot to make.
+
+**Pick the right encoding.** Continuous values map well to
+position (x, y, length). Categorical values map well to
+colour, shape, or facets. Mapping a continuous variable to
+shape (10 different shapes for 10 levels) creates an
+unreadable plot. Mapping a categorical variable to a
+sequential colour scale implies an ordering that may not
+exist. The grammar makes these mistakes structurally
+visible because each aesthetic has a natural variable type.
+
+**One plot, one message.** A figure that crams in three
+relationships is harder to read than three figures each
+showing one. The temptation to combine is strong; the
+clarity gained by separating is usually worth more than the
+space saved.
+
+**Truthful axes.** Truncating a y-axis to make a small
+difference look large is dishonest. Logarithmic axes
+without a clear visual cue mislead readers who do not
+notice. Axes should encode what they appear to encode.
+
+**Colour matters.** Roughly 8% of men and 0.5% of women have
+some form of colour vision deficiency. Default `ggplot2`
+palettes (and most journal defaults) are not colour-blind-
+safe. The `viridis`, `RColorBrewer`, and `ggthemes` palettes
+include accessible options. Picking one is a thirty-second
+fix that keeps the plot legible to a substantially larger
+audience.
+
+These judgements are what separate plots that communicate
+from plots that fill space. They are not automatable; the
+grammar makes them easier to think about by structuring
+the plot into separable decisions.
+
+## The grammar of graphics: seven components
+
+A plot is the composition of:
+
+1. **Data.** A data frame (or tibble). The plot is a view
+   of these data.
+2. **Aesthetic mappings.** Which columns of the data map
+   to which visual properties (x-position, y-position,
+   colour, shape, size, fill, alpha).
+3. **Geoms (geometric objects).** What is drawn at each
+   data point: a point, a line, a bar, a polygon, a tile.
+4. **Stats (statistical transformations).** Whether the
+   data are drawn as-is or first summarised: smoothed,
+   binned into histograms, summarised by mean and SE.
+5. **Scales.** How aesthetic values are translated to
+   pixels: which range of x-values maps to which pixels;
+   which colours encode which categories.
+6. **Coordinate system.** Cartesian (default), polar,
+   geographic, transformed (log, sqrt).
+7. **Facets.** Whether the plot is split into a grid of
+   subplots conditioned on a categorical variable.
+
+Every `ggplot()` call is some combination of these. Most
+calls touch only a few; the others have sensible defaults.
+
+## A minimum-viable example
+
+```r
+library(ggplot2)
+library(palmerpenguins)
+
+p <- penguins |>
+  na.omit() |>
+  ggplot(aes(x = flipper_length_mm,
+             y = body_mass_g,
+             colour = species)) +
+    geom_point(alpha = 0.7) +
+    scale_colour_brewer(palette = "Dark2") +
+    labs(x = "Flipper length (mm)",
+         y = "Body mass (g)",
+         colour = "Species") +
+    theme_minimal()
+
+p
+```
+
+What each piece does:
+
+- `penguins |> na.omit()` is the **data**.
+- `aes(x = ..., y = ..., colour = ...)` is the **aesthetic
+  mapping**: three data columns mapped to three visual
+  properties.
+- `geom_point(alpha = 0.7)` is the **geom**: each row gets
+  a semi-transparent point.
+- `scale_colour_brewer(...)` is the **scale**: how species
+  values map to colours (Dark2 is colour-blind-safe).
+- `labs(...)` and `theme_minimal()` provide labels and a
+  visual style.
+- No explicit **stat** because `geom_point` defaults to
+  `stat_identity` (no transformation).
+- No **coord** because `coord_cartesian` is the default.
+- No **facet** because we are showing all data in one
+  panel.
+
+The plot is built by adding layers with `+`. Each layer can
+override the inherited mapping, change the geom, add a
+stat, or modify the appearance.
+
+## Geoms by variable types
+
+The choice of geom is largely determined by the types of
+the x and y variables.
+
+| x type      | y type      | Common geoms                                  |
+|-------------|-------------|-----------------------------------------------|
+| continuous  | continuous  | `geom_point`, `geom_smooth`, `geom_density_2d` |
+| continuous  | discrete    | `geom_boxplot` (with `coord_flip`), `geom_violin` |
+| discrete    | continuous  | `geom_boxplot`, `geom_violin`, `geom_point` (jittered), `geom_col` |
+| discrete    | discrete    | `geom_count`, `geom_tile` (heatmap)             |
+| time        | continuous  | `geom_line`, `geom_step`, `geom_area`          |
+| (1 var)     | (1 var)     | `geom_histogram`, `geom_density`, `geom_bar`   |
+
+For two-variable scatterplots with thousands of points,
+overlap obscures the pattern. Solutions:
+
+```r
+geom_point(alpha = 0.05)               # transparency
+geom_hex(bins = 50)                    # hexagonal binning
+geom_density_2d_filled()                # 2D density contours
+```
+
+For violin and boxplot combinations:
+
+```r
+ggplot(penguins, aes(x = species, y = body_mass_g)) +
+  geom_violin(fill = "lightgrey") +
+  geom_boxplot(width = 0.1) +
+  geom_jitter(width = 0.1, alpha = 0.4)
+```
+
+Layer geoms freely; the order matters (later layers paint
+over earlier ones).
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: choosing a geom
+
+**Question.** You have a dataset with 5,000 observations
+of two continuous variables, and you want to show the
+relationship. The default `geom_point()` produces a black
+blob in the middle of the plot. What are your options?
+
+**Answer.**
+
+The blob is overplotting. Standard remedies, roughly in
+order: (1) `alpha = 0.05` makes individual points
+semi-transparent, so density translates to visual
+darkness; (2) `geom_hex()` bins observations into
+hexagonal cells coloured by count; (3)
+`geom_density_2d()` or `geom_density_2d_filled()` shows
+the joint density as contours rather than points.
+For pure scatterplots with very large $n$, `geom_hex` is
+usually clearest. For showing *both* the density and any
+individual outliers, combine `geom_hex` with
+`geom_point` for outliers only.
+
+:::
+
+## Statistical transformations
+
+Geoms can summarise the data before drawing. The summary is
+controlled by the `stat` argument or by the geom itself.
+
+```r
+# raw points (stat_identity, the default)
+ggplot(penguins, aes(flipper_length_mm, body_mass_g)) +
+  geom_point()
+
+# linear smooth with 95% CI
+ggplot(penguins, aes(flipper_length_mm, body_mass_g)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ x)
+
+# loess smooth (default for n < 1000)
+ggplot(penguins, aes(flipper_length_mm, body_mass_g)) +
+  geom_point() +
+  geom_smooth()
+
+# group means with SE
+ggplot(penguins, aes(species, body_mass_g)) +
+  stat_summary(fun.data = mean_se)
+
+# histogram (stat_bin)
+ggplot(penguins, aes(body_mass_g)) +
+  geom_histogram(bins = 30)
+```
+
+`geom_smooth(method = "lm")` fits a linear model per group
+(if the aesthetic includes `colour` or `group`) and plots
+the fitted line with a confidence band. For regression
+visualisation, this single line of code does what would
+take many in base R.
+
+## Scales
+
+Scales control how aesthetic values map to visual
+properties. The defaults are reasonable but rarely
+optimal.
+
+**Continuous axes:**
+
+```r
+scale_x_continuous(breaks = seq(0, 100, 25),
+                   labels = scales::number_format(suffix = "%"),
+                   limits = c(0, 100))
+
+scale_y_log10()                  # log-transformed y axis
+scale_x_sqrt()                   # square-root transformed
+```
+
+**Discrete axes:**
+
+```r
+scale_x_discrete(limits = c("placebo", "low", "high"))   # custom order
+```
+
+**Colour:**
+
+```r
+scale_colour_brewer(palette = "Dark2")    # colour-blind safe, qualitative
+scale_colour_viridis_d()                  # colour-blind safe, ordered
+scale_colour_manual(values = c("a" = "red", "b" = "blue"))
+scale_colour_gradient(low = "white", high = "darkblue")  # continuous
+```
+
+`viridis` and ColorBrewer's qualitative palettes (Dark2,
+Set1, Set2) are the standard colour-blind-safe defaults.
+Avoid the rainbow scale (jet, `rainbow()`) for continuous
+data: it is not perceptually uniform and is unreadable for
+many readers.
+
+For discrete fills with no natural order, qualitative.
+For ordered discrete or continuous, viridis or sequential
+ColorBrewer (Blues, Reds, etc.). For diverging data
+(positive vs. negative), diverging palettes (RdBu, PuOr).
+
+## Faceting
+
+Facets split the plot into a grid of small multiples by
+one or two variables:
+
+```r
+# rows = species, columns = sex
+ggplot(penguins, aes(flipper_length_mm, body_mass_g)) +
+  geom_point() +
+  facet_grid(species ~ sex)
+
+# wrap into a single dimension
+ggplot(penguins, aes(flipper_length_mm, body_mass_g)) +
+  geom_point() +
+  facet_wrap(~ species, ncol = 1)
+```
+
+Faceting is one of the strongest tools in the grammar:
+it lets you condition on a third (or fourth) variable
+without losing the underlying plot's design. Particularly
+useful for displaying group-specific patterns when groups
+are too many or too small for colour-coding to be readable.
+
+## Common mistakes
+
+**Truncated axes.** Setting `ylim()` to exclude zero on a
+bar chart exaggerates differences. Setting it to exclude
+the data range entirely is misleading. The axis should
+encode the data faithfully.
+
+**Dual y-axes.** Two y-axes on different scales nearly
+always mislead. Readers cannot tell which trace
+corresponds to which axis at a glance. Better: split into
+two facets.
+
+**Pie charts beyond two categories.** Humans read angles
+poorly. A bar chart of the same data is universally
+clearer.
+
+**Default colour for ordered categories.** `ggplot2`'s
+default `scale_colour_discrete` is *unordered*. If your
+categories are ordered (e.g., low/medium/high), use
+`scale_colour_viridis_d()` or a sequential ColorBrewer
+palette to encode the ordering visually.
+
+**3D plots.** Almost always worse than 2D plus a colour or
+size encoding.
+
+**Over-the-top legends.** A legend that explains 10
+categories with 10 colours and 10 shapes triple-encodes
+the same information. Pick one.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: a misleading plot
+
+**Question.** A bar chart shows a treatment group with 78%
+response and a control group with 75% response. The y-axis
+runs from 70% to 80%, making the treatment bar appear
+roughly four times taller than the control bar. What is
+the visual lie?
+
+**Answer.**
+
+The truncated y-axis. The actual difference is 3
+percentage points; the visual difference suggests roughly
+fourfold. For bar charts, the y-axis should start at 0
+(or, for negative values, span both directions
+symmetrically). For showing small differences honestly,
+either show them as a line on a true-to-scale y-axis, or
+report them as differences directly (a bar chart of the
+3-point gap with its CI). Truncated y-axes are among the
+most common ways scientific papers visually mislead, and
+the grammar of graphics makes the issue visible: the
+scale is encoding pixels-per-unit, and a truncated scale
+encodes pixels-per-relative-difference, which is not what
+the reader expects.
+
+:::
+
+## Themes and labels
+
+Themes control non-data appearance: backgrounds, grids,
+fonts. Built-in themes include `theme_grey()` (the
+default), `theme_minimal()`, `theme_bw()`, `theme_classic()`.
+Pick one and use it consistently across a paper or report.
+
+```r
+ggplot(penguins, aes(flipper_length_mm, body_mass_g)) +
+  geom_point() +
+  labs(title = "Body mass vs. flipper length",
+       subtitle = "Palmer Archipelago penguins, 2007--2009",
+       x = "Flipper length (mm)",
+       y = "Body mass (g)",
+       caption = "Source: palmerpenguins package") +
+  theme_minimal()
+```
+
+Always label axes with units. 'Body mass (g)' tells the
+reader more than 'body_mass_g'. Captions citing data
+sources earn trust.
+
+## Saving plots
+
+```r
+ggsave("flipper_mass.png", plot = p, width = 6, height = 4,
+       dpi = 300, units = "in")
+
+# vector format for publication
+ggsave("flipper_mass.pdf", plot = p, width = 6, height = 4)
+```
+
+For papers, use vector formats (PDF, SVG) when possible;
+they remain crisp at any zoom. For web, PNG at moderate DPI
+is a good default. Avoid JPG for plots, the
+compression artefacts are visible on lines and text.
+
+## Collaborating with an LLM on visualisation
+
+LLMs handle ggplot2 code well; they handle visualisation
+*judgement* less reliably.
+
+**Prompt 1: drafting a plot.** Describe the data and the
+question. Ask: 'write a ggplot2 plot that addresses the
+question. Use a colour-blind-safe palette and label axes
+with units.'
+
+*What to watch for.* The default LLM plot tends toward
+busy: too many aesthetics encoded, default ggplot theme,
+sometimes no axis labels. Push for clarity over
+decoration. Multiple iterations of 'simpler' tend to
+improve the result.
+
+*Verification.* Render the plot and ask whether a reader
+who has never seen the data could state the message in
+one sentence. If not, simplify.
+
+**Prompt 2: critiquing a plot.** Paste a `ggplot()` call
+and the rendered plot description, ask: 'critique this
+plot, what would be unclear or misleading to a reader?'
+
+*What to watch for.* LLMs are reasonable at spotting
+truncated axes, dual y-axes, missing labels, and palette
+issues. They are weaker on subject-matter problems
+(wrong choice of summary, inappropriate scale for the
+units). Bring substantive judgement.
+
+*Verification.* Apply the suggested fixes. Run the plot.
+Compare before and after.
+
+**Prompt 3: replicating a published plot.** Describe a
+target figure (or paste the published plot if available)
+and ask the LLM to reproduce its design.
+
+*What to watch for.* LLMs can reproduce the visual style
+of well-known plots (Tufte, Minard); they cannot read your
+data and decide whether the same design fits. Treat the
+LLM output as a starting point and adapt for your data.
+
+*Verification.* Compare with the original. Are the
+encodings the same? The aspect ratio? The colours?
+Differences may be improvements; they may be regressions.
+
+## Principle in use
+
+Three habits define defensible visualisation:
+
+1. **One plot, one message.** Resist the urge to combine
+   three relationships into one figure. Three figures with
+   one message each are clearer.
+2. **Truthful axes, accessible colours.** No truncated
+   axes that exaggerate differences; no colour palettes
+   that exclude colour-blind readers; no dual y-axes that
+   mislead by their scale.
+3. **Compositional thinking.** Build plots by combining
+   grammar pieces, not by reaching for chart types. The
+   right plot for an unusual question is rarely a built-in
+   chart; it is usually a small variation on something
+   familiar.
+
+## Version notes (`ggplot2` 3.5+)
+
+A few legacy patterns no longer work in current
+`ggplot2`. `aes_string()` is soft-deprecated in
+`ggplot2` 3.5+; use the `.data` and `.env` pronouns from
+`rlang` for programmatic aesthetics, e.g.,
+`aes(x = .data[[varname]])`. `qplot()` has been fully
+removed; use `ggplot()` directly. When older code or LLM
+output uses these constructs, translate to the current
+forms before relying on the result.
+
+## Exercises
+
+1. Reproduce the penguin body-mass-vs-flipper-length
+   scatter plot from `palmerpenguins`, coloured by
+   species, faceted by island. Add a regression line and
+   a 95% confidence band per species.
+2. Take a bad plot from a recent newspaper article (or
+   social media). Identify three things wrong with it.
+   Rewrite it in `ggplot2` to fix them.
+3. Use `ggplot2::aes()` to map the same variable to two
+   different aesthetics (e.g., colour and shape). Argue
+   for or against this as a design choice with reference
+   to the encoding principles in this chapter.
+4. Take a dataset with 100,000+ rows. Make a scatter plot
+   that does not suffer from overplotting. Compare three
+   approaches: alpha, hex binning, and 2D density
+   contours. Which works best for the data?
+5. Make a `facet_wrap` plot with too many panels (say, 30
+   for 30 patients in a longitudinal study). Identify
+   what goes wrong, and propose two alternatives:
+   `facet_wrap` with a different ordering, or a different
+   plot entirely.
+
+## Further reading
+
+- [@wickham2016ggplot2], canonical `ggplot2` reference;
+  the 3rd edition is online at <https://ggplot2-book.org/>.
+- [@wilke2019viz], principles of effective
+  visualisation, with every figure built in R.
+- [@tufte2001visual], the foundational text on
+  information design.
+- [@healy2018data], shorter, applied, with R code; a
+  good complement to Wickham's reference.
+
+## Practice test {#sec-practice-test-15}
+
+The following multiple-choice questions exercise the
+chapter's content. Attempt each question before expanding
+the answer.
+
+### Question 1
+
+According to the Grammar of Graphics framework, which of
+the following is NOT one of the seven main components of
+a plot?
+
+- A) Data
+- B) Aesthetics
+- C) Colors
+- D) Layers
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**C.** Colour is a specific aesthetic, not a component
+of the grammar.
+:::
+
+### Question 2
+
+In `ggplot2`, what does the aesthetic mapping specify?
+
+- A) The colour scheme to use for the plot
+- B) How variables in the data are mapped to visual
+  properties
+- C) The size of the plot window
+- D) The theme and style of the plot
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** `aes()` maps data columns to visual properties
+such as x, y, colour, shape, size.
+:::
+
+### Question 3
+
+What is the main advantage of the Grammar of Graphics
+approach compared to traditional plotting approaches?
+
+- A) It produces more colourful plots
+- B) It renders plots faster
+- C) It provides a systematic way to describe and create
+  visualisations
+- D) It requires less code to create simple plots
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**C.** The grammar is compositional: new plots are
+assembled from a small set of reusable pieces.
+:::
+
+### Question 4
+
+A bar chart shows treatment success rates of 75% (control)
+and 78% (treatment). The y-axis runs from 70% to 80%. The
+visual impression is misleading because:
+
+- A) The colours are unreadable.
+- B) The y-axis is truncated, exaggerating the difference.
+- C) Bar charts are inherently misleading.
+- D) The font size is too small.
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** For bar charts, the y-axis should start at 0 (or
+span symmetrically across zero for negative values).
+Truncation makes a 3-point difference look much larger.
+:::
+
+### Question 5
+
+You are encoding species (3 categories) on a scatter plot.
+Which scale is most appropriate?
+
+- A) `scale_colour_continuous()` with a viridis ramp
+- B) `scale_colour_brewer(palette = "Dark2")`
+- C) `scale_colour_gradient(low, high)`
+- D) Default ggplot2 colours
+
+::: {.callout-note collapse='true'}
+## Answer
+
+**B.** Three unordered categories want a qualitative
+colour-blind-safe palette. Dark2 (or Set2 / viridis_d)
+fit the role; continuous scales imply an ordering that
+species do not have; the ggplot2 defaults are not
+colour-blind-safe.
+:::
+
+## Prerequisites answers {#sec-quiz-answers-15}
+
+1. Data, aesthetic mappings, geometries (geoms),
+   statistical transformations (stats), scales,
+   coordinate system, and faceting. Note that *colours*
+   is a specific aesthetic, not one of the seven
+   components.
+2. An aesthetic mapping specifies how a variable in the
+   data is mapped to a visual property of the plot
+   (x-position, y-position, colour, shape, size, etc.).
+   The grammar enforces a strict separation between data
+   (what) and visual encoding (how it appears).
+3. The grammar provides a systematic, compositional way
+   to describe and create visualisations. New plots are
+   built by swapping or layering grammar components,
+   rather than by learning a different function for
+   every chart type. The benefit is that the same vocab
+   covers everything from a histogram to a Sankey diagram
+   to a custom map.
