@@ -151,7 +151,7 @@ def build():
               series_fnt, WHITE)
 
     author_fnt = font('avenir-medium', 64)
-    authors = ['Ronald “Ryy” G. Thomas']
+    authors = ['rgtlab Curriculum Project']
     y = 240
     for line in authors:
         draw_text(draw, (60, y), line, author_fnt, WHITE)
