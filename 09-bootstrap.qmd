@@ -249,8 +249,8 @@ you can compute from a sample.
 
 The **Monte Carlo error** of the bootstrap SE is
 approximately $\widehat{\mathrm{SE}}_B / \sqrt{2B}$. With
-$B = 1000$ this is roughly 2.2% of the bootstrap SE itself
---- negligible for most purposes.
+$B = 1000$ this is roughly 2.2% of the bootstrap SE itself,
+which is negligible for most purposes.
 
 ::: {.callout-tip collapse='true'}
 ## Check your understanding
@@ -315,6 +315,90 @@ switch to BCa if the sample is small or the statistic is
 skewed; use the studentised interval only when the cost of
 the double bootstrap is justified.
 
+## Hypothesis testing by resampling {#sec-bootstrap-test}
+
+A confidence interval and a hypothesis test answer overlapping
+questions about a parameter, and the bootstrap supplies both.
+Hypothesis testing requires one extra construction: resampling
+must occur under conditions in which the null hypothesis is
+true. This **null enforcement** step is the load-bearing
+distinction between a bootstrap confidence interval and a
+bootstrap test.
+
+For a two-sample mean comparison, $H_0\!: \mu_A = \mu_B$, the
+standard construction is **pool and center**. Concatenate the
+two samples after centering each at its own sample mean; the
+pooled vector has mean zero by construction, and resampling
+from it yields two new groups whose populations have identical
+means. Compute the observed test statistic on the original
+data, repeat the calculation on each bootstrap replicate drawn
+from the centered pool, and report the proportion of replicates
+whose absolute statistic meets or exceeds the observed.
+
+```r
+# Pool-and-center bootstrap test of H0: mu_A = mu_B
+a <- sleep$extra[sleep$group == 1]
+b <- sleep$extra[sleep$group == 2]
+obs_diff <- mean(a) - mean(b)
+
+pooled <- c(a - mean(a), b - mean(b))
+B <- 10000
+set.seed(47)
+null_diffs <- replicate(B, {
+  a_star <- sample(pooled, length(a), replace = TRUE)
+  b_star <- sample(pooled, length(b), replace = TRUE)
+  mean(a_star) - mean(b_star)
+})
+mean(abs(null_diffs) >= abs(obs_diff))
+```
+
+The two-sided p-value is `mean(abs(null_diffs) >= abs(obs_diff))`.
+For a one-sided alternative, drop the absolute values and adjust
+the comparison direction. Monte Carlo error on the p-value is
+approximately $\sqrt{p(1 - p)/B}$, around $0.002$ near $p = 0.05$
+when $B = 10{,}000$.
+
+Two comparisons clarify what the bootstrap test is doing.
+**Permutation tests** also generate a null distribution by
+shuffling group labels, but without replacement. Permutation
+tests are exact under exchangeability and are preferable when
+the assumption is defensible. The bootstrap test is approximate
+but extends naturally to settings where exchangeability fails:
+paired data, regression coefficients, or any statistic with a
+bootstrap implementation. **Classical t-tests** make stronger
+distributional assumptions: a pool-and-center bootstrap parallels
+the equal-variance two-sample t-test, while `t.test()` defaults
+to Welch's unequal-variance test. The methods produce different
+p-values not because of Monte Carlo error but because they
+implement different null hypotheses.
+
+The pool-and-center construction generalises. Testing a
+correlation against zero is achieved by resampling pairs
+$(x_i, y_i^*)$ where the $y$ values are reshuffled to break the
+dependence. Testing a single regression coefficient against zero
+is achieved by bootstrapping the residuals of the reduced model
+and rebuilding the response under the null. The principle is
+constant: design a resampling scheme under which the null is
+true, then read off the tail probability of the observed
+statistic.
+
+::: {.callout-tip collapse='true'}
+## Check your understanding
+
+**Q:** Why must the bootstrap resampling step enforce the null
+hypothesis when conducting a test, while no such adjustment is
+needed for a confidence interval?
+
+**A:** A confidence interval describes the variability of
+$\hat\theta$ around the unknown population parameter; the
+bootstrap distribution centered at $\hat\theta$ is exactly the
+reference distribution wanted. A hypothesis test asks whether
+the data are compatible with a specified null value $\theta_0$,
+which requires the distribution of $\hat\theta$ under
+$\theta = \theta_0$. That in turn requires resampling from a
+population modified to satisfy the null.
+:::
+
 ## Monte Carlo implementation
 
 The theoretical bootstrap enumerates all $n^n$ possible
@@ -328,9 +412,9 @@ statistical error of using a finite original sample.
 The Monte Carlo error of a percentile confidence-interval
 endpoint is approximately $\sqrt{\alpha(1 - \alpha)/B} \cdot
 \widehat{\mathrm{SE}}_B$. For a 95% interval with $B =
-1000$, this is about $0.005 \cdot \widehat{\mathrm{SE}}_B$
---- an order of magnitude smaller than the statistical
-error for typical $n$.
+1000$, this is about $0.005 \cdot \widehat{\mathrm{SE}}_B$,
+an order of magnitude smaller than the statistical error for
+typical $n$.
 
 Rules of thumb: $B = 200$ suffices for standard errors; $B
 = 1000$ to $2000$ for percentile or BCa confidence
@@ -472,6 +556,99 @@ the data plausibly satisfy, or when computational
 resources are limited. Traditional methods also provide
 analytic insights (closed-form expressions, exact
 distributions) that numerical methods can obscure.
+:::
+
+## Bootstrapping regression coefficients {#sec-bootstrap-regression}
+
+Linear regression provides a productive testbed for the
+bootstrap machinery. Two resampling strategies are standard,
+and a third is worth knowing for diagnostic-failure cases.
+
+**Case (paired) bootstrap.** Resample whole rows of the data
+matrix with replacement, refit the model, and record the
+coefficient. This makes no assumption about the conditional
+distribution of $y$ given $x$ and remains valid under
+heteroscedasticity, because joint resampling of $(x, y)$
+preserves whatever variance structure the data contain.
+
+**Residual bootstrap.** Fit the model once, extract residuals
+$e_i = y_i - \hat y_i$, resample residuals with replacement to
+obtain $e_i^*$, and construct synthetic responses
+$y_i^* = \hat y_i + e_i^*$. Refit the model on
+$(x_i, y_i^*)$. This strategy assumes residuals are
+exchangeable: their distribution does not depend on the
+predictors. When that assumption holds, residual bootstrap is
+more efficient than case bootstrap; when it fails,
+residual-bootstrap intervals are too narrow because they impose
+a constant-variance error structure the data lack.
+
+**Wild bootstrap.** When residuals are clearly heteroscedastic
+but the conditional-mean structure is correct, set
+$e_i^* = e_i v_i$ with $v_i$ an independent random sign or a
+Mammen two-point variable. This preserves the conditional
+variance pattern while still generating a valid resampling
+distribution.
+
+A worked case bootstrap for the slope of `wt` predicting `mpg`
+in `mtcars`:
+
+```r
+library(boot)
+set.seed(47)
+
+slope_stat <- function(data, indices) {
+  fit <- lm(mpg ~ wt, data = data[indices, ])
+  coef(fit)[['wt']]
+}
+
+b_lm <- boot(mtcars, slope_stat, R = 2000)
+boot.ci(b_lm, type = c('perc', 'bca'))
+
+# Compare with the classical normal-theory interval
+confint(lm(mpg ~ wt, data = mtcars))['wt', ]
+```
+
+The percentile and BCa intervals from the case bootstrap are
+slightly wider than the classical interval from `confint()`. The
+discrepancy is informative: a residuals-versus-fitted plot for
+this model shows variance increasing with fitted value, the mild
+heteroscedasticity that the classical interval ignores by
+assuming constant error variance. The bootstrap absorbs this
+through joint resampling and produces a more defensible
+interval.
+
+The choice among strategies follows from the assumptions:
+
+- Use the case bootstrap when residual diagnostics suggest
+  heteroscedasticity, when the model may be misspecified, or as
+  a robust default in the absence of contrary information.
+- Use the residual bootstrap when residuals are clean and the
+  conditional mean is well captured. The narrower intervals it
+  produces are warranted only when the assumption is defensible.
+- Use the wild bootstrap when heteroscedasticity is severe but
+  the mean structure is sound, particularly in small samples
+  where case bootstrap may resample the same influential
+  observation multiple times.
+
+The same machinery extends to generalised linear models (case
+bootstrap on `glm` objects), random-effect models (cluster
+bootstrap that respects the grouping structure), and robust
+regression. The `car::Boot()` function introduced in the
+previous section handles several of these cases automatically.
+
+::: {.callout-tip collapse='true'}
+## Check your understanding
+
+**Q:** Suppose a residuals-versus-fitted plot for a regression
+model shows residual spread increasing with the fitted value.
+Which regression bootstrap would you choose, and why?
+
+**A:** The case (paired) bootstrap, because it resamples whole
+$(x, y)$ rows and therefore preserves any heteroscedastic
+variance structure in the original data. The residual bootstrap
+imposes a single residual distribution that does not depend on
+$x$ and would systematically underestimate variability in this
+setting.
 :::
 
 ## Collaborating with an LLM on the bootstrap
