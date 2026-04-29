@@ -12,7 +12,7 @@ book:
   cover-image: images/cover.png
   favicon: images/favicon.png
 
-  site-url: https://rgtlab.org/scai
+  site-url: https://scai.rgtlab.org
   repo-url: https://github.com/rgt47/scai
   repo-branch: main
   repo-actions: [edit, issue]
