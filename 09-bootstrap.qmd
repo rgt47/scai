@@ -23,6 +23,8 @@ By the end of this chapter you should be able to:
 - Implement a nonparametric bootstrap in base R.
 - Compute percentile, basic, BCa, and studentised bootstrap
   confidence intervals.
+- Construct bootstrap p-values via null-enforcing resampling.
+- Apply case and residual bootstrap to regression coefficients.
 - Recognise when the bootstrap fails (extreme quantiles, time
   series, dependent data).
 - Use the `boot` package for standard cases.
