@@ -1,6 +1,5 @@
 # Welcome {.unnumbered .unlisted}
 
-::: {.content-visible when-format='html'}
 
 This is the online version of **Statistical Computing in the
 Age of AI** by The rgtlab Curriculum Project, a graduate textbook in
@@ -52,6 +51,3 @@ The code samples in this book are licensed under
 1.0)](https://creativecommons.org/publicdomain/zero/1.0/),
 i.e. public domain.
 
-:::
-
-:::
