@@ -8,24 +8,24 @@ disciplines:
 1. **Statistics** provides the *questions*, how to
    estimate parameters, quantify uncertainty, and test
    hypotheses.
-2. **Computer science** provides the *tools* ---
+2. **Computer science** provides the *tools*, the
    algorithms, data structures, numerical stability, and
    software engineering practices.
 3. **Domain science** (here, biomedicine) provides the
    *data*, messy, irregular, and consequential.
 
 A biostatistician who is weak in any of the three produces
-work that is incorrect, slow, or irrelevant. This book
-aims to build competence in all three, and one more: the
-ability to collaborate effectively with a large language
-model while retaining full professional responsibility
-for the analysis.
+work that is incorrect, slow, or irrelevant. We aim in
+this book to build competence in all three, and in one
+more besides: the ability to collaborate effectively with
+a large language model while retaining full professional
+responsibility for the analysis.
 
 ## The question this chapter answers
 
 Why learn any of this when an LLM will produce working R
-code on request? The preface gave the short answer; this
-chapter gives the long one.
+code on request? The preface gave the short answer; in
+this chapter we shall give the long one.
 
 The answer has two parts. The first part is *practical*:
 LLMs fail in specific, learnable, predictable ways, and a
@@ -39,7 +39,8 @@ obtain through prompting.
 ## A framework for human-LLM collaboration
 
 For every topic in this book, the statistician-LLM
-division of labour sorts into four categories.
+division of labour sorts, it appears, into four
+categories.
 
 **Category 1: Things the LLM does reliably.**
 
@@ -56,8 +57,9 @@ division of labour sorts into four categories.
   diagnostic quartet).
 
 For these tasks an LLM is a fast, tireless collaborator,
-and you should use it freely. Verification is usually
-trivial: the code runs and produces the expected output.
+and the reader should use it freely. Verification is
+usually straightforward: the code runs and produces the
+expected output.
 
 **Category 2: Things the LLM does unreliably.**
 
@@ -73,27 +75,28 @@ trivial: the code runs and produces the expected output.
   conventions correctly.
 
 For these tasks the LLM's output is often plausible but
-wrong. Verification requires you to know the answer
-yourself, at least at the level of 'what should the
-output look like?' The book trains you in that knowledge.
+wrong. Verification requires that we know the answer
+ourselves, at least at the level of 'what should the
+output look like?' We shall train the reader in that
+knowledge.
 
 **Category 3: Things the LLM cannot do because it lacks
 information.**
 
-- Knowing whether the data you are analysing were
+- Knowing whether the data under analysis were
   collected by a process that justifies the method the
   LLM proposes.
 - Recognising dependence structures (clustering, time
   series, pedigrees) from the data itself, when those
   structures are not explicit in variable names.
-- Judging whether an assumption 'holds' in your specific
-  scientific context.
+- Judging whether an assumption 'holds' in the reader's
+  specific scientific context.
 - Deciding what research question the analysis is meant
   to answer when the question is stated ambiguously.
 
 These tasks require context the LLM does not and cannot
-have. They require the statistician's judgment by
-definition.
+have. They require, by definition, the statistician's
+judgment.
 
 **Category 4: Things the LLM cannot do because of
 professional accountability.**
@@ -111,9 +114,9 @@ irrespective of how capable the LLM becomes.
 ## What LLMs cannot do: concrete examples
 
 Abstract categories are less convincing than concrete
-failures. Here are four, one from each part of this book,
-all of which an LLM will cheerfully answer incorrectly if
-you do not guide it.
+failures. We present four, one from each part of this
+book, all of which an LLM will cheerfully answer
+incorrectly if the reader does not guide it.
 
 **Bootstrap a confidence interval for the maximum of a
 sample (@sec-bootstrap).** The LLM will produce working
@@ -121,15 +124,15 @@ code. The code will return a CI whose upper endpoint
 equals the observed sample maximum, because the
 bootstrap maximum cannot exceed the observed maximum.
 This is a known pathology of the bootstrap for extrema.
-An LLM will not warn you.
+Unfortunately, an LLM will not warn the reader of it.
 
 **Fit a Cox proportional-hazards model to a data frame
 with recurring patient visits (@sec-survival).** The LLM
 will produce `coxph(Surv(time, event) ~ x, data = df)`.
 The fit will ignore the dependence between visits from
 the same patient and report standard errors that are too
-narrow. A robust-sandwich option exists (`cluster()`) but
-the LLM will not add it unless you know to ask.
+narrow. A robust-sandwich option exists (`cluster()`), but
+the LLM will not add it unless the reader knows to ask.
 
 **Apply a mixed-effects model to a small dataset with
 three clusters (@sec-mixed-models).** The LLM will fit
@@ -137,8 +140,9 @@ three clusters (@sec-mixed-models).** The LLM will fit
 cluster effect will be almost entirely driven by the
 finite-sample prior implicit in REML; the user will read
 the coefficient as an estimate of a population quantity
-it does not meaningfully estimate. The LLM will not
-distinguish a well-posed LMM from a poorly-posed one.
+it does not meaningfully estimate. Unfortunately, the LLM
+will not distinguish a well-posed LMM from a poorly-posed
+one.
 
 **Iteratively re-weighted least squares on a
 non-identifiable GLM (@sec-glm).** The LLM will run IRLS
@@ -152,19 +156,20 @@ a step the LLM will not take unprompted.
 Each of these failures corresponds to a content chapter
 of this book. The chapter teaches the concept; the
 *statistician's contribution* section at its head tells
-you what the LLM will get wrong on this topic; the
-*Collaborating with an LLM* section at its foot practises
-the verification that catches the error.
+the reader what the LLM will get wrong on this topic; and
+the *Collaborating with an LLM* section at its foot
+practises the verification that catches the error.
 
 ## The position this book takes
 
-Given the four-category framework:
+Given the four-category framework, our position is
+straightforward:
 
 > **Use LLMs as an amplifier, not a replacement.** Treat
 > every line of generated code as a hypothesis to be
 > tested, not a result to be trusted.
 
-Specifically, the book recommends that students:
+Specifically, we recommend that students:
 
 - **Write the first version of any non-trivial function
   without AI assistance.** This ensures you understand
@@ -184,8 +189,9 @@ Specifically, the book recommends that students:
 Students occasionally ask whether this training is
 obsolete, whether, in five years, the LLM will be
 good enough that these warnings no longer apply. The
-honest answer is: maybe, and maybe not. But three
-arguments remain even under the optimistic assumption:
+honest answer, it seems, is: perhaps, and perhaps not.
+On the other hand, three arguments remain even under the
+optimistic assumption:
 
 1. **Professional accountability does not transfer.**
    However capable the LLM becomes, when an FDA reviewer
@@ -200,13 +206,13 @@ arguments remain even under the optimistic assumption:
    engineer. The market pays considerably more for the
    former.
 
-In short: learning this material is not a hedge against
+In sum, learning this material is not a hedge against
 LLM failure. It is the substance of what a
 biostatistician is for.
 
 ## What you will be able to do
 
-By the end of this book, you should be able to:
+By the end of this book, the reader should be able to:
 
 - Write clean, vectorised, functional R code that is
   easy for collaborators to read and maintain.
@@ -242,8 +248,8 @@ And, across all of these:
 ## How each chapter is structured
 
 Every content chapter follows a consistent structure
-designed to make the human-LLM division of labour
-explicit:
+that we have designed to make the human-LLM division of
+labour explicit:
 
 1. **Prerequisites**, three open-ended diagnostic
    questions. Answer them honestly; if all three are
@@ -295,5 +301,5 @@ For each chapter, the recommended workflow is:
 Students who follow this workflow learn the material.
 Students who skip steps 2 and 3 do not, and within a
 year they cannot distinguish their own contributions
-from the LLM's, which means they cannot professionally
-account for either.
+from the LLM's, which means, in turn, that they cannot
+professionally account for either.
