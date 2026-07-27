@@ -24,7 +24,7 @@ By the end of this chapter you should be able to:
 - Distinguish between atomic vectors, lists, and the major data
   structures built on them.
 - Subset and mutate data with base R and with `dplyr`.
-- Write vectorised expressions and explain why they outperform
+- Write vectorized expressions and explain why they outperform
   equivalent `for` loops.
 
 ## Orientation
@@ -226,12 +226,12 @@ A logical index built from a column that contains `NA`
 produces `NA` rows, not dropped rows. This surprises people.
 Use `which()` or `subset()` if you want `NA` rows dropped.
 
-## Vectorisation
+## Vectorization
 
-Vectorisation is applying an operation to every element of a
+Vectorization is applying an operation to every element of a
 vector at once, rather than writing an explicit loop. It is
 the central design principle of R: nearly every built-in
-function is vectorised.
+function is vectorized.
 
 ```{.r}
 x <- c(1, 2, 3, 4, 5)
@@ -252,7 +252,7 @@ arithmetic but dangerous when lengths mismatch by accident. R
 warns if the longer length is not a multiple of the shorter,
 but not otherwise.
 
-**Loop vs vectorised.** A concrete benchmark makes the stakes
+**Loop vs vectorized.** A concrete benchmark makes the stakes
 visible:
 
 ```{.r}
@@ -275,7 +275,7 @@ bench::mark(
 )
 ```
 
-The vectorised version is typically 10–100× faster because
+The vectorized version is typically 10–100× faster because
 the elementwise arithmetic happens in compiled C code, not in
 R's interpreter. For a vector of length 1 million the gap
 grows to 1000× or more.
@@ -283,17 +283,17 @@ grows to 1000× or more.
 ::: {.callout-tip collapse='true'}
 ## Check your understanding
 
-**Q:** Why is vectorised R code faster than an equivalent
+**Q:** Why is vectorized R code faster than an equivalent
 `for` loop that does the same arithmetic?
 
-**A:** The vectorised operation hands the whole vector to a
+**A:** The vectorized operation hands the whole vector to a
 compiled C routine, which runs the loop internally at native
 speed. An R-level `for` loop invokes the R interpreter once
 per element, and the interpreter overhead dominates the
 actual arithmetic for simple operations.
 :::
 
-Not every algorithm vectorises. Sequential updates (MCMC
+Not every algorithm vectorizes. Sequential updates (MCMC
 chains, sequential hypothesis tests, change-point detection)
 require each step to depend on the previous one and cannot be
 written as single elementwise expressions. For these cases,
@@ -304,7 +304,7 @@ calls as a single function.
 
 The tidyverse is a coordinated set of packages (`dplyr`,
 `tidyr`, `ggplot2`, `purrr`, and others) that share a common
-grammar for data manipulation and visualisation. `dplyr`
+grammar for data manipulation and visualization. `dplyr`
 provides six core verbs and a pipe operator that chains them.
 
 The native R pipe `|>` (introduced in R 4.1, 2021) passes its
@@ -347,7 +347,7 @@ ChickWeight |>
 
 The pipe reads top-to-bottom like an analysis plan: start
 with `ChickWeight`, keep the first 14 days, group by diet and
-day, summarise, sort. The same computation in base R would
+day, summarize, sort. The same computation in base R would
 fragment into intermediate variables and nested function
 calls; the pipe keeps the data flow visible.
 

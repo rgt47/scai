@@ -35,7 +35,7 @@ By the end of this chapter you should be able to:
 - Compute OLS coefficients from the normal equations, and
   explain why `lm()` uses QR instead.
 - Diagnose a near-singular matrix via `kappa()` and know the
-  standard remedies (regularisation, pseudo-inverse).
+  standard remedies (regularization, pseudo-inverse).
 
 ## Orientation
 
@@ -46,8 +46,8 @@ This chapter develops the vocabulary and the numerical
 intuition you need for the rest of the book.
 
 Under the hood, `lm()` performs a QR decomposition on the
-design matrix; `prcomp()` performs an SVD on a centred data
-matrix; mixed models, GLMs, and penalised regression all
+design matrix; `prcomp()` performs an SVD on a centerd data
+matrix; mixed models, GLMs, and penalized regression all
 reduce to iterative linear algebra. Learning to think
 directly in matrices, rather than through the cushion of
 formula syntax, is the move that makes these methods
@@ -62,7 +62,7 @@ bug is expensive to find.
 
 Matrix algebra is a domain where the mechanics, how to
 multiply, invert, decompose, are objective and lookupable.
-The judgement calls are elsewhere, and they separate correct
+The judgment calls are elsewhere, and they separate correct
 numerical code from code that silently produces garbage.
 
 **What to compute, and what to avoid computing.** The
@@ -71,7 +71,7 @@ the operation you actually perform is *not* an explicit
 inverse followed by a multiply. It is `solve(crossprod(X), crossprod(X, y))`
 --- or, better, a QR decomposition, which is what `lm()`
 does. Explicit inverses are slower and numerically less
-stable. The statistician's judgement is to refuse to compute
+stable. The statistician's judgment is to refuse to compute
 an inverse unless the inverse itself is the object of
 interest (a variance-covariance matrix, typically).
 
@@ -82,7 +82,7 @@ number; values above $10^{10}$ or so signal that the
 computation is walking on a knife edge. The right response is
 not to run it anyway and see what happens. It is to diagnose
 (redundant columns? collinearity? scaling issues?) and either
-fix the data or switch to a regularised method.
+fix the data or switch to a regularized method.
 
 **Matrix vs. data frame.** Keep numeric data for linear
 algebra in matrices; keep mixed-type data for analysis in
@@ -159,7 +159,7 @@ D  <- diag(c(1, 2, 3))
 M <- as.matrix(my_numeric_df)
 ```
 
-Column-major fill is the single most surprising behaviour
+Column-major fill is the single most surprising behavior
 for users coming from Python (NumPy defaults to row-major)
 or from spreadsheet intuition. The consequence at the machine
 level is that column operations are cache-friendly in R; this
@@ -178,7 +178,7 @@ far more readable when matrices carry semantic meaning
 ## Indexing and subsetting
 
 R uses `A[i, j]` for matrix indexing, with three patterns
-worth memorising:
+worth memorizing:
 
 ```r
 A[i, ]          # row i, returned as a vector (dimension drop!)
@@ -334,12 +334,12 @@ Remedies for near-singular systems:
   exactly or nearly collinear, one of them carries no new
   information.
 - **Rescale.** Columns on wildly different scales inflate
-  condition number without reflecting a real problem. Centre
+  condition number without reflecting a real problem. Center
   and scale before solving.
-- **Ridge regularisation.** Replace $X^T X$ with $X^T X + \lambda I$
+- **Ridge regularization.** Replace $X^T X$ with $X^T X + \lambda I$
   for small $\lambda > 0$. This is mathematically equivalent
   to a prior on the coefficients and numerically equivalent
-  to regularising the problem.
+  to regularizing the problem.
 - **Pseudo-inverse via SVD.** `MASS::ginv(A)` computes the
   Moore-Penrose pseudo-inverse, which is well defined even
   when $A$ is singular.
@@ -347,7 +347,7 @@ Remedies for near-singular systems:
 ## `crossprod()` and `tcrossprod()`
 
 For the extremely common patterns $X^T X$ and $X X^T$, R
-provides specialised functions:
+provides specialized functions:
 
 ```r
 crossprod(X)         # t(X) %*% X
@@ -358,13 +358,13 @@ crossprod(X, y)      # t(X) %*% y
 `crossprod(X)` is roughly twice as fast as
 `t(X) %*% X` because it exploits the symmetry of the result
 (it computes only the upper triangle and mirrors). This is a
-small optimisation for small matrices and a substantial one
+small optimization for small matrices and a substantial one
 for large ones. In any code that computes the normal
 equations, using `crossprod` is a free speedup.
 
-## Vectorised reductions
+## Vectorized reductions
 
-For row and column reductions, base R provides specialised
+For row and column reductions, base R provides specialized
 functions that are much faster than `apply`:
 
 ```r
@@ -386,7 +386,7 @@ for the standard reductions.
 
 R delegates matrix multiplication, solves, and decompositions
 to BLAS (Basic Linear Algebra Subprograms) and LAPACK. These
-are Fortran/C libraries that have been optimised over decades
+are Fortran/C libraries that have been optimized over decades
 with cache blocking, SIMD instructions, and multithreading.
 
 The practical consequence: `A %*% B` for 1000×1000 matrices
@@ -456,7 +456,7 @@ Other applications:
 - **Stability of dynamical systems**: eigenvalues of the
   Jacobian.
 
-The next chapter (decompositions) generalises this idea to
+The next chapter (decompositions) generalizes this idea to
 SVD, which works for non-square and non-symmetric matrices
 and underlies much of numerical linear algebra.
 
@@ -469,7 +469,7 @@ genomic data, this is wasteful in both memory and
 computation.
 
 The `Matrix` package provides sparse matrix classes that
-store only the nonzero entries and dispatch to specialised
+store only the nonzero entries and dispatch to specialized
 algorithms that skip zero blocks.
 
 ```r
@@ -488,7 +488,7 @@ Classes to know:
   for construction.
 - `dsCMatrix`: symmetric sparse.
 
-Many modelling packages accept or return `Matrix` objects
+Many modeling packages accept or return `Matrix` objects
 natively: `glmnet`, `lme4`, `MatrixModels`. Work involving
 genomics, NLP, or networks will encounter these regularly.
 
@@ -545,16 +545,16 @@ why is the second form numerically worse?
 **Answer.**
 
 Roughly 2× faster. `solve(A, b)` performs one LU
-factorisation and a back-substitution, totalling about
+factorization and a back-substitution, totaling about
 $\frac{2}{3} n^3$ floating-point operations. `solve(A) %*% b`
 performs the same LU, then completes the inverse (another
 $\frac{n^3}{3}$ FLOPs to invert a triangular matrix), then
 multiplies by $b$ ($n^2$ FLOPs more). About 50% more work
-than the direct solve, plus one materialised dense matrix
+than the direct solve, plus one materialized dense matrix
 that the direct path avoids.
 
 The numerical harm is more important than the speed. The
-explicit inverse materialises a matrix whose entries can be
+explicit inverse materializes a matrix whose entries can be
 large in magnitude even when the solve itself is well
 conditioned; those large entries are then multiplied by `b`
 and summed, amplifying rounding error. `solve(A, b)` avoids
@@ -575,7 +575,7 @@ hit:
    dimensions at each step until you find the mismatch.
 2. **Computationally singular.** `solve(A)` fails because
    $A$ is (near) singular. Diagnose with `kappa(A)`;
-   remedy with regularisation ($+ \lambda I$) or with
+   remedy with regularization ($+ \lambda I$) or with
    `MASS::ginv(A)` (Moore-Penrose pseudo-inverse).
 3. **Silent dimension drop.** `A[i, ]` becomes a vector and
    downstream matrix operations misbehave. Use
@@ -617,14 +617,14 @@ something else?'
 correctly from `kappa(A)` output. They are less reliable at
 distinguishing 'your matrix is genuinely singular' from
 'your matrix is fine but your workflow has a bug upstream'.
-If the suggested fix involves heavy regularisation, suspect
+If the suggested fix involves heavy regularization, suspect
 that the diagnosis is wrong and the real problem is a bug,
 not conditioning.
 
-*Verification.* Before applying any suggested regularisation,
+*Verification.* Before applying any suggested regularization,
 check the data: are there duplicate rows, exactly collinear
 columns, or extreme outliers? Those often surface as
-'singular matrix' errors but are not fixed by regularisation.
+'singular matrix' errors but are not fixed by regularization.
 
 **Prompt 3: benchmarking.** Ask the LLM to set up a
 `bench::mark()` comparison between `solve(A, b)`,
@@ -656,7 +656,7 @@ Four habits define effective use of matrix algebra in R:
 2. **Solve systems, do not invert matrices.** Compute an
    inverse only when the inverse itself is the object of
    interest.
-3. **Use `crossprod` and vectorised reductions.** Free
+3. **Use `crossprod` and vectorized reductions.** Free
    speedups that also read more clearly once the idioms are
    familiar.
 4. **Check dimensions and condition numbers.** Dimension

@@ -71,7 +71,7 @@ dozens of times over a project's life.
 
 **What type should the function return?** A single number, a
 logical, a character, a tibble with one row per group, a
-fitted model object. The statistician's judgement is to pick
+fitted model object. The statistician's judgment is to pick
 the type that makes downstream work easy, not the type that
 was convenient to produce. If every iteration returns a
 tibble, `map()` followed by `list_rbind()` gives a tidy
@@ -83,7 +83,7 @@ aborts on the first failure and returns nothing. For a
 simulation study with 10,000 parameter combinations, one
 failing combination should not destroy the other 9,999
 results. `safely()` and `possibly()` are the right tools here,
-but they force a judgement: do you want to record the error
+but they force a judgment: do you want to record the error
 and continue (so the failure is visible later), substitute a
 default value (so the downstream code does not need to
 special-case missing results), or abort (because the failure
@@ -95,11 +95,11 @@ half the data or aborts mysteriously on a corner case.
 with a clear loop body is perfectly acceptable R code. The
 right reason to replace it with `map_*()` is that the
 functional version is clearer or safer, not 'because loops
-are bad'. Dogmatic vectorisation that compresses a readable
+are bad'. Dogmatic vectorization that compresses a readable
 loop into an unreadable chain of `|>`-threaded anonymous
 functions is a cost without a benefit.
 
-These are judgement calls. They do not have right answers
+These are judgment calls. They do not have right answers
 that an LLM can look up. They are what makes functional code
 legibly statistical rather than showily clever.
 
@@ -203,7 +203,7 @@ difference between runs can produce errors far from the
 
 ## The `purrr` toolkit
 
-`purrr` reorganises the same operations under a consistent
+`purrr` reorganizes the same operations under a consistent
 naming scheme. The core principle: **the function name tells
 you the output type.**
 
@@ -313,7 +313,7 @@ imap_chr(my_list, \(x, nm) paste(nm, ":", mean(x)))
 ```
 
 Useful when the iteration needs to know which element it is
-processing, for example, labelling plots or files by group
+processing, for example, labeling plots or files by group
 name.
 
 ## `walk()` for side effects
@@ -394,7 +394,7 @@ map_dbl(x, maybe_log)
 #> [1] 0.0000000 0.6931472        NA 1.3862944
 ```
 
-The judgement call: `safely()` preserves information about
+The judgment call: `safely()` preserves information about
 why each iteration failed, at the cost of a more complex
 return structure. `possibly()` substitutes a default value,
 losing diagnostic information but producing a clean numeric
@@ -415,7 +415,7 @@ need to inspect later which iterations failed and why, or
 when the pattern of failures is itself informative about
 the data (e.g., 'every run with n > 10,000 ran out of
 memory'). Use `possibly()` when you know the fallback
-behaviour is appropriate and you do not need the
+behavior is appropriate and you do not need the
 diagnostic information. `possibly()` returns a clean vector
 of the same type as the successful cases; `safely()`
 returns a list of success/error pairs that must be
@@ -458,7 +458,7 @@ the iteration unit is a statistical object, and the function
 returns a summary (coefficient, R², AUC, ...) per iteration.
 Collecting them with `map_dfr` or `map(...) |> list_rbind()`
 gives a tidy tibble ready for downstream plotting or
-summarisation.
+summarization.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: fitting models per group
@@ -619,8 +619,8 @@ the answer.
 
 What is the primary purpose of the `purrr` package in R?
 
-- A) Data visualisation
-- B) Statistical modelling
+- A) Data visualization
+- B) Statistical modeling
 - C) Functional programming
 - D) Database connectivity
 
@@ -715,7 +715,7 @@ aborts at the first failure; `walk()` is for side effects.
    functional-programming tools, chiefly the `map_*()`
    functions, which apply a function over a vector or list
    and return a predictable type. You reach for it when you
-   want the behaviour of `lapply`/`sapply` but with type
+   want the behavior of `lapply`/`sapply` but with type
    safety, consistent naming, and tidyverse-compatible
    interfaces. For one-off interactive work, `sapply` is
    fine; for scripts and packages, `map_dbl`, `map_chr`, etc.

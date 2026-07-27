@@ -27,7 +27,7 @@ By the end of this chapter you should be able to:
   a modification triggers a copy.
 - Predict and diagnose the O(n²) cost of growing a vector in
   a loop; rewrite such code as O(n) with pre-allocation or
-  O(1) with vectorisation.
+  O(1) with vectorization.
 - Explain lists as recursive vectors, and the semantic
   distinction between `[`, `[[`, and `$`.
 - Explain data frames as lists of columns, and the
@@ -44,7 +44,7 @@ represents objects in memory. This chapter is the minimum you
 need to reason about performance without leaving R.
 
 It is also the bridge between 'R works' and 'R works
-efficiently'. Every practising R user has written code that
+efficiently'. Every practicing R user has written code that
 felt inexplicably slow. Most of those incidents trace back to
 a small number of misunderstandings about R's memory model.
 The payoff for internalising these ideas is disproportionate:
@@ -53,24 +53,24 @@ The payoff for internalising these ideas is disproportionate:
 ## The statistician's contribution {#sec-r-internals-human}
 
 Memory semantics are objective facts about R. An LLM can
-summarise them in a paragraph. What an LLM cannot do is make
-the judgement calls that separate working code from defensible
+summarize them in a paragraph. What an LLM cannot do is make
+the judgment calls that separate working code from defensible
 analysis code.
 
-**When to optimise, and when not to.** The dominant cost in
+**When to optimize, and when not to.** The dominant cost in
 most statistical analyses is not R's execution time; it is the
 analyst's time to reason about the model, check results, and
-communicate findings. Premature optimisation, rewriting
+communicate findings. Premature optimization, rewriting
 clear code into obscure code to save milliseconds, is a
-common self-inflicted wound. The statistician's judgement is
-to optimise only the parts of a pipeline that are actually a
+common self-inflicted wound. The statistician's judgment is
+to optimize only the parts of a pipeline that are actually a
 bottleneck, and to preserve readability everywhere else. This
 is what profiling is for: it tells you where to spend the
 effort.
 
 **When to leave R.** Some statistical problems genuinely need
 more than R's interpreted loops can deliver. Rcpp, data.table,
-and (for pure-numeric work) vectorised BLAS calls are the
+and (for pure-numeric work) vectorized BLAS calls are the
 standard escape hatches. The question is not 'is this faster?'
 --- C++ is almost always faster, but 'is the speedup worth
 the cost in code clarity, testability, and maintainability?'
@@ -92,9 +92,9 @@ frames look interchangeable until they are not. A simulation
 that produces a million numeric values per iteration should
 return a matrix, not a tibble. A downstream analysis that
 merges, filters, and groups should use a data frame or
-tibble, not a matrix. The choice is a judgement about what
+tibble, not a matrix. The choice is a judgment about what
 dominates: numeric throughput or ergonomics. Getting it right
-is worth more than any micro-optimisation.
+is worth more than any micro-optimization.
 
 These decisions shape whether an analysis is fast enough to
 be practical, readable enough to be reviewed, and correct
@@ -157,7 +157,7 @@ for statistical programming?
 Memory knowledge is what separates code that feels fast from
 code that feels sluggish for reasons you cannot explain. The
 copy-on-modify rule is the direct cause of the classic
-growing-vector-in-a-loop trap (O(n²) behaviour). The
+growing-vector-in-a-loop trap (O(n²) behavior). The
 modify-in-place exception for single-binding objects
 explains why pre-allocation rescues that same loop.
 Understanding when R copies and when it does not lets you
@@ -208,7 +208,7 @@ arguments would have effects that ripple outward in ways
 that are hard to reason about. For interactive statistical
 work, where reproducibility and readability matter more
 than raw speed, R chose safety. Environments and some
-specialised packages (e.g., data.table) opt out of
+specialized packages (e.g., data.table) opt out of
 copy-on-modify when the speed gain is worth the added
 cognitive load.
 
@@ -253,7 +253,7 @@ result <- seq_len(50000)^2
 
 The pre-allocated version works because `result` has a single
 binding after allocation; each assignment modifies in place.
-The vectorised version pushes the loop into C code inside R's
+The vectorized version pushes the loop into C code inside R's
 internals, which is both algorithmically better and avoids
 the interpreter overhead.
 
@@ -261,7 +261,7 @@ Concretely, on typical hardware:
 
 - Grown vector: ~8 seconds.
 - Pre-allocated: ~0.05 seconds (160× faster).
-- Vectorised: ~0.0005 seconds (10,000× faster than grown).
+- Vectorized: ~0.0005 seconds (10,000× faster than grown).
 
 This is not a pathological example. It is exactly the shape
 of code many people write when first learning R. The
@@ -356,7 +356,7 @@ element 3 from each column vector and assemble them into a
 new structure. For a data frame with 50 columns, that is 50
 pointer dereferences and 50 small copies per row. Running
 `for (i in seq_len(nrow(df)))` is almost always the wrong
-approach for more than a few hundred rows. Vectorise along
+approach for more than a few hundred rows. Vectorize along
 columns, or use `dplyr::group_by()` / `data.table` idioms
 that are column-oriented under the hood.
 
@@ -464,7 +464,7 @@ bench::mark(
 reports median, min, max, allocations, and throughput. The
 `check = TRUE` argument (the default) verifies that every
 expression returns the same value, which catches bugs where
-an 'optimised' version silently produces different output.
+an 'optimized' version silently produces different output.
 
 For honest results, run benchmarks on a quiet machine.
 Background applications, file indexing, and active browsers
@@ -476,7 +476,7 @@ algorithmic difference.
 
 Benchmarking tells you how fast *one piece of code* is.
 Profiling tells you *where* a larger program is spending its
-time. You cannot optimise effectively without profiling,
+time. You cannot optimize effectively without profiling,
 because you cannot guess where bottlenecks are.
 
 `Rprof()` samples the call stack at regular intervals and
@@ -493,9 +493,9 @@ summaryRprof("profile.out")$by.self
 The `by.self` column shows time spent in each function
 excluding the time it spent calling other functions. The
 functions at the top of that list are where to focus
-optimisation effort.
+optimization effort.
 
-The `profvis` package provides an interactive visualisation
+The `profvis` package provides an interactive visualization
 of the same data:
 
 ```r
@@ -510,7 +510,7 @@ and line-by-line timing. It is usually the fastest way to
 find the bottleneck in a function you are unfamiliar with.
 
 The Pareto rule applies strongly to performance: typically
-20% of the code accounts for 80% of the runtime. Optimising
+20% of the code accounts for 80% of the runtime. Optimizing
 outside the bottleneck wastes time. Profiling turns that
 principle into action.
 
@@ -546,8 +546,8 @@ Memory semantics are an area where LLMs are often helpful,
 sometimes subtly wrong, and occasionally confidently wrong in
 ways that are dangerous. Three patterns work well.
 
-**Prompt 1: explaining observed behaviour.** Paste a short
-script showing surprising memory or timing behaviour
+**Prompt 1: explaining observed behavior.** Paste a short
+script showing surprising memory or timing behavior
 (addresses from `obj_addr()`, timings from `system.time()`)
 and ask: 'what is R doing here, and why?'
 
@@ -559,7 +559,7 @@ the high-level explanation as a starting point; verify the
 low-level claims against `?lobstr::obj_addr` and Wickham's
 *Advanced R*, chapters 2--5.
 
-*Verification.* Reproduce the behaviour in an R session. If
+*Verification.* Reproduce the behavior in an R session. If
 the LLM predicts 'this operation triggers a copy', check with
 `tracemem()` or `obj_addr()` before and after. Predictions
 that match observation stay; predictions that don't get
@@ -571,7 +571,7 @@ speed. Ask it to explain the rewrite.
 
 *What to watch for.* The rewrite will usually be faster. The
 explanation may or may not be accurate; LLMs tend to cite
-'vectorisation' or 'pre-allocation' even when the actual
+'vectorization' or 'pre-allocation' even when the actual
 speedup comes from something else (e.g., switching to a BLAS
 matrix op, or avoiding a repeated lookup). Do not copy the
 explanation into a methods section without verifying it
@@ -610,11 +610,11 @@ that candidate into a trustworthy one.
 
 Three habits define effective use of R's memory semantics:
 
-1. **Measure before optimising.** Profile first to find the
+1. **Measure before optimizing.** Profile first to find the
    bottleneck. Benchmark before and after to verify the
    change actually helped.
-2. **Pre-allocate or vectorise by default.** The quadratic
-   trap is avoidable once you recognise its shape. Making
+2. **Pre-allocate or vectorize by default.** The quadratic
+   trap is avoidable once you recognize its shape. Making
    pre-allocation automatic saves you from ever paying its
    cost.
 3. **Match data structure to workload.** Matrix for dense
@@ -637,7 +637,7 @@ reach for when the habits are not enough.
 2. Using `lobstr::obj_size()`, measure the size of a list of
    1,000 numeric vectors of length 1,000 versus a single
    numeric vector of length 10^6. Explain the difference.
-3. Profile the body of your favourite function from chapter
+3. Profile the body of your favorite function from chapter
    1 with `profvis`. Identify the line that accounts for the
    most self-time. Does it match where you would have
    guessed the bottleneck was?
@@ -804,4 +804,4 @@ better.
    operation occurs inside a loop (as in growing a vector
    with `c()`), the total work becomes O(n²) rather than
    O(n). The fix is pre-allocation (so there is only one
-   binding, triggering modify-in-place) or vectorisation.
+   binding, triggering modify-in-place) or vectorization.

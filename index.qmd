@@ -8,7 +8,7 @@ statistical computing for biostatistics students.
 The book is a practical, code-first introduction to the
 computing techniques that biostatisticians use daily:
 programming in R, version control, linear algebra, simulation,
-statistical modelling, graphics, reproducible software, and
+statistical modeling, graphics, reproducible software, and
 the emerging role of large language models in each of these
 activities.
 
@@ -25,11 +25,11 @@ four-volume graduate sequence:
 - *Statistical Computing in the Age of AI* (this volume).
 - [*Advanced Statistical Computing in the Age of AI*](https://scai-advanced.rgtlab.org)
   covers the advanced material: numerical stability,
-  numerical linear algebra in depth, advanced optimisation,
+  numerical linear algebra in depth, advanced optimization,
   EM, Monte Carlo, MCMC, modern Bayesian computation,
   high-performance and distributed computing,
   high-dimensional methods, machine learning, software
-  engineering, interactive visualisation.
+  engineering, interactive visualization.
 - [*Applied Generative AI for Health Sciences Research*](https://applied-genai.rgtlab.org)
   treats generative AI as the orthogonal axis: capability
   classes, reasoning models, biomedical RAG, multimodal

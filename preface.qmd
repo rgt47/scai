@@ -110,7 +110,7 @@ opened in the past three years.
 - *Advanced R* [@wickham2019advr] and *R for Data Science*
   [@wickham2023r4ds] teach R itself superbly, but predate
   widespread LLM use and do not address the
-  human-LLM division of labour. Read them alongside this
+  human-LLM division of labor. Read them alongside this
   one.
 - *Statistical Computing with R* [@rizzo2019computing]
   covers the algorithms in more depth than this book,
@@ -168,11 +168,11 @@ graduate sequence.
 - [*Advanced Statistical Computing in the Age of AI*](https://scai-advanced.rgtlab.org)
   is the second methods volume, covering numerical
   stability, numerical linear algebra in depth, advanced
-  optimisation, EM, Monte Carlo, MCMC, modern Bayesian
+  optimization, EM, Monte Carlo, MCMC, modern Bayesian
   computation, high-performance and distributed
   computing, high-dimensional methods, machine learning
   for biostatistics, software engineering, and advanced
-  interactive visualisation.
+  interactive visualization.
 - [*Applied Generative AI for Health Sciences Research*](https://applied-genai.rgtlab.org)
   treats generative AI as the orthogonal axis: capability
   classes, reasoning models, biomedical RAG, multimodal
@@ -182,7 +182,7 @@ graduate sequence.
 Together the four books form a two-year graduate
 biostatistics curriculum. Each can be read independently.
 
-## Acknowledgements
+## Acknowledgments
 
 The structural conventions of this book (chapter-opening
 diagnostic quiz, end-of-chapter answers, section-level

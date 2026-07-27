@@ -33,7 +33,7 @@ By the end of this chapter you should be able to:
   standard error.
 - Use common random numbers across competing methods to
   reduce variance in a simulation comparison.
-- Recognise when parallelisation is worth the overhead, and
+- Recognize when parallelization is worth the overhead, and
   use `parallel::clusterSetRNGStream()` for reproducible
   parallel simulations.
 
@@ -111,7 +111,7 @@ of replicates, and the performance measures before running
 the simulation. Simulation experiments are as susceptible
 to garden-of-forking-paths bias as real experiments.
 
-These judgements are what separate a simulation that could
+These judgments are what separate a simulation that could
 have been a data dredge from a simulation that survives
 adversarial review. An LLM will happily execute a poorly
 designed simulation as efficiently as a well-designed one.
@@ -164,7 +164,7 @@ runif(3)
 #> [1] 0.9148060 0.9370754 0.2861395   # identical
 ```
 
-`set.seed(42)` initialises the generator's state to a
+`set.seed(42)` initializes the generator's state to a
 deterministic value derived from the integer 42. Subsequent
 calls to random functions draw from the resulting sequence.
 For reproducible simulations, call `set.seed()` at the
@@ -197,7 +197,7 @@ debugging a simulation that fails on a particular replicate.
 **`RNGkind()`** selects the generator. For parallel
 simulations, `RNGkind("L'Ecuyer-CMRG")` is recommended
 because it provides independent streams across workers (see
-the parallelisation section below). Changing `RNGkind`
+the parallelization section below). Changing `RNGkind`
 changes the sequence even for the same seed, so document it
 if you use anything other than the default.
 
@@ -256,7 +256,7 @@ transform is the standard constructor.
 convenient quantile function, generate a candidate from a
 proposal distribution and accept with probability equal to
 the ratio of target to envelope densities. R's internals
-use specialised acceptance-rejection schemes for many of
+use specialized acceptance-rejection schemes for many of
 the standard distributions.
 
 **Custom distributions.** If you need to sample from a
@@ -279,7 +279,7 @@ x     <- matrix(mu, 1000, 2, byrow = TRUE) + z %*% t(L)
 ```
 
 `MASS::mvrnorm(n, mu, Sigma)` wraps this (using
-eigendecomposition by default for better behaviour on
+eigendecomposition by default for better behavior on
 near-singular $\Sigma$). For large simulations where $\Sigma$
 is fixed across replicates, factor once and reuse $L$ rather
 than re-factoring every iteration.
@@ -433,7 +433,7 @@ thousands of extra replicates for free.
 
 :::
 
-## Parallelisation
+## Parallelization
 
 Simulation studies are 'embarrassingly parallel': each
 replicate is independent of the others. Scaling to multiple
@@ -485,13 +485,13 @@ results <- future_sapply(seq_len(5000),
 `future.seed = TRUE` handles the RNG setup automatically,
 which is the main source of bugs in parallel simulations.
 
-**When is parallelisation worth it?** The overhead of
+**When is parallelization worth it?** The overhead of
 starting workers and shipping data is non-trivial. For a
-replicate that takes milliseconds, parallelising 5000
+replicate that takes milliseconds, parallelizing 5000
 replicates across 4 cores may be slower than the
 serial version. For a replicate that takes seconds or more,
-parallelisation scales well. A rule of thumb: if your serial
-simulation takes more than about 10 minutes, parallelisation
+parallelization scales well. A rule of thumb: if your serial
+simulation takes more than about 10 minutes, parallelization
 is worth setting up.
 
 ## Reporting simulation results
@@ -503,11 +503,11 @@ carefully designed figures.
 
 **Faceted line plots** work well for performance-by-
 sample-size curves. Sample size on x-axis, performance
-metric on y-axis, methods as colours, scenarios as facets.
+metric on y-axis, methods as colors, scenarios as facets.
 Add error bars or confidence bands for Monte Carlo error.
 
 **Heatmaps** work well for two-factor designs with many
-levels. Scenario on one axis, method on another, colour
+levels. Scenario on one axis, method on another, color
 encodes performance.
 
 **Tables** complement figures when precise values matter.
@@ -568,7 +568,7 @@ effect sizes, distributions) that do not match the
 scientific question. Treat it as a draft. In particular,
 the 'D' (data-generating mechanism) is where most
 simulations go wrong: make sure the DGM reflects the real
-data, not a convenient idealisation.
+data, not a convenient idealization.
 
 *Verification.* Have a second person (or yourself a day
 later) read the ADEMP and predict what the simulation will
@@ -624,9 +624,9 @@ Three habits define a defensible simulation study:
 2. **Report Monte Carlo standard errors for every
    performance measure.** Differences smaller than 2 MCSEs
    are noise. Make the noise visible.
-3. **Treat the DGM as where the interesting judgement
-   lives.** Simulating only idealised data proves only that
-   a method works on idealised data. Include violations of
+3. **Treat the DGM as where the interesting judgment
+   lives.** Simulating only idealized data proves only that
+   a method works on idealized data. Include violations of
    assumptions the method depends on.
 
 ## Exercises
@@ -646,7 +646,7 @@ Three habits define a defensible simulation study:
    with and without common random numbers. Compare the
    Monte Carlo SE of the difference in power. How large is
    the variance reduction?
-5. Parallelise the simulation from exercise 2 using
+5. Parallelize the simulation from exercise 2 using
    `future.apply::future_sapply()`. Verify that you get the
    same results (within Monte Carlo noise) as the serial
    version. Time both. At what $R$ does parallel become
@@ -716,8 +716,8 @@ provides a more fair comparison?
 ::: {.callout-note collapse='true'}
 ## Answer
 
-**B.** Common random numbers couple the realisations
-across methods, cancelling sampling variability that is
+**B.** Common random numbers couple the realizations
+across methods, canceling sampling variability that is
 not due to the methods themselves.
 :::
 
@@ -780,7 +780,7 @@ simulation.
    halve the SE, a 100-fold increase in $R$ to reduce SE
    by 10.
 3. Common random numbers (CRN) force both methods to be
-   evaluated on the same realised random draws, so any
+   evaluated on the same realized random draws, so any
    difference in their outputs reflects the methods
    themselves rather than sampling noise in the inputs.
    This reduces variance in the comparison and allows

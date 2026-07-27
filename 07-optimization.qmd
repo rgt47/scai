@@ -6,12 +6,12 @@ Answer the following questions to see if you can bypass this
 chapter. You can find the answers at the end of the chapter in
 @sec-quiz-answers-07.
 
-1. In gradient descent applied to a minimisation problem, in
+1. In gradient descent applied to a minimization problem, in
    which direction does each step move, and why?
 2. What is the risk of setting the learning rate too large in
    gradient descent?
 3. What is the primary advantage of BFGS over Newton's method,
-   and what property of an optimisation problem guarantees a
+   and what property of an optimization problem guarantees a
    unique global optimum regardless of starting point?
 
 ## Learning objectives
@@ -19,14 +19,14 @@ chapter. You can find the answers at the end of the chapter in
 By the end of this chapter you should be able to:
 
 - Formulate a statistical estimation problem as an
-  optimisation of an objective function, and recognise when
+  optimization of an objective function, and recognize when
   that objective is convex.
 - State the Newton and quasi-Newton (BFGS) update rules and
   their cost per iteration.
 - Use `optim()` with the main method options
   (`Nelder-Mead`, `BFGS`, `L-BFGS-B`, `CG`) and interpret
   their convergence diagnostics.
-- Write a log-likelihood function and maximise it, handling
+- Write a log-likelihood function and maximize it, handling
   the standard numerical issues (log-sum-exp, parameter
   transformations, scaling).
 - Use `numDeriv::grad()` and `numDeriv::hessian()` to check
@@ -37,14 +37,14 @@ By the end of this chapter you should be able to:
 
 ## Orientation
 
-Likelihood-based inference is optimisation in disguise.
-Every MLE, every penalised regression, every mixed-effects
+Likelihood-based inference is optimization in disguise.
+Every MLE, every penalized regression, every mixed-effects
 fit, every Cox model, every neural network ultimately calls
-a general-purpose optimiser. Understanding what the optimiser
+a general-purpose optimizer. Understanding what the optimizer
 is doing, and when it is failing, is the difference between
 producing results and producing plausible-looking noise.
 
-The optimiser in R that covers most real cases is `optim()`.
+The optimizer in R that covers most real cases is `optim()`.
 Underneath, it provides several algorithms. Choosing between
 them, writing an objective function that behaves well
 numerically, and diagnosing failures when they happen are
@@ -52,43 +52,43 @@ the skills this chapter develops.
 
 ## The statistician's contribution {#sec-optimization-human}
 
-Optimisation algorithms are mechanical. BFGS is BFGS;
+Optimization algorithms are mechanical. BFGS is BFGS;
 Newton-Raphson is Newton-Raphson. What is *not* mechanical,
-and what no optimiser can automate, is the judgement that
-surrounds the optimisation.
+and what no optimizer can automate, is the judgment that
+surrounds the optimization.
 
 **Is this problem convex?** Convex problems have a unique
 global optimum; any descent method converges to it regardless
 of starting point. Non-convex problems have multiple local
 optima; the answer you get depends on where you started, and
 the 'answer' with the best objective value is not guaranteed
-to be the one you want. Before optimising, ask: is the
+to be the one you want. Before optimizing, ask: is the
 likelihood concave (equivalently, is the negative log-
 likelihood convex)? For GLMs with canonical links, yes. For
-mixture models, neural networks, and many penalised
+mixture models, neural networks, and many penalized
 problems, no. The statistician's job is to know which case
-they are in and to pick an optimisation strategy accordingly.
+they are in and to pick an optimization strategy accordingly.
 
-**Is the parameterisation sensible?** An optimiser sees the
+**Is the parameterisation sensible?** An optimizer sees the
 objective function you give it, nothing more. Parameters on
 wildly different scales (one in units of $10^{-6}$, another
 in units of $10^{6}$) produce an ill-conditioned Hessian
-that makes every optimiser struggle. Parameters that should
+that makes every optimizer struggle. Parameters that should
 be positive (variances, rates) pass through `exp()`;
 probabilities pass through `plogis()`; correlations pass
 through Fisher's $z$. Working on the transformed scale makes
 the problem unconstrained and better-conditioned. The
-optimiser does not know or care; the analyst does.
+optimizer does not know or care; the analyst does.
 
 **Is the objective numerically stable?** Naively-coded log-
 likelihoods overflow or underflow with alarming frequency
 when the data get large. The standard fixes, working on
 the log scale, log-sum-exp for mixtures, centring covariates
---- are the statistician's responsibility. An optimiser that
+--- are the statistician's responsibility. An optimizer that
 diverges because the likelihood overflowed is not a bug in
-the optimiser.
+the optimizer.
 
-**When has the optimiser actually converged?** `$convergence
+**When has the optimizer actually converged?** `$convergence
 == 0` means 'the algorithm thinks it stopped because it was
 happy', not 'we have found the MLE'. Flat likelihoods,
 boundary solutions, and identifiability problems can all
@@ -98,29 +98,29 @@ starting from multiple initial values, and computing Wald
 standard errors are all defensive moves that verify
 convergence was genuine.
 
-These judgement calls separate code that fits a model from
-code that fits a model defensibly. The optimiser handles the
+These judgment calls separate code that fits a model from
+code that fits a model defensibly. The optimizer handles the
 arithmetic; the statistician handles everything else.
 
-## Optimisation in statistical computing
+## Optimization in statistical computing
 
 Most statistical methods can be written as: choose
-parameters $\theta$ to minimise (or maximise) some objective
+parameters $\theta$ to minimize (or maximize) some objective
 $f(\theta)$.
 
 - **Least squares.** $f(\beta) = \|y - X\beta\|^2$.
 - **Maximum likelihood.** $f(\theta) = -\log L(\theta; y)$.
-- **Penalised regression.** $f(\beta) = \|y - X\beta\|^2 + \lambda P(\beta)$
+- **Penalized regression.** $f(\beta) = \|y - X\beta\|^2 + \lambda P(\beta)$
   for ridge ($P = \|\beta\|^2$), lasso ($P = \|\beta\|_1$),
   elastic net (a mix).
 - **K-means clustering.** Sum of within-cluster distances to
   centroids.
-- **Neural networks.** Training loss plus regularisation.
+- **Neural networks.** Training loss plus regularization.
 
 Some of these have closed-form solutions (OLS, ridge). Most
-do not, and need iterative numerical optimisation.
+do not, and need iterative numerical optimization.
 
-R's core optimisation functions:
+R's core optimization functions:
 
 - `optimize(f, interval, ...)`, one-dimensional. Combines
   golden-section search and parabolic interpolation. Fast
@@ -136,7 +136,7 @@ R's core optimisation functions:
 - `uniroot(f, interval, ...)`, finds one-dimensional
   roots, useful for scoring equations.
 
-For specialised problems, dedicated packages (`quadprog`,
+For specialized problems, dedicated packages (`quadprog`,
 `nloptr`, `optimx`, `glmnet`) offer better performance or
 better convergence.
 
@@ -164,16 +164,16 @@ Convex problems are well-behaved:
 Statistical examples of convex problems:
 
 - OLS (quadratic in $\beta$).
-- Ridge regression ($L_2$-penalised OLS).
+- Ridge regression ($L_2$-penalized OLS).
 - Logistic regression (the log-likelihood is concave; the
   negative log-likelihood is convex).
 - Poisson regression with log link.
-- LASSO (convex but non-smooth; needs specialised methods).
+- LASSO (convex but non-smooth; needs specialized methods).
 
 Non-convex statistical examples: mixture models (multiple
 local maxima; EM gives a local optimum), neural networks
 (many local optima), most latent-variable models, and many
-penalised problems with non-convex penalties (SCAD, MCP).
+penalized problems with non-convex penalties (SCAD, MCP).
 
 Practical consequences:
 
@@ -181,13 +181,13 @@ Practical consequences:
   closed form. Single starting point is fine.
 - For non-convex problems, use multiple starting points
   (random restarts or domain-informed starts) and report the
-  best. Or use specialised algorithms (EM, stochastic
+  best. Or use specialized algorithms (EM, stochastic
   methods).
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: identifying convexity
 
-**Question.** Which of these are convex optimisation
+**Question.** Which of these are convex optimization
 problems: (a) OLS linear regression, (b) logistic regression
 MLE, (c) k-means clustering, (d) Gaussian mixture model
 MLE?
@@ -202,7 +202,7 @@ local optima corresponding to different centroid
 assignments; Gaussian mixture MLE has multiple local
 maxima (including a 'label-switching' symmetry plus
 genuinely different solutions). The practical
-implication: for (a) and (b), any reasonable optimiser
+implication: for (a) and (b), any reasonable optimizer
 gets the answer. For (c) and (d), starting point matters
 and multi-start is advisable.
 
@@ -211,7 +211,7 @@ and multi-start is advisable.
 ## Gradient descent
 
 Gradient descent is the conceptual foundation for most
-continuous optimisation. The update rule for minimising
+continuous optimization. The update rule for minimizing
 $f(\theta)$:
 
 $$
@@ -363,7 +363,7 @@ robustness matters for getting there in the first place.
 
 ## `optim()` in practice
 
-`optim()` is the general-purpose optimiser:
+`optim()` is the general-purpose optimizer:
 
 ```r
 result <- optim(
@@ -406,7 +406,7 @@ The output:
   problems where you suspect local optima. Slow and
   approximate.
 
-**Minimisation is the default.** To maximise (e.g., a log-
+**Minimization is the default.** To maximize (e.g., a log-
 likelihood), pass the *negative* of your objective, or set
 `control = list(fnscale = -1)`.
 
@@ -425,7 +425,7 @@ three numerical reasons:
 1. Products of many small probabilities underflow; sums of
    their logs do not.
 2. The log transforms many statistical models into quadratic
-   or near-quadratic objectives that optimise cleanly.
+   or near-quadratic objectives that optimize cleanly.
 3. Derivatives of logs are simpler than derivatives of
    products.
 
@@ -461,9 +461,9 @@ Three idioms in this code are worth internalising.
 returns $\log p(y)$ directly, avoiding underflow when
 probabilities are tiny.
 
-**2. Optimise on the log scale for positive parameters.** We
+**2. Optimize on the log scale for positive parameters.** We
 parameterised by $\log \sigma$ instead of $\sigma$ so the
-optimiser works on an unconstrained space ($\sigma > 0$
+optimizer works on an unconstrained space ($\sigma > 0$
 becomes $\log \sigma \in \mathbb R$). This is a universal
 trick: log for positive parameters, logit for probabilities,
 Fisher $z$ for correlations.
@@ -475,7 +475,7 @@ cleaner than closures over global state.
 
 ## Gradients: analytic, numerical, automatic
 
-Most optimisers work better with analytic gradients than
+Most optimizers work better with analytic gradients than
 with numerical approximations. Numerical gradients (finite
 differences) are noisy and expensive.
 
@@ -498,7 +498,7 @@ max(abs(grad_num - grad_an))         # should be ~1e-8
 If analytic and numerical disagree by more than rounding,
 there is a bug. This is non-negotiable: silently wrong
 gradients produce silently wrong parameter estimates, and the
-optimiser will cheerfully converge to the wrong answer.
+optimizer will cheerfully converge to the wrong answer.
 
 **Numerical.** `optim()` falls back to finite differences if
 `gr = NULL`. Acceptable for small problems; slow and
@@ -536,15 +536,15 @@ Two caveats:
 
 - The Hessian must be positive definite for this to make
   sense. If any diagonal of `vcov_hat` is negative, or if
-  `chol()` on `fit$hessian` fails, the optimiser did not
+  `chol()` on `fit$hessian` fails, the optimizer did not
   find a proper maximum.
-- The parameterisation matters. If you optimised $\log\sigma$
+- The parameterisation matters. If you optimized $\log\sigma$
   and want an SE for $\sigma$, apply the delta method:
   $\mathrm{SE}(\sigma) \approx \sigma \cdot \mathrm{SE}(\log\sigma)$.
 
 ## Common failure modes
 
-Five failure modes account for most optimisation bugs:
+Five failure modes account for most optimization bugs:
 
 **1. Non-convergence.** `fit$convergence != 0`, or reached
 `maxit`. Try: more iterations, a different method, better
@@ -556,7 +556,7 @@ a probability hitting 1. Wald inference breaks down; profile
 likelihoods or bootstrap are more reliable.
 
 **3. Flat likelihood.** The likelihood is nearly constant
-along some direction in parameter space. The optimiser
+along some direction in parameter space. The optimizer
 wanders; the Hessian is nearly singular. Usually signals
 non-identifiability (too many parameters for the data to
 determine). Remove the redundant parameter or add a prior.
@@ -570,7 +570,7 @@ best. Or switch to a method designed for non-convex problems
 infinite likelihoods. Usually caused by naively coded
 likelihoods that forgot to work on the log scale, or by
 categorical models with a predictor that perfectly separates
-the response (Firth correction or penalised likelihood is
+the response (Firth correction or penalized likelihood is
 the standard fix).
 
 Diagnostic ritual before trusting any `optim()` result:
@@ -594,14 +594,14 @@ eigenvalue. What likely went wrong, and what would you do?
 
 **Answer.**
 
-`$convergence = 0` only means the optimiser's internal
+`$convergence = 0` only means the optimizer's internal
 stopping criterion fired; it does not mean a true minimum
 was found. A negative eigenvalue of the Hessian at the
 reported optimum means the point is a saddle, not a
 minimum: the objective decreases in at least one
-direction. Likely causes: the optimiser stopped early
+direction. Likely causes: the optimizer stopped early
 because of a flat region, or the problem is non-convex
-and the optimiser is lodged near a saddle. Remedies: try
+and the optimizer is lodged near a saddle. Remedies: try
 a different starting point, increase `maxit` and decrease
 `reltol`, or switch methods (e.g., from BFGS to
 Nelder-Mead or a trust-region method in `nlminb`). Until
@@ -610,9 +610,9 @@ reported parameter values.
 
 :::
 
-## Collaborating with an LLM on optimisation
+## Collaborating with an LLM on optimization
 
-Optimisation is a domain where LLMs can produce working code
+Optimization is a domain where LLMs can produce working code
 quickly and also produce silently wrong code quickly. Three
 patterns work well.
 
@@ -621,13 +621,13 @@ patterns work well.
 frame with column names, and ask: 'write the negative log-
 likelihood as a function `nll(theta, data)` using a
 log-parameterised rate, and return a call to `optim` that
-maximises it.'
+maximizes it.'
 
 *What to watch for.* Common mistakes: missing the
 Jacobian of a parameter transformation, forgetting to use
 `log = TRUE` in `dgamma()`, hard-coded column names that do
 not match the data, returning the positive instead of
-negative log-likelihood for a minimiser. Review every line.
+negative log-likelihood for a minimizer. Review every line.
 
 *Verification.* Pick a case where the MLE has a closed form
 or where a canonical R implementation exists (e.g.,
@@ -707,7 +707,7 @@ se <- sqrt(diag(solve(fit$hessian)))
 se
 ```
 
-Two idioms worth memorising:
+Two idioms worth memorizing:
 
 - `log1p(exp(eta))` instead of `log(1 + exp(eta))`. For
   large negative `eta`, `1 + exp(eta)` is numerically equal
@@ -721,11 +721,11 @@ Two idioms worth memorising:
 
 ## Principle in use
 
-Three habits characterise effective use of optimisation in R:
+Three habits characterize effective use of optimization in R:
 
-1. **Think before optimising.** Is the problem convex? Is
+1. **Think before optimizing.** Is the problem convex? Is
    the parameterisation sensible? Is the objective
-   numerically stable? The optimiser is only as good as the
+   numerically stable? The optimizer is only as good as the
    problem you hand it.
 2. **Verify convergence.** `$convergence = 0` is necessary
    but not sufficient. Check the Hessian. Run from multiple
@@ -734,14 +734,14 @@ Three habits characterise effective use of optimisation in R:
 3. **Check gradients.** If you wrote an analytic gradient,
    compare it to `numDeriv::grad()`. If they disagree, the
    analytic one is wrong. A wrong gradient will silently
-   mislead the optimiser into the wrong answer.
+   mislead the optimizer into the wrong answer.
 
 These three habits catch nearly all the 'I ran `optim()` and
 got a weird answer' bugs.
 
 ## Exercises
 
-1. Maximise the log-likelihood of a normal sample by hand
+1. Maximize the log-likelihood of a normal sample by hand
    using Newton's method. Start from the sample mean and SD
    plus noise; confirm convergence in three iterations.
 2. Use `optim(..., hessian = TRUE)` on a logistic
@@ -766,12 +766,12 @@ got a weird answer' bugs.
 
 - [@nocedal2006numerical], the modern reference; Chapters
   1--6 cover the methods behind `optim()`.
-- [@boyd2004convex], the definitive convex optimisation
+- [@boyd2004convex], the definitive convex optimization
   text; free online at
   <https://web.stanford.edu/~boyd/cvxbook>.
 - [@lange2010numerical], written for statisticians, with
   EM and MM alongside classical methods.
-- [@hastie2015sparse], grounds penalised optimisation in
+- [@hastie2015sparse], grounds penalized optimization in
   statistical learning.
 
 ## Practice test {#sec-practice-test-07}
@@ -793,13 +793,13 @@ optimum?
 ::: {.callout-note collapse='true'}
 ## Answer
 
-**C.** The gradient points uphill; to minimise, move in
+**C.** The gradient points uphill; to minimize, move in
 the opposite direction.
 :::
 
 ### Question 2
 
-When using gradient descent to minimise a function, what
+When using gradient descent to minimize a function, what
 determines the direction of each step?
 
 - A) The negative gradient (pointing downhill)
@@ -854,7 +854,7 @@ is TRUE?
 
 ### Question 5
 
-In the context of optimisation algorithms, what is the
+In the context of optimization algorithms, what is the
 primary advantage of BFGS over Newton's method?
 
 - A) BFGS guarantees finding the global optimum for
@@ -875,13 +875,13 @@ the cost and numerical trouble of forming a true Hessian.
 
 ### Question 6
 
-Which type of optimisation problem is characterised by
+Which type of optimization problem is characterized by
 having a unique global optimum?
 
-- A) Non-smooth optimisation problems
-- B) Convex optimisation problems
-- C) Non-convex optimisation problems
-- D) Constrained optimisation problems
+- A) Non-smooth optimization problems
+- B) Convex optimization problems
+- C) Non-convex optimization problems
+- D) Constrained optimization problems
 
 ::: {.callout-note collapse='true'}
 ## Answer
@@ -898,7 +898,7 @@ eigenvalue. The best interpretation is:
 
 - A) The answer is correct; `$convergence = 0` is
   definitive.
-- B) The optimiser found a saddle point or is stuck in a
+- B) The optimizer found a saddle point or is stuck in a
   flat region, and the parameter estimates should not be
   trusted.
 - C) `optim()` sometimes reports wrong `convergence`
@@ -931,6 +931,6 @@ output.
    forming and inverting a Hessian each iteration, and
    guaranteeing a descent direction (because the
    approximation is positive definite). A *convex*
-   optimisation problem has a unique global optimum, so
+   optimization problem has a unique global optimum, so
    any descent method converges to the same point
    regardless of starting value.

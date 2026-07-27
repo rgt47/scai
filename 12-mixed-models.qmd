@@ -7,7 +7,7 @@ chapter. You can find the answers at the end of the chapter in
 @sec-quiz-answers-12.
 
 1. What is the primary limitation of repeated-measures ANOVA
-   for analysing data with multiple sources of random
+   for analyzing data with multiple sources of random
    variation (e.g., participants *and* items)?
 2. What happens to the standard errors when you fit an
    ordinary linear regression to clustered (non-
@@ -21,7 +21,7 @@ chapter. You can find the answers at the end of the chapter in
 By the end of this chapter you should be able to:
 
 - Distinguish fixed, random, nested, and crossed effects.
-- Fit linear and generalised linear mixed models with
+- Fit linear and generalized linear mixed models with
   `lme4::lmer()` and `lme4::glmer()` and read their output.
 - Specify random intercepts (`(1 | group)`), random slopes
   (`(x | group)`), and uncorrelated random effects
@@ -32,10 +32,10 @@ By the end of this chapter you should be able to:
   approximate tests.
 - Diagnose convergence warnings and take appropriate
   action: rescaling, simplifying random effects, switching
-  optimiser.
+  optimizer.
 - Compute and interpret the intraclass correlation
   coefficient (ICC).
-- Recognise crossed random effects (e.g., subjects and
+- Recognize crossed random effects (e.g., subjects and
   items) and write the corresponding `lmer()` formula.
 
 ## Orientation
@@ -49,13 +49,13 @@ too small, because non-independence inflates the effective
 sample size used by the inference. Fitting a model that
 treats every cluster level as a separate parameter (one
 intercept per subject) wastes degrees of freedom and does
-not generalise to new subjects.
+not generalize to new subjects.
 
 Mixed-effects models are the principled middle path: they
 treat between-cluster variation as a random component drawn
 from a distribution, with the variance of that distribution
 estimated from the data. This produces correctly-calibrated
-standard errors, generalisable inference, and 'partial
+standard errors, generalizable inference, and 'partial
 pooling' of cluster-specific estimates toward the overall
 mean. The `lme4` package by Douglas Bates is the standard
 implementation in R.
@@ -65,7 +65,7 @@ implementation in R.
 Mixed models are not harder to *fit* than ordinary linear
 models, `lmer(y ~ x + (1 | subject), data = d)` is
 trivial syntax. They are harder to *specify*, *interpret*,
-and *defend*. The judgement calls are where the analysis
+and *defend*. The judgment calls are where the analysis
 lives.
 
 **Fixed or random?** A factor is fixed when its levels are
@@ -98,7 +98,7 @@ the cluster level. ICC = 0.05 means clusters explain 5% of
 variance; ICC = 0.5 means half. The implications for
 analysis differ: low ICC, ignoring clustering may not
 disastrously bias inference (though it should still be
-modelled); high ICC, ignoring it definitely does. Knowing
+modeled); high ICC, ignoring it definitely does. Knowing
 the ICC of your design before publication review is much
 better than learning it during.
 
@@ -106,7 +106,7 @@ better than learning it during.
 non-converging mixed model has not been fit. Reporting
 its coefficients is reporting numerical noise. The right
 responses, rescale predictors, simplify random
-effects, switch optimiser, are documented and
+effects, switch optimizer, are documented and
 reproducible. Ignoring the warning and reporting anyway
 is a serious methodological failure.
 
@@ -130,7 +130,7 @@ Two problems result:
    nominal 5% to 20--30% in many designs.
 
 2. **Misallocated variance.** A subject-specific intercept
-   that is not modelled as a random effect leaks into the
+   that is not modeled as a random effect leaks into the
    residual error term, inflating $\hat\sigma$ and
    reducing the apparent precision of within-subject
    effects.
@@ -138,9 +138,9 @@ Two problems result:
 The 'aggregating to subject means' alternative throws away
 within-subject variability, often halving statistical
 power. The 'separate analysis per subject' alternative does
-not generalise to new subjects.
+not generalize to new subjects.
 
-Mixed models fix both problems simultaneously by modelling
+Mixed models fix both problems simultaneously by modeling
 between-cluster variation explicitly.
 
 ::: {.callout-note icon=false collapse=true}
@@ -315,7 +315,7 @@ head(re)
 BLUPs are *shrunk* toward zero relative to the cluster-
 specific OLS estimates. The shrinkage is greater for
 clusters with less data. This shrinkage is a feature, not
-a bug: it stabilises estimates for sparsely-sampled
+a bug: it stabilizes estimates for sparsely-sampled
 clusters by borrowing information from the population.
 
 ## ICC: how much clustering is there?
@@ -338,7 +338,7 @@ between-cluster vs. within-cluster:
 
 - ICC = 0: clusters do not differ; ordinary regression
   would be fine (rare).
-- ICC = 0.05--0.2: typical of randomised trials with
+- ICC = 0.05--0.2: typical of randomized trials with
   modest cluster effects.
 - ICC = 0.3--0.6: typical of biological measurements with
   strong subject differences.
@@ -377,19 +377,19 @@ random-effects structures. Common messages:
 - 'Model is nearly unidentifiable: large eigenvalue ratio'
 - 'singular fit: see ?isSingular'
 
-Each indicates the optimiser stopped before finding a
+Each indicates the optimizer stopped before finding a
 clearly-defined optimum. Reporting the model output
 without addressing the warning is unsafe.
 
 Standard remedies, roughly in order:
 
 1. **Rescale predictors.** Continuous predictors with
-   wildly different units inflate condition number. Centre
+   wildly different units inflate condition number. Center
    and scale (`scale()` or `standardize()`).
 2. **Simplify random effects.** Drop random slopes for
    predictors that vary little within cluster, or use
    `||` to remove correlations between random effects.
-3. **Switch optimiser.** `control = lmerControl(optimizer = "bobyqa")`
+3. **Switch optimizer.** `control = lmerControl(optimizer = "bobyqa")`
    often succeeds where the default fails.
 4. **Increase iteration limit.** `optCtrl = list(maxfun = 1e5)`.
 5. **Use the singular-fit check.** `isSingular(fit)`
@@ -469,7 +469,7 @@ steep slopes.
 ## Collaborating with an LLM on mixed models
 
 LLMs handle the syntax of `lmer` reasonably well; they
-handle the conceptual judgements much less reliably.
+handle the conceptual judgments much less reliably.
 
 **Prompt 1: writing the formula.** Describe the data
 structure (subjects nested within sites; items crossed with
@@ -584,7 +584,7 @@ the answer.
 ### Question 1
 
 What is the primary limitation of repeated-measures
-ANOVA when analysing data where participants respond to
+ANOVA when analyzing data where participants respond to
 multiple trials?
 
 - A) They require balanced data designs
@@ -597,7 +597,7 @@ multiple trials?
 ## Answer
 
 **B.** Repeated-measures ANOVA handles a single random-
-factor structure. Mixed-effects models generalise to
+factor structure. Mixed-effects models generalize to
 multiple crossed or nested random factors.
 :::
 
@@ -636,7 +636,7 @@ effects'?
 ::: {.callout-note collapse='true'}
 ## Answer
 
-**C.** Random effects allow inference to generalise to
+**C.** Random effects allow inference to generalize to
 the population of groups from which the observed levels
 were drawn.
 :::
@@ -701,7 +701,7 @@ information content of clustered data.
 3. Random effects model variation in grouping factors
    whose levels are a sample from a larger population of
    interest (e.g., subjects, clinics, items). Declare a
-   factor random when you wish to generalise inference to
+   factor random when you wish to generalize inference to
    the population of levels, not just the specific levels
    observed; declare it fixed when the observed levels
    are themselves the inferential target. The same

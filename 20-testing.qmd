@@ -18,7 +18,7 @@ chapter. You can find the answers at the end of the chapter in
 By the end of this chapter you should be able to:
 
 - Write unit tests with `testthat` (3rd edition) and
-  organise them in `tests/testthat/`.
+  organize them in `tests/testthat/`.
 - Use test expectations (`expect_equal`, `expect_error`,
   `expect_warning`, `expect_message`, `expect_snapshot`)
   appropriately.
@@ -86,14 +86,14 @@ numbers; but never substitute it for actual thought about
 what could go wrong.
 
 **Tests are the spec.** When you cannot tell whether a
-piece of behaviour is a bug or a feature, the existence
+piece of behavior is a bug or a feature, the existence
 or absence of a test is the answer. A function that
-returns NA on an edge case has a test for that behaviour:
+returns NA on an edge case has a test for that behavior:
 it is intended. A function that crashes on the same input
 has no test: it is a bug. Tests document intentions in a
 machine-checkable form.
 
-These judgements are what make tests useful rather than
+These judgments are what make tests useful rather than
 performative.
 
 ## Writing tests with `testthat`
@@ -448,7 +448,7 @@ This suite tests:
 
 ## Collaborating with an LLM on testing
 
-LLMs draft tests well; the judgement about which tests to
+LLMs draft tests well; the judgment about which tests to
 write is harder for them.
 
 **Prompt 1: drafting tests.** Paste the function and ask:
@@ -479,7 +479,7 @@ snapshots that change frequently are noise.
 *Verification.* For each snapshot test, ask: 'what would
 this catch?' If the answer is 'it catches changes in
 the output, including refactors that don't change
-behaviour', the snapshot may produce false positives.
+behavior', the snapshot may produce false positives.
 
 **Prompt 3: diagnosing a `check()` warning.** Paste the
 warning verbatim and ask: 'how do I fix this?'

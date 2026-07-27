@@ -25,7 +25,7 @@ By the end of this chapter you should be able to:
   confidence intervals.
 - Construct bootstrap p-values via null-enforcing resampling.
 - Apply case and residual bootstrap to regression coefficients.
-- Recognise when the bootstrap fails (extreme quantiles, time
+- Recognize when the bootstrap fails (extreme quantiles, time
   series, dependent data).
 - Use the `boot` package for standard cases.
 
@@ -53,7 +53,7 @@ modes), for non-smooth statistics (change-points, mode
 estimates), for heavy-tailed populations with infinite
 variance, and for samples below about $n = 20$. An LLM will
 produce a numerical answer in every case; the number will
-be misleading in these cases. Recognising which case you
+be misleading in these cases. Recognizing which case you
 are in is the statistician's job.
 
 **2. What is the dependence structure of the data?** An
@@ -66,7 +66,7 @@ cluster bootstrap, or a parametric alternative that
 respects the structure.
 
 **3. Which confidence-interval method matches the
-statistic's behaviour?** The percentile method is
+statistic's behavior?** The percentile method is
 transformation-respecting and easy to explain, but
 undercoverage is common in small samples. BCa is
 second-order accurate and preferred for publication. The
@@ -265,7 +265,7 @@ for complex statistics. The bootstrap approximates this
 ideal using resampling from the observed data.
 :::
 
-## Confidence-interval flavours
+## Confidence-interval flavors
 
 Several bootstrap confidence-interval recipes exist, each
 trading simplicity for coverage accuracy. All assume $B$ is
@@ -372,7 +372,7 @@ to Welch's unequal-variance test. The methods produce different
 p-values not because of Monte Carlo error but because they
 implement different null hypotheses.
 
-The pool-and-center construction generalises. Testing a
+The pool-and-center construction generalizes. Testing a
 correlation against zero is achieved by resampling pairs
 $(x_i, y_i^*)$ where the $y$ values are reshuffled to break the
 dependence. Testing a single regression coefficient against zero
@@ -438,7 +438,7 @@ handful of bootstrap replicates anchor each tail quantile.
 
 The bootstrap works well when the statistic is a smooth
 function of the data and the sample size is moderate to
-large. It breaks down in several recognisable patterns.
+large. It breaks down in several recognizable patterns.
 
 **Extrema.** The sample maximum of a bounded distribution
 cannot exceed the observed maximum in any bootstrap
@@ -520,7 +520,7 @@ for parallel execution set `parallel = 'multicore'`
 (Linux/macOS) or `'snow'` (portable) with `ncpus =
 parallel::detectCores() - 1`.
 
-For specialised bootstraps:
+For specialized bootstraps:
 
 - `car::Boot()` wraps `boot()` for regression models,
   handling case resampling, residual resampling, and wild
@@ -630,7 +630,7 @@ The choice among strategies follows from the assumptions:
   where case bootstrap may resample the same influential
   observation multiple times.
 
-The same machinery extends to generalised linear models (case
+The same machinery extends to generalized linear models (case
 bootstrap on `glm` objects), random-effect models (cluster
 bootstrap that respects the grouping structure), and robust
 regression. The `car::Boot()` function introduced in the

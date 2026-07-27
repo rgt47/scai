@@ -19,7 +19,7 @@ By the end of this chapter you should be able to:
 
 - Distinguish between embarrassingly parallel,
   data-parallel, and inherently sequential problems.
-- Parallelise a simulation or bootstrap with `future.apply`
+- Parallelize a simulation or bootstrap with `future.apply`
   or `furrr`.
 - Pick an appropriate backend (`multisession`, `multicore`,
   `cluster`) for your platform.
@@ -29,7 +29,7 @@ By the end of this chapter you should be able to:
 - Report speedup and efficiency, accounting for overhead
   and Amdahl's law.
 - Avoid common pitfalls: incorrect RNG streams, global
-  state, large object serialisation, BLAS thread
+  state, large object serialization, BLAS thread
   oversubscription.
 
 ## Orientation
@@ -38,10 +38,10 @@ Most simulations and bootstraps are *embarrassingly
 parallel*: each iteration is independent of the others.
 Running them in parallel often produces near-linear speedup
 with a trivial code change. This chapter shows how to do
-that correctly, and how to recognise the cases where
+that correctly, and how to recognize the cases where
 parallelism does not help.
 
-The modern R parallel ecosystem centres on the `future`
+The modern R parallel ecosystem centers on the `future`
 package by Henrik Bengtsson. `future`, `future.apply`, and
 `furrr` provide a unified API that abstracts over backend
 choice (cores on a single machine, multiple machines, HPC
@@ -53,15 +53,15 @@ applications.
 ## The statistician's contribution {#sec-parallel-human}
 
 Parallelism is a tool for trading developer time for
-machine time. The judgements are about when the trade is
+machine time. The judgments are about when the trade is
 worth it.
 
-**Profile before parallelising.** A simulation that takes
+**Profile before parallelizing.** A simulation that takes
 30 seconds in serial does not need parallelism; the time
 spent setting up `future.apply` exceeds the saving. A
-simulation that takes 30 minutes is worth parallelising;
+simulation that takes 30 minutes is worth parallelizing;
 30 hours is essential. Knowing which case you are in
-requires profiling first, not parallelising preemptively.
+requires profiling first, not parallelizing preemptively.
 
 **Reproducibility is non-trivial.** Naive parallel code
 with `set.seed()` does not produce reproducible results
@@ -87,7 +87,7 @@ the worker so BLAS does not spawn additional threads.
 This pitfall is invisible until you measure and the
 'parallel' code is somehow *slower* than serial.
 
-These judgements are what distinguishes parallel code that
+These judgments are what distinguishes parallel code that
 delivers a speedup from parallel code that delivers a
 speedup *and* correct, reproducible results.
 
@@ -115,7 +115,7 @@ descent trajectory, a forward simulation of a dynamical
 system. No amount of parallel hardware can speed up a
 serial dependency.
 
-For sequential problems, you can sometimes parallelise *at
+For sequential problems, you can sometimes parallelize *at
 a higher level*: run several MCMC chains in parallel
 (common). Or split the data into independent batches and
 fit separate models to each. The trick is identifying the
@@ -201,7 +201,7 @@ using `map_dbl` becomes parallel by replacing it with
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: parallel RNG
 
-**Question.** You parallelise a bootstrap with
+**Question.** You parallelize a bootstrap with
 `future_map_dbl(1:1000, my_boot_fn)` without
 `furrr_options(seed = TRUE)`. The results across runs are
 not reproducible, and worse, two workers sometimes produce
@@ -218,7 +218,7 @@ and produce correlated or identical sequences. The
 solution is `furrr_options(seed = TRUE)` (or
 `future.seed = TRUE` for `future_*apply`), which
 activates the L'Ecuyer-CMRG generator and assigns each
-worker an independent stream. The behaviour is
+worker an independent stream. The behavior is
 deterministic given the parent seed, so re-running with
 the same parent seed produces identical results across
 workers and across re-runs. Forgetting this option is
@@ -266,7 +266,7 @@ c(speedup = speedup, efficiency = efficiency)
 Typical patterns for embarrassingly parallel code:
 
 - Tiny per-iteration work (microseconds): parallelism is
-  net slower because of serialisation overhead.
+  net slower because of serialization overhead.
 - Moderate per-iteration work (milliseconds to seconds):
   near-linear speedup up to about $n_\text{cores}$.
 - Heavy per-iteration work (minutes): linear speedup up to
@@ -312,7 +312,7 @@ workers consumes 40 GB. Three remedies:
 3. Reduce the data: workers operate on a summary or a
    subset.
 
-**Stack overflows from over-parallelisation.** Spawning
+**Stack overflows from over-parallelization.** Spawning
 more processes than cores is rarely useful and often
 counter-productive. `parallelly::availableCores()` reports
 the canonical 'how many cores can I use' value, respecting
@@ -345,7 +345,7 @@ quantile(boot_means, c(0.025, 0.5, 0.975))
 ```
 
 For 10,000 bootstrap replicates each taking ~1 ms, this
-parallelises cleanly across 4 cores: about 4× speedup
+parallelizes cleanly across 4 cores: about 4× speedup
 compared to a serial version.
 
 For the same data and a larger per-iteration cost (e.g.,
@@ -353,7 +353,7 @@ fitting a model on each resample), the speedup approaches
 $n_\text{cores}$ exactly because the per-iteration cost
 dominates the per-iteration overhead.
 
-## When *not* to parallelise
+## When *not* to parallelize
 
 - **Computation already fast.** Code that runs in 5 seconds
   is not worth the engineering effort.
@@ -363,12 +363,12 @@ dominates the per-iteration overhead.
 - **Memory pressure.** If the data are large and the
   per-iteration work is small, copying the data to
   workers exceeds the work saved.
-- **Many small tasks with serialisation overhead.**
+- **Many small tasks with serialization overhead.**
   `future_map_dbl(1:10000, function(i) i^2)` is slower
   than the serial version because the overhead per task
   exceeds the work per task.
 
-The rule: parallelise when the per-iteration work is
+The rule: parallelize when the per-iteration work is
 dominant, and the iterations are independent.
 
 ## Collaborating with an LLM on parallel R
@@ -377,13 +377,13 @@ LLMs handle the basic parallel APIs reasonably; the
 subtle correctness issues (RNG, BLAS, memory) are where
 they often fall short.
 
-**Prompt 1: parallelising a serial loop.** Paste the
-serial loop and ask: 'parallelise this with `furrr` and
+**Prompt 1: parallelizing a serial loop.** Paste the
+serial loop and ask: 'parallelize this with `furrr` and
 ensure reproducible random numbers.'
 
 *What to watch for.* The LLM should produce code with
 `furrr_options(seed = TRUE)`. If it does not, push back
-explicitly. The default behaviour (no seed handling) is a
+explicitly. The default behavior (no seed handling) is a
 silent correctness bug.
 
 *Verification.* Run twice with the same parent seed and
@@ -402,7 +402,7 @@ several. If it fixates on one, push for the full list.
 
 *Verification.* Apply each fix in turn and remeasure.
 Sometimes the fix is to give up and accept that this
-particular problem does not parallelise well.
+particular problem does not parallelize well.
 
 **Prompt 3: choosing a backend.** Describe the platform
 (macOS laptop, Linux HPC, Windows desktop) and ask:
@@ -422,7 +422,7 @@ on Windows' or similar, switch to `multisession`.
 
 Three habits define defensible parallel computation:
 
-1. **Profile before parallelising.** Don't add parallel
+1. **Profile before parallelizing.** Don't add parallel
    overhead to code that is already fast enough.
 2. **Always use seed-aware parallel APIs.**
    `future.seed = TRUE` or `furrr_options(seed = TRUE)`.
@@ -434,7 +434,7 @@ Three habits define defensible parallel computation:
 ## Exercises
 
 1. Run a 10,000-replicate simulation sequentially with
-   `purrr::map()`. Parallelise it with
+   `purrr::map()`. Parallelize it with
    `furrr::future_map()` and a `multisession` plan. Time
    both and compute the speedup on your machine.
 2. Repeat exercise 1 using a `multicore` plan on macOS or
@@ -477,7 +477,7 @@ computing in R for statistical applications?
 - B) It allows multiple independent computations to be
   performed simultaneously, reducing total execution
   time for suitable problems
-- C) It automatically optimises R code without requiring
+- C) It automatically optimizes R code without requiring
   any programming changes
 - D) It eliminates the need for writing loops in R
 
@@ -533,7 +533,7 @@ costs against gains.
 
 ### Question 4
 
-You parallelise a bootstrap with `future_map` but forget
+You parallelize a bootstrap with `future_map` but forget
 `furrr_options(seed = TRUE)`. What is the most likely
 consequence?
 
@@ -590,7 +590,7 @@ serial' on linear-algebra-heavy code.
    not. Multi-chain MCMC, however, is embarrassingly
    parallel at the chain level.
 3. Each parallel task incurs overhead (worker startup,
-   data serialisation, result collection), so using
+   data serialization, result collection), so using
    every core can slow a small computation rather than
    speed it up. System responsiveness also degrades when
    every core is saturated. For matrix-heavy code, BLAS

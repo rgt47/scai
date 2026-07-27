@@ -39,7 +39,7 @@ obtain through prompting.
 ## A framework for human-LLM collaboration
 
 For every topic in this book, the statistician-LLM
-division of labour sorts, it appears, into four
+division of labor sorts, it appears, into four
 categories.
 
 **Category 1: Things the LLM does reliably.**
@@ -49,7 +49,7 @@ categories.
   code.
 - Refactoring working code for style, readability, or
   idiom.
-- Generating unit tests for a function whose behaviour
+- Generating unit tests for a function whose behavior
   is well specified.
 - Explaining a familiar concept from canonical sources.
 - Producing boilerplate for common patterns (a
@@ -86,7 +86,7 @@ information.**
 - Knowing whether the data under analysis were
   collected by a process that justifies the method the
   LLM proposes.
-- Recognising dependence structures (clustering, time
+- Recognizing dependence structures (clustering, time
   series, pedigrees) from the data itself, when those
   structures are not explicit in variable names.
 - Judging whether an assumption 'holds' in the reader's
@@ -104,7 +104,7 @@ professional accountability.**
 - Taking responsibility for an analysis submitted to a
   regulatory body or a journal.
 - Standing behind the interpretation when challenged by
-  a referee or a sceptical principal investigator.
+  a referee or a skeptical principal investigator.
 - Certifying the reproducibility of the compendium.
 - Signing the paper.
 
@@ -158,7 +158,7 @@ of this book. The chapter teaches the concept; the
 *statistician's contribution* section at its head tells
 the reader what the LLM will get wrong on this topic; and
 the *Collaborating with an LLM* section at its foot
-practises the verification that catches the error.
+practices the verification that catches the error.
 
 ## The position this book takes
 
@@ -179,7 +179,7 @@ Specifically, we recommend that students:
 - **Use the LLM to critique, refactor, or generate test
   cases for code you wrote.** The LLM is excellent at
   these jobs, and you will be faster with its help.
-- **Never submit code whose behaviour you cannot explain
+- **Never submit code whose behavior you cannot explain
   in plain English.** If you cannot say what each line
   does and why, you cannot verify it, and you should
   not present it as your work.
@@ -214,7 +214,7 @@ biostatistician is for.
 
 By the end of this book, the reader should be able to:
 
-- Write clean, vectorised, functional R code that is
+- Write clean, vectorized, functional R code that is
   easy for collaborators to read and maintain.
 - Manage your work with Git and GitHub, including
   resolving merge conflicts and collaborating via pull
@@ -225,13 +225,13 @@ By the end of this book, the reader should be able to:
   packaged implementations are usually preferable.
 - Design and execute a simulation study that produces
   defensible answers to a research question.
-- Fit, diagnose, and interpret linear, generalised
+- Fit, diagnose, and interpret linear, generalized
   linear, mixed-effects, survival, and Bayesian models on
-  real biomedical data, including recognising when each
+  real biomedical data, including recognizing when each
   is and is not appropriate.
 - Bootstrap inferential quantities for statistics whose
   analytic standard errors are unavailable, and
-  recognise the cases where the bootstrap fails.
+  recognize the cases where the bootstrap fails.
 - Produce publication-quality graphics with `ggplot2`
   and build an interactive exploratory tool with Shiny.
 - Scale a computation across cores with the `future`
@@ -249,7 +249,7 @@ And, across all of these:
 
 Every content chapter follows a consistent structure
 that we have designed to make the human-LLM division of
-labour explicit:
+labor explicit:
 
 1. **Prerequisites**, three open-ended diagnostic
    questions. Answer them honestly; if all three are

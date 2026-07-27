@@ -2,7 +2,7 @@
 
 ## Cover
 
-TODO: add source and licence of the cover image here once
+TODO: add source and license of the cover image here once
 chosen.
 
 ## Portraits
@@ -13,7 +13,7 @@ sources. Each image is reproduced under the terms stated; please
 contact the book author for removal if any attribution is
 incorrect.
 
-| Figure            | Where             | Source                                   | Licence          |
+| Figure            | Where             | Source                                   | License          |
 | ----------------- | ----------------- | ---------------------------------------- | ---------------- |
 | Gene H. Golub     | @sec-decompositions | TODO                                   | TODO             |
 | Jorge Nocedal     | @sec-optimization | TODO                                     | TODO             |

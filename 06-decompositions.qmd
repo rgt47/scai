@@ -57,8 +57,8 @@ software can fit models on realistic data at all.
 
 Decompositions are an area where the *mathematics* is fully
 determined, a Cholesky decomposition of a given SPD matrix
-is unique up to sign, but the *engineering* judgement is
-not. That judgement is where the statistician contributes.
+is unique up to sign, but the *engineering* judgment is
+not. That judgment is where the statistician contributes.
 
 **Pick the decomposition that matches the problem's
 structure.** For a symmetric positive-definite matrix
@@ -76,7 +76,7 @@ stable than computing `solve(Sigma)` and multiplying. If
 you find yourself computing an explicit inverse, ask whether
 a decomposition would give you what you actually need, a
 determinant, a Mahalanobis distance, a Cholesky factor for
-simulation, without materialising $\Sigma^{-1}$.
+simulation, without materializing $\Sigma^{-1}$.
 
 **Rank deficiency is a signal, not a bug to work around.**
 When `lm()` tells you a design matrix is rank deficient, the
@@ -90,7 +90,7 @@ statistician's job to decide what to do about it.
 
 **Low-rank approximations have a statistical
 interpretation.** Truncated SVD is not generic 'compression'.
-In PCA, the truncated SVD is the variance-maximising
+In PCA, the truncated SVD is the variance-maximizing
 projection onto $k$ dimensions. In factor analysis, it is
 the low-rank structure of the observed correlations. In
 collaborative filtering, it is a latent-factor model. The
@@ -119,7 +119,7 @@ are faster by factors that depend on sparsity pattern.
 ## Cholesky decomposition
 
 For a symmetric positive-definite matrix $A$, the Cholesky
-decomposition is a factorisation
+decomposition is a factorization
 
 $$
 A = L L^T
@@ -168,7 +168,7 @@ covariance matrix estimated from data with one exactly
 collinear pair of columns will have a tiny-negative
 eigenvalue. The standard workaround is to add a small ridge:
 `chol(Sigma + 1e-8 * diag(p))`. Whether to do this silently or
-to treat it as a modelling problem is the statistician's
+to treat it as a modeling problem is the statistician's
 call.
 
 ## QR decomposition
@@ -278,7 +278,7 @@ where $L$ is lower triangular with unit diagonal, $U$ is
 upper triangular, and $P$ is a row-permutation matrix
 selected for numerical stability.
 
-R does not expose the LU factorisation directly (there is no
+R does not expose the LU factorization directly (there is no
 `lu()` in base R). Its effect appears inside `solve(A, b)`,
 which calls LAPACK's `dgesv` routine. For solving general
 linear systems, this is the default direct method.
@@ -290,8 +290,8 @@ gives tighter theoretical bounds but rarely outperforms
 partial pivoting on real matrices and is more expensive, so
 partial pivoting is the standard.
 
-For sparse matrices, specialised LU implementations
-(`Matrix::lu`) use graph-theoretic reordering to minimise
+For sparse matrices, specialized LU implementations
+(`Matrix::lu`) use graph-theoretic reordering to minimize
 fill-in (zeros in $A$ that become nonzero in $L$ or $U$).
 
 For symmetric positive-definite systems, Cholesky is
@@ -395,7 +395,7 @@ cheaper and smaller in memory than the full SVD.
 **Cost.** $O(mn \min(m, n))$, dominated by an initial
 bidiagonalisation step. For large rectangular matrices, this
 is expensive but tractable. For huge sparse matrices,
-randomised SVD methods (e.g., `rsvd::rsvd`) reduce cost
+randomized SVD methods (e.g., `rsvd::rsvd`) reduce cost
 substantially when only the top few singular values are
 needed.
 
@@ -415,7 +415,7 @@ The pseudoinverse satisfies the four Moore-Penrose axioms
 ($A A^+ A = A$, $A^+ A A^+ = A^+$, $(A A^+)^T = A A^+$,
 $(A^+ A)^T = A^+ A$) and gives the minimum-norm
 least-squares solution to $Ax = b$: $\hat x = A^+ b$
-minimises $\|Ax - b\|$ and, among all minimisers, minimises
+minimizes $\|Ax - b\|$ and, among all minimizers, minimizes
 $\|x\|$. For rank-deficient regression, this is what a naive
 'just solve it' approach is implicitly doing.
 
@@ -441,7 +441,7 @@ A_k <- svd_A$u[, 1:k] %*% diag(svd_A$d[1:k]) %*% t(svd_A$v[, 1:k])
 
 Applications:
 
-- **PCA.** Truncated SVD on the centred data matrix gives the
+- **PCA.** Truncated SVD on the centerd data matrix gives the
   top-$k$ principal components. The singular values squared
   (divided by $n - 1$) are the variances of the principal
   components.
@@ -454,7 +454,7 @@ Applications:
 - **Denoising.** If the signal is low-rank and the noise is
   full-rank, truncating to the signal's rank removes noise.
 
-Choosing $k$ is a modelling decision, not a mechanical one.
+Choosing $k$ is a modeling decision, not a mechanical one.
 Common approaches: cumulative variance explained ('keep
 components until 95% of variance is captured'), scree-plot
 inspection (look for an 'elbow'), cross-validation on a
@@ -561,8 +561,8 @@ plus `backsolve` would be faster and more stable. Nudge the
 prompt explicitly toward decomposition-based idioms.
 
 *Verification.* Compare against a reference implementation
-for small examples, and watch for the numerical behaviour as
-$\lambda \to 0$ (should approach the unregularised OLS
+for small examples, and watch for the numerical behavior as
+$\lambda \to 0$ (should approach the unregularized OLS
 solution) and $\lambda \to \infty$ (should approach zero).
 
 **Prompt 3: choosing $k$ for truncation.** Describe the data
@@ -585,16 +585,16 @@ formulas, and canonical uses of decompositions, and
 reasonable at translating math to R. They are less reliable
 at the choice between decompositions on a given problem and
 the choice of truncation parameter. Those are engineering
-judgements informed by data.
+judgments informed by data.
 
 ## Principle in use
 
-Three habits characterise effective use of decompositions:
+Three habits characterize effective use of decompositions:
 
 1. **Let the decomposition match the structure.** SPD →
    Cholesky. Rectangular least squares → QR. Rank diagnosis
    or near-singular → SVD. Using the general-purpose tool
-   when a specialised one applies costs time and precision.
+   when a specialized one applies costs time and precision.
 2. **Prefer decomposition-based solves to explicit
    inverses.** Same principle as matrix algebra, but with
    the additional leverage that the decomposition gives you
@@ -640,7 +640,7 @@ Three habits characterise effective use of decompositions:
 - [@trefethen1997numerical], the text that made numerical
   linear algebra accessible to a generation.
 - [@halko2011randomized], the standard reference for
-  randomised algorithms for large-scale matrix decomposition.
+  randomized algorithms for large-scale matrix decomposition.
 
 ## Practice test {#sec-practice-test-06}
 
@@ -762,5 +762,5 @@ compression, matrix completion, and low-rank denoising.
    and amplifies numerical error for ill-conditioned
    designs. For a well-conditioned $X$ the two routes
    agree to rounding error; for ill-conditioned $X$ they
-   can differ by many decimal digits, always in favour of
+   can differ by many decimal digits, always in favor of
    QR.

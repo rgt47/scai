@@ -28,7 +28,7 @@ By the end of this chapter you should be able to:
   decomposition and reproduce the output of `lm()`, point
   estimates, standard errors, $R^2$, residual degrees of
   freedom, from scratch.
-- Recognise and report violations of model assumptions:
+- Recognize and report violations of model assumptions:
   heteroscedasticity, non-linearity, non-normality,
   influential observations, multicollinearity.
 - Compute robust (sandwich) standard errors with
@@ -40,7 +40,7 @@ By the end of this chapter you should be able to:
 
 `lm()` is the workhorse of applied statistics and the first
 real test of everything we have built so far: matrix algebra,
-QR decomposition, vectorised R, and the grammar of data
+QR decomposition, vectorized R, and the grammar of data
 frames. This chapter treats `lm()` as a white box. We will
 not invoke it until we have reimplemented most of what it
 does.
@@ -67,9 +67,9 @@ which subset, and how to interpret the result. These are the
 statistician's contribution; they are not automatable.
 
 **Which variables to include.** The naive answer ('whichever
-predicts') is wrong for inference. In a randomised trial,
+predicts') is wrong for inference. In a randomized trial,
 the Table-1 covariates go in not because they improve
-prediction but because they were balanced at randomisation;
+prediction but because they were balanced at randomization;
 adjusting for them gives the pre-registered estimand. In an
 observational study, the covariate set is the set that
 blocks non-causal paths between exposure and outcome,
@@ -79,7 +79,7 @@ produce standard errors that understate uncertainty and
 coefficients that do not mean what they appear to mean.
 
 **Which scale.** A coefficient on age is interpretable if
-age is in years; less so if centred at 50 but unscaled; less
+age is in years; less so if centerd at 50 but unscaled; less
 still if transformed to a z-score. The choice depends on the
 audience. For a clinical paper, a one-year increment is
 natural; for a methods paper, a z-score may read more
@@ -96,7 +96,7 @@ still computed and printed; they are just no longer
 meaningful. Detecting failure is the purpose of diagnostics.
 Choosing a remedy, a transformation, robust standard
 errors, a different model entirely, reporting a caveat, is
-the statistician's judgement.
+the statistician's judgment.
 
 **Statistical vs. clinical significance.** A $p < 0.05$
 treatment effect of 0.2 mmHg on blood pressure is not
@@ -338,7 +338,7 @@ all.equal(as.vector(se_beta),
 Everything `lm()` reports, coefficients, SEs, $R^2$,
 residual SD, df, comes from the QR decomposition, the
 residuals, and $(X^T X)^{-1}$. No magic, no Bayesian prior,
-no hidden regularisation.
+no hidden regularization.
 
 ## Diagnostics
 
@@ -350,13 +350,13 @@ homoscedasticity. Looks for: no systematic trend (linear
 relationship holds), consistent spread (variance constant).
 A curve → non-linearity. A funnel → heteroscedasticity.
 
-**Plot 2: Q-Q plot of standardised residuals.** Checks
+**Plot 2: Q-Q plot of standardized residuals.** Checks
 approximate normality. Points should lie near the 45° line.
 Heavy tails show up as an 'S' shape; skewness shows up as a
 curved deviation from the line.
 
 **Plot 3: Scale-Location.** The square root of the absolute
-standardised residual against fitted values. Another view
+standardized residual against fitted values. Another view
 of homoscedasticity, more sensitive than plot 1 to trends in
 spread. A monotonic increasing trend → variance increases
 with the mean, a classical pattern for count or proportion
@@ -434,7 +434,7 @@ The assumption violated is constant error variance
 (homoscedasticity). Consequences: point estimates are
 still unbiased, but standard errors and their derived
 quantities (CIs, p-values) are wrong. Remedies: (a)
-variance-stabilising transformation of the outcome (log
+variance-stabilizing transformation of the outcome (log
 for variance proportional to mean^2, square-root for
 variance proportional to mean), (b) weighted least
 squares with weights inversely proportional to estimated
@@ -519,7 +519,7 @@ BIC(fit_small, fit_large)
 
 Lower is better for both. AIC estimates expected prediction
 error; BIC approximates model posterior probability under a
-unit-information prior. BIC penalises complexity more
+unit-information prior. BIC penalizes complexity more
 heavily than AIC at large $n$, so BIC tends to prefer
 smaller models.
 
@@ -570,7 +570,7 @@ data. For the coefficient plot, `tidy()` with
 ## Collaborating with an LLM on linear models
 
 LLMs can produce correct linear-model code almost instantly.
-They are less reliable when it comes to the judgement that
+They are less reliable when it comes to the judgment that
 surrounds the code: what to include, how to interpret, when
 to worry about assumptions.
 
@@ -618,7 +618,7 @@ clarify?'
 
 *What to watch for.* LLMs are reasonable at proposing
 diagnostics (VIF, residual plots, Cook's distance) but
-less reliable at prioritising them. For an analysis
+less reliable at prioritizing them. For an analysis
 deadline, start with the cheapest diagnostics (check for
 linear combinations among predictors, plot residuals)
 before the expensive ones (Cook's distance on every
@@ -671,7 +671,7 @@ Three habits define defensible linear-model practice:
 3. **Interpret on the scale of the outcome and the
    audience.** A clinical reader wants 'mmHg per 10-year
    increase in age'; a methods reader may want a
-   standardised coefficient. Write for the reader who will
+   standardized coefficient. Write for the reader who will
    actually use the result.
 
 ## Exercises
@@ -703,7 +703,7 @@ Three habits define defensible linear-model practice:
   applied regression in R.
 - [@harrell2015regression], detailed treatment of model
   building, interactions, and nonlinearity. The standard
-  reference for practising biostatisticians.
+  reference for practicing biostatisticians.
 - [@ucla-regdiag], a thorough walkthrough of residual
   diagnostics in R.
 
@@ -811,7 +811,7 @@ is most appropriate?
 
 **B.** A curved residual pattern indicates the linear
 mean function is misspecified. Fit a polynomial term,
-log or Box-Cox the outcome, or use a generalised
+log or Box-Cox the outcome, or use a generalized
 additive model (`mgcv::gam`). Robust SEs do not fix a
 wrong mean function.
 :::

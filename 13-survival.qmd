@@ -29,7 +29,7 @@ By the end of this chapter you should be able to:
   `cox.zph()` and diagnose violations.
 - Handle time-varying covariates via the `(start, stop, event)`
   counting-process format.
-- Recognise competing risks and use cumulative incidence
+- Recognize competing risks and use cumulative incidence
   functions or Fine-Gray models when they apply.
 
 ## Orientation
@@ -39,7 +39,7 @@ clinical trials, most epidemiological cohort studies, and
 most survival analyses in cancer, cardiovascular, and
 infectious-disease research. The outcome is not 'did the
 event happen' (that is a binary outcome and would be
-analysed as a GLM) but 'when did it happen, if at all'.
+analyzed as a GLM) but 'when did it happen, if at all'.
 
 The distinguishing challenge is *censoring*: for many
 participants the event is not observed before the study
@@ -73,7 +73,7 @@ lost) is usually independent; clinical censoring (the
 patient stopped attending follow-up because their disease
 progressed) is usually not. Detecting violations of
 independent censoring is rarely possible from the data
-alone; it is a substantive judgement.
+alone; it is a substantive judgment.
 
 **The proportional hazards assumption matters.** Cox
 regression's coefficient $\exp(\beta)$ is interpretable as
@@ -110,7 +110,7 @@ the correct regression model is Fine-Gray's
 subdistribution hazards. Forgetting this is a classic
 error in cardiovascular and oncology analyses.
 
-These judgements are what distinguishes survival
+These judgments are what distinguishes survival
 analysis from a mechanical execution of `coxph()`.
 
 ## Censoring
@@ -138,7 +138,7 @@ participant censored at time $C$ has the same event
 distribution beyond $C$ as a participant who is still
 event-free at $C$. Violations are *informative* censoring,
 which biases the estimator. Diagnostics are limited; the
-defence is mostly substantive.
+defense is mostly substantive.
 
 ## The `Surv()` object
 
@@ -294,7 +294,7 @@ you report to a clinical reader, and why?
 
 **Answer.**
 
-Report both. The HR is the standard way to summarise the
+Report both. The HR is the standard way to summarize the
 treatment effect for the methods-literate, and it is the
 quantity the regression actually estimates. The 5-year
 survival difference (10 percentage points) is what
@@ -331,7 +331,7 @@ When PH fails, options:
    with `+ strata(x)` allows a separate baseline hazard for
    each level of `x` but does not estimate its main
    effect. Use when the variable's effect is not of direct
-   interest (e.g., centre in a multicentre trial).
+   interest (e.g., center in a multicenter trial).
 2. **Time-varying coefficient.** Allow the coefficient on
    the variable to vary with time, e.g., via the
    `tt = function(x, t, ...)` argument in `coxph()`. This
@@ -480,7 +480,7 @@ HR is reported.
 ## Collaborating with an LLM on survival analysis
 
 Survival analysis has more silent failure modes than most
-modelling areas. LLMs are competent at the standard
+modeling areas. LLMs are competent at the standard
 operations and prone to the standard mistakes.
 
 **Prompt 1: writing the analysis.** Describe the data
@@ -651,7 +651,7 @@ covariates. Which is the most appropriate response?
 
 **B.** A PH violation does not mean the covariate is
 unimportant; it means its effect changes with time.
-Remedies preserve the variable while modelling the time
+Remedies preserve the variable while modeling the time
 dependence honestly.
 :::
 
@@ -733,5 +733,5 @@ representation. Options A--C all introduce bias.
    with `plot(cox.zph(fit))`. A significant global test
    or a visibly trending residual indicates violation;
    common remedies include stratification on the
-   offending covariate or modelling time-varying
+   offending covariate or modeling time-varying
    coefficients.

@@ -6,11 +6,11 @@ Answer the following questions to see if you can bypass this
 chapter. You can find the answers at the end of the chapter in
 @sec-quiz-answers-16.
 
-1. When choosing a colour scale for a visualisation, what
+1. When choosing a color scale for a visualization, what
    property of the data should guide your choice among
    sequential, diverging, and qualitative scales?
 2. Name two appropriate ways to display uncertainty in a
-   visualisation.
+   visualization.
 3. When designing multi-panel figures (for example, with
    `facet_wrap()` or `patchwork`), what is the key
    consideration that supports comparison across panels?
@@ -36,7 +36,7 @@ By the end of this chapter you should be able to:
 
 Once the grammar of graphics is in hand, the remaining work
 in making a finished figure is largely aesthetic:
-composition, typography, colour, and layout. `ggplot2` and
+composition, typography, color, and layout. `ggplot2` and
 its ecosystem give you fine-grained control over each. This
 chapter covers the tools used in every real paper or
 report, the ones that turn 'a plot that conveys the
@@ -44,7 +44,7 @@ analysis' into 'a plot a journal will accept'.
 
 The pieces fall into four groups: composition (combining
 multiple plots), annotation (adding labels and
-highlights), styling (themes and colour palettes), and
+highlights), styling (themes and color palettes), and
 output (exporting at the right resolution and format).
 
 ## The statistician's contribution {#sec-ggplot2-advanced-human}
@@ -78,10 +78,10 @@ figure should be doing for them.
 
 **Choose typography that respects the medium.** Default
 `ggplot2` text is fine on a slide; on a printed page it
-often looks small and grey. Customising the theme is a
+often looks small and gray. Customising the theme is a
 ten-line investment that pays off across an entire paper.
 
-These judgements determine whether figures get accepted on
+These judgments determine whether figures get accepted on
 the first review or send the manuscript back for
 revisions.
 
@@ -173,7 +173,7 @@ ggplot(penguins, aes(flipper_length_mm, body_mass_g, colour = species)) +
 ```
 
 `ggrepel` produces non-overlapping text labels by
-optimising their positions. `max.overlaps` controls how
+optimizing their positions. `max.overlaps` controls how
 many labels are allowed to overlap before some are dropped.
 For dense plots, label only a few key points.
 
@@ -233,9 +233,9 @@ theme_set(theme_phb228() + theme(text = element_text(family = "source")))
 `showtext` makes Google Fonts available to ggplot2 and
 ensures they render correctly when exporting.
 
-## Custom colour palettes
+## Custom color palettes
 
-For project-wide colour consistency, define your palette
+For project-wide color consistency, define your palette
 once:
 
 ```r
@@ -258,18 +258,18 @@ ggplot(penguins, aes(flipper_length_mm, body_mass_g, colour = species)) +
 For sequential or diverging continuous palettes,
 `viridis::scale_colour_viridis_c()` and
 `scico::scale_colour_scico(palette = "vik")` are perceptually
-uniform and colour-blind-safe.
+uniform and color-blind-safe.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: matching scale to data
 
-**Question.** You are visualising a heatmap of correlations
+**Question.** You are visualizing a heatmap of correlations
 between predictors. Correlations range from -0.9 to +0.9.
-Which colour scale is most appropriate?
+Which color scale is most appropriate?
 
 **Answer.**
 
-A diverging palette centred on zero. Correlations have a
+A diverging palette centerd on zero. Correlations have a
 meaningful midpoint (zero correlation), and positive vs.
 negative correlations should be visually distinguishable.
 Standard choices: `RdBu` (red-to-blue, ColorBrewer),
@@ -277,7 +277,7 @@ Standard choices: `RdBu` (red-to-blue, ColorBrewer),
 midpoint of the scale to zero (`midpoint = 0` in
 `scale_fill_gradient2`) and the limits symmetric around
 it. A sequential palette would map zero to a particular
-colour without visual reflection of the sign change.
+color without visual reflection of the sign change.
 A qualitative palette would imply discrete categories,
 losing the continuous correlation magnitude.
 
@@ -354,7 +354,7 @@ Three things to know about export:
 
 1. **Use vector formats** (PDF, SVG, EPS) for line art and
    typography. Raster formats (PNG, JPG) lose quality on
-   zoom. JPG additionally adds compression artefacts; never
+   zoom. JPG additionally adds compression artifacts; never
    use JPG for plots.
 2. **DPI matters for raster.** 300 DPI is the standard for
    print; 600 for high-quality scientific figures. 72 DPI is
@@ -487,7 +487,7 @@ movement, an animated plot is not the right medium.
 
 ## Principle in use
 
-Three habits define defensible advanced visualisation:
+Three habits define defensible advanced visualization:
 
 1. **Customise once, apply everywhere.** A
    `theme_phb228()` function and a project palette make
@@ -505,7 +505,7 @@ Three habits define defensible advanced visualisation:
    residuals-vs-fitted; (c) QQ plot. Combine with
    `patchwork` and add panel labels 'A', 'B', 'C'.
 2. Write a custom `theme_phb228()` function with serif
-   body text, sans-serif axis titles, and a colour-blind-
+   body text, sans-serif axis titles, and a color-blind-
    safe default palette. Apply it to three plots.
 3. Export a figure at 300 DPI as both PDF (for LaTeX)
    and PNG (for Word). Open both and verify the fonts
@@ -538,16 +538,16 @@ the answer.
 ### Question 1
 
 Which of the following is MOST important when choosing a
-colour scale for a data visualisation?
+color scale for a data visualization?
 
 - A) Using the widest possible range of different
-  colours
-- B) Matching the colour scale to the type of data
-  being visualised (sequential, diverging, or
+  colors
+- B) Matching the color scale to the type of data
+  being visualized (sequential, diverging, or
   qualitative)
-- C) Always using the same colour scheme across all
-  visualisations in a project
-- D) Prioritising aesthetically pleasing colour
+- C) Always using the same color scheme across all
+  visualizations in a project
+- D) Prioritizing aesthetically pleasing color
   combinations over all other considerations
 
 ::: {.callout-note collapse='true'}
@@ -568,14 +568,14 @@ uncertainty in your data?
 - B) Only show the mean or median values as single
   points
 - C) Always show exact numerical values for uncertainty
-  in a caption rather than visualising it
+  in a caption rather than visualizing it
 - D) Use visual elements like error bars, confidence
   bands, or density plots to represent uncertainty
 
 ::: {.callout-note collapse='true'}
 ## Answer
 
-**D.** Uncertainty should be visualised alongside the
+**D.** Uncertainty should be visualized alongside the
 estimate rather than omitted or relegated to captions.
 :::
 
@@ -644,13 +644,13 @@ down and making labels illegible.
 
 ## Prerequisites answers {#sec-quiz-answers-16}
 
-1. Match the colour scale to the type of data:
+1. Match the color scale to the type of data:
    sequential for ordered or continuous data, diverging
    for data with a meaningful midpoint, qualitative for
    unordered categorical data. Using the wrong family
    distorts perception. Sequential and diverging scales
    should be perceptually uniform (viridis, ColorBrewer)
-   and colour-blind-safe.
+   and color-blind-safe.
 2. Error bars, confidence bands, density plots, violin
    plots, point clouds, ribbons. Do not omit uncertainty
    information or replace it with a numerical value in a

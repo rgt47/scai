@@ -64,7 +64,7 @@ mistakes in applied research.
 GLMs turn categorical and count outcomes into regression
 problems. What the GLM does *not* do is turn them into
 normal-distribution problems. That is both the opportunity
-(new modelling territory) and the risk (coefficients mean
+(new modeling territory) and the risk (coefficients mean
 new things, assumptions must be checked differently).
 
 **Which family, which link.** Binary outcome, logit link.
@@ -103,13 +103,13 @@ all $y = 0$ otherwise), the MLE does not exist; the
 algorithm converges to coefficients that are numerically
 huge and technically undefined. R will produce a warning
 and a 'fit' with infinite-like coefficients and standard
-errors. The right responses are Firth penalised likelihood
+errors. The right responses are Firth penalized likelihood
 (`brglm2::brglm()` or `logistf::logistf()`), informative
 priors (Bayesian logistic regression), or acknowledging the
 data simply cannot support the analysis. Ignoring the
 warning is not an option.
 
-These judgement calls are what distinguishes GLM analysis
+These judgment calls are what distinguishes GLM analysis
 from mechanical output of `glm(...)`.
 
 ## The GLM framework
@@ -119,7 +119,7 @@ A GLM has three components:
 1. **Random component.** The response $Y_i$ has a
    distribution in the exponential family (binomial,
    Poisson, Gaussian, gamma, inverse Gaussian, ...). Each
-   family is characterised by a mean $\mu_i = E(Y_i)$ and a
+   family is characterized by a mean $\mu_i = E(Y_i)$ and a
    variance function $V(\mu_i)$ that relates variance to
    mean.
 2. **Systematic component.** A linear predictor
@@ -265,12 +265,12 @@ Symptoms: huge coefficient estimates (e.g., 30+ for a
 covariate on a reasonable scale), huge standard errors, and
 a warning. Remedies:
 
-- **Firth penalised likelihood.** `brglm2::brglm()` or
+- **Firth penalized likelihood.** `brglm2::brglm()` or
   `logistf::logistf()` adds a small penalty that makes the
   MLE exist and finite. Usually the right default for small-
   sample logistic regression.
 - **Bayesian logistic regression.** Weakly-informative prior
-  on coefficients regularises. `rstanarm::stan_glm()` is
+  on coefficients regularizes. `rstanarm::stan_glm()` is
   convenient.
 - **Exact conditional logistic regression.** For very small
   samples.
@@ -568,7 +568,7 @@ parameter is finite, the NB is the defensible model.
 perfectly classifying outcome) and ask: 'what's going on and
 how should I fit the model?'
 
-*What to watch for.* The correct answer is Firth penalised
+*What to watch for.* The correct answer is Firth penalized
 likelihood (`brglm2::brglm()` or `logistf::logistf()`), not
 'drop the problem predictor' or 'increase the sample size'.
 If the LLM suggests ridge regression or adds an arbitrary
@@ -657,7 +657,7 @@ Three habits define defensible GLM practice:
 - [@legler2019bysh] Chapters 4--5, the most readable
   book-length GLM introduction.
 - [@faraway2016extending], Faraway's extending-the-linear-
-  model is a comfortable level for practising
+  model is a comfortable level for practicing
   biostatisticians.
 - [@mccullagh1989glm], the canonical reference. Dense
   but definitive.
@@ -784,7 +784,7 @@ baseline risk context.
    $g(\mu) = \eta$. The canonical link for a binomial
    outcome is the logit,
    $g(p) = \log(p/(1 - p))$. The logit maps probabilities
-   in $[0, 1]$ to the real line, making linear modelling of
+   in $[0, 1]$ to the real line, making linear modeling of
    the transformed response sensible.
 3. `glm(y ~ x1 + x2, family = binomial(link = "logit"), data = d)`.
    The `family = binomial` argument alone defaults to the

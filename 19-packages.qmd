@@ -56,7 +56,7 @@ maintainable.
 ## The statistician's contribution {#sec-packages-human}
 
 Package development looks like software engineering, and it
-is. The judgements specific to statistical packages are
+is. The judgments specific to statistical packages are
 about audience and scope.
 
 **Who will use this?** A package for your own analysis
@@ -75,10 +75,10 @@ fuzzy; the heuristic is that anything you would otherwise
 copy-paste between projects is a packaging candidate.
 
 **Documentation as a contract.** The roxygen comment above
-a function is a promise about its behaviour: what arguments
+a function is a promise about its behavior: what arguments
 it takes, what it returns, what conditions it expects.
 Vague documentation produces confused users and bug
-reports about expected behaviour. Specific documentation
+reports about expected behavior. Specific documentation
 --- including the edge cases the function does or does not
 handle, saves time over the package's life.
 
@@ -90,7 +90,7 @@ list saves friction; the maximalist 'use whatever is
 convenient' approach produces packages that are hard to
 install five years later.
 
-These judgements are what distinguishes packages people use
+These judgments are what distinguishes packages people use
 from packages that exist. Software craft does the rest.
 
 ## Why package code?

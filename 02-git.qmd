@@ -21,7 +21,7 @@ By the end of this chapter you should be able to:
 - Explain what a commit, a branch, and a remote are, and draw
   the three-stage workflow (working directory, staging area,
   repository).
-- Initialise a repository, make commits with informative
+- Initialize a repository, make commits with informative
   messages, and push to a remote on GitHub.
 - Use `git status`, `git diff`, `git log`, and `git blame` to
   understand the current state and history of a project.
@@ -57,17 +57,17 @@ That answer is far more convincing than a remembered narrative.
 
 The mechanics of Git are boring: `add`, `commit`, `push`, `pull`,
 `merge`. Anyone, including an LLM, can recite them. What is not
-boring, and what no tool can automate, is the judgement about
+boring, and what no tool can automate, is the judgment about
 *what* and *when* to commit, *what* to write in the commit
 message, and *when* to branch.
 
-These judgements shape how trustworthy your analysis looks
+These judgments shape how trustworthy your analysis looks
 months or years later. They are the statistician's contribution
 to a workflow that would otherwise dissolve into an opaque pile
 of incrementally-edited files.
 
 **What belongs in a single commit.** A good commit is one
-logical change: a bug fix, a new function, a reorganisation of
+logical change: a bug fix, a new function, a reorganization of
 an analysis script. If the description of your commit uses the
 word 'and', you almost certainly should have split it in two.
 Atomic commits make `git bisect` usable (you can binary-search
@@ -99,17 +99,17 @@ tell yourself it will only take an hour. It usually does not.
 **What not to commit.** `renv.lock`, yes. `.Rproj.user/`, no.
 Raw data: almost never, and never if it is protected health
 information or subject to a data-use agreement. Rendered
-outputs (`.pdf`, `.html`) are usually derived artefacts and
+outputs (`.pdf`, `.html`) are usually derived artifacts and
 should be excluded unless they are the deliverable. This
 distinction, between source (commit) and output (ignore) ---
 is the same distinction that underlies reproducible research:
 the source should be sufficient to regenerate the outputs.
 
-These are judgement calls. They depend on the nature of the
+These are judgment calls. They depend on the nature of the
 project, the sensitivity of the data, and the audience for the
 history you are building. An LLM can generate a `.gitignore`
 in five seconds, but it cannot tell you whether a particular
-intermediate file is a reproducible artefact or a costly
+intermediate file is a reproducible artifact or a costly
 computation whose result you should preserve.
 
 ## Why version control?
@@ -191,7 +191,7 @@ rather than committing all modified files at once?
 
 In a typical analysis session you often make several
 logically unrelated changes at once: a fix to the data
-cleaning script, a new visualisation, and a tweak to the
+cleaning script, a new visualization, and a tweak to the
 README. These should be three commits, not one. Staging
 only the relevant subset lets each commit carry a focused
 message. Future readers, including you, debugging this
@@ -233,7 +233,7 @@ git pull
 
 Five of these, `status`, `add`, `commit`, `push`, `pull` ---
 cover perhaps 90% of daily Git use. Mastery of these basics is
-far more important than memorising obscure options.
+far more important than memorizing obscure options.
 
 A disciplined loop looks like this:
 
@@ -317,7 +317,7 @@ competing statistical methods, risky refactors,
 contributions from collaborators that need review before
 they land. For trivial edits, a typo fix, a small
 prose change, the overhead of a branch is not worth it.
-The judgement call is in the middle: medium-sized changes
+The judgment call is in the middle: medium-sized changes
 where the work is not trivially safe. In practice, err
 toward branching; the cost of a wasted branch is nearly
 zero.
@@ -335,7 +335,7 @@ resolution in its own section below.
 A *remote* is a named reference to a copy of the repository
 hosted elsewhere, typically on GitHub. The conventional name
 for the primary remote is `origin`. Remotes are how
-repositories synchronise: `git push` sends your commits to the
+repositories synchronize: `git push` sends your commits to the
 remote, `git pull` brings remote commits into your local copy.
 
 Git is the version control system; GitHub is a company that
@@ -646,7 +646,7 @@ the wrong command can be irreversible. Three patterns are worth
 learning explicitly.
 
 **Prompt 1: explaining the current state.** Paste the output
-of `git status` and `git log --oneline -10` and ask: 'summarise
+of `git status` and `git log --oneline -10` and ask: 'summarize
 the state of this repository in two sentences, and tell me what
 I should probably do next.'
 
@@ -756,7 +756,7 @@ they are not, no amount of tooling will save you.
 - [@chacon2014progit], the comprehensive Git reference.
   Not a first-read book; a second-read-when-stuck reference.
 - [Learn Git Branching](https://learngitbranching.js.org) ---
-  an interactive visualisation of branching and merging.
+  an interactive visualization of branching and merging.
   Recommended for visual learners.
 
 ## Practice test {#sec-practice-test-02}
@@ -771,7 +771,7 @@ What is the primary purpose of version control?
 - A) To make code run faster
 - B) To track changes to files over time
 - C) To automatically debug code
-- D) To optimise computer memory usage
+- D) To optimize computer memory usage
 
 ::: {.callout-note collapse='true'}
 ## Answer
@@ -792,7 +792,7 @@ Which git command creates a new repository?
 ::: {.callout-note collapse='true'}
 ## Answer
 
-**C.** `git init` initialises a new empty repository in the
+**C.** `git init` initializes a new empty repository in the
 current directory. `git clone` copies an existing remote
 repository.
 :::

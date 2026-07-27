@@ -8,7 +8,7 @@ chapter. You can find the answers at the end of the chapter in
 
 1. What are the two top-level components of every Shiny
    application?
-2. What does `reactive()` do, and how does its behaviour
+2. What does `reactive()` do, and how does its behavior
    differ from that of a plain R function?
 3. How are outputs wired between the UI and the server in
    a Shiny application?
@@ -38,7 +38,7 @@ By the end of this chapter you should be able to:
 ## Orientation
 
 An interactive application lets collaborators explore a
-model's behaviour without running any code. For a
+model's behavior without running any code. For a
 biostatistician, this means writing less one-off code in
 response to every new question a collaborator asks: 'what
 does the predicted survival look like at age 70?' becomes
@@ -55,7 +55,7 @@ modern reference.
 ## The statistician's contribution {#sec-shiny-human}
 
 Shiny apps look easy until you maintain one. The pitfalls
-are predictable; the judgements that prevent them are not
+are predictable; the judgments that prevent them are not
 in the framework.
 
 **Decide what should be reactive.** Every input change can
@@ -65,7 +65,7 @@ right (a small dataset filter); sometimes it is disastrous
 slider by 1). The right reactive granularity, often
 involving `bindEvent()` to delay expensive computations
 until a 'Run' button is pressed, is the analyst's
-judgement, not the framework's default.
+judgment, not the framework's default.
 
 **Validate inputs.** A Shiny app is a public surface,
 even when 'public' means 'visible to your three
@@ -90,7 +90,7 @@ characteristics. A Posit Connect deployment integrates
 with internal authentication. Pick the destination that
 matches the audience; do not assume.
 
-These judgements are what distinguishes a deployed,
+These judgments are what distinguishes a deployed,
 shared analysis from a local-only exploration toy.
 
 ## Reactive programming in one page
@@ -413,7 +413,7 @@ Three things modules give you:
 
 For an app larger than a few hundred lines of code,
 modules are the canonical way to keep the codebase
-organised.
+organized.
 
 ## Deployment
 
@@ -427,7 +427,7 @@ URLs; basic authentication available on paid plans.
 **Posit Connect** is the enterprise self-hosted
 platform. Integrates with internal authentication, scales
 across multiple servers, supports private deployments.
-Used by most large organisations running R in production.
+Used by most large organizations running R in production.
 
 **Self-hosted Shiny Server (open source).** Free, but you
 manage the infrastructure: server provisioning, scaling,
@@ -572,7 +572,7 @@ relevant chunk of `server` code and describe the symptom:
 'when I change input X, output Y updates twice'. Ask
 the LLM to diagnose.
 
-*What to watch for.* The LLM should recognise common
+*What to watch for.* The LLM should recognize common
 patterns: missing parentheses on a reactive call (`fit`
 vs. `fit()`), `observeEvent` where `reactive` was needed,
 or vice versa. If the diagnosis is generic, push for
@@ -627,7 +627,7 @@ Three habits define defensible Shiny development:
    non-CSV file, file with no numeric columns).
 5. Use `reactlog` to inspect the dependency graph of your
    app from exercise 4. Are any reactives being
-   re-evaluated more than necessary? Optimise.
+   re-evaluated more than necessary? Optimize.
 
 ## Further reading
 
@@ -652,7 +652,7 @@ Shiny application?
 - A) HTML and JavaScript functions
 - B) User Interface (UI) and Server components
 - C) Input widgets and reactive functions
-- D) Plotly objects and ggplot2 visualisations
+- D) Plotly objects and ggplot2 visualizations
 
 ::: {.callout-note collapse='true'}
 ## Answer
