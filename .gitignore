@@ -1,20 +1,35 @@
+# Quarto
+.quarto/
 /.quarto/
-/_book/
-/_freeze/
-/_site/
+_book/
+_freeze/
+_site/
+**/*.quarto_ipynb
+
+# LaTeX build artifacts
 *.log
 *.aux
 *.toc
 *.out
 *.bbl
 *.blg
+
+# R
 *.Rhistory
-*.Rproj.user
-.DS_Store
 .Rdata
 .Renviron
 .env
+*.Rproj.user
+inst/doc
 
-**/*.quarto_ipynb
+# renv
+renv/library/
+renv/staging/
+
+# zzcollab
+.make/
+.zzcollab.log
+
+# tools / OS
+.DS_Store
 .claude/
-docs/
