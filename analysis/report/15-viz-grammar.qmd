@@ -46,9 +46,9 @@ The Grammar of Graphics, codified by Leland Wilkinson and
 implemented for R by Hadley Wickham as `ggplot2`, makes the
 *structure* of a plot explicit. Every plot is a composition
 of seven kinds of element: data, aesthetic mappings, geoms,
-stats, scales, a coordinate system, and facets. Once you
+stats, scales, a coordinate system, and facets. Once we
 think in these pieces, the universe of statistical
-graphics becomes a small set of swappable parts rather than
+graphics becomes a small set of swappable parts, rather than
 a zoo of named chart types.
 
 This chapter teaches the grammar conceptually and applies

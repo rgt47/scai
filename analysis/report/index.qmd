@@ -2,22 +2,22 @@
 
 
 This is the online version of **Statistical Computing in the
-Age of AI** by The rgtlab Curriculum Project, a graduate textbook in
-statistical computing for biostatistics students.
+Age of AI** by The rgtlab Curriculum Project. We have written it as
+a graduate textbook in statistical computing for biostatistics
+students.
 
-The book is a practical, code-first introduction to the
-computing techniques that biostatisticians use daily:
+We intend the book as a practical, code-first introduction to the
+computing techniques that biostatisticians use daily. That is,
 programming in R, version control, linear algebra, simulation,
-statistical modeling, graphics, reproducible software, and
-the emerging role of large language models in each of these
-activities.
+statistical modeling, graphics, reproducible software, and the
+emerging role of large language models in each of these activities.
 
-It is written in the tradition of the Posit book family
+We have written it in the tradition of the Posit book family
 ([*R for Data Science*](https://r4ds.hadley.nz),
 [*Advanced R*](https://adv-r.hadley.nz),
-[*R Packages*](https://r-pkgs.org)) and uses the same Quarto
-toolchain. The book is the introductory volume in a
-four-volume graduate sequence:
+[*R Packages*](https://r-pkgs.org)), and we use the same Quarto
+toolchain. The book is the introductory volume in a four-volume
+graduate sequence:
 
 - [*Biostatistics Practicum*](https://rgtlab.org/practicum)
   covers the workflow infrastructure (Git, Docker, renv,
@@ -35,8 +35,8 @@ four-volume graduate sequence:
   classes, reasoning models, biomedical RAG, multimodal
   medical AI, agents, evaluation, regulation, deployment.
 
-See the [Preface](preface.qmd) for motivation and the
-[Conventions](conventions.qmd) page for visual cues used
+We refer the reader to the [Preface](preface.qmd) for motivation and
+to the [Conventions](conventions.qmd) page for the visual cues used
 throughout.
 
 ## License

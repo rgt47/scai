@@ -39,19 +39,20 @@ By the end of this chapter you should be able to:
 
 ## Orientation
 
-A simulation study is an experiment in which you know the
-truth. You specify a data-generating mechanism (so you know
-the true parameter values), run a method on the simulated
-data, and compare the method's output to the known truth.
-Iterating across many replicates produces estimates of how
-the method behaves.
+A simulation study is an experiment in which we know the
+truth. We specify a data-generating mechanism, so that the
+true parameter values are known, run a method on the
+simulated data, and compare the method's output to the known
+truth. Iterating across many replicates produces estimates of
+how the method behaves.
 
-Well-designed simulations tell you whether a proposed method
+Well-designed simulations tell us whether a proposed method
 controls error rates, is efficient, and is robust to
 violations of its assumptions. Badly designed simulations
-mislead, and the misleading conclusions often look convincing
-because the methodology has the superficial shape of an
-experiment. This chapter is about how to tell the two apart.
+mislead. Unfortunately, the misleading conclusions often look
+convincing, because the methodology has the superficial shape
+of an experiment. This chapter takes up how to tell the two
+apart.
 
 The basic ingredients are always the same: a data-generating
 mechanism (DGM) under your control, an estimand (the true
@@ -404,7 +405,7 @@ Practically: generate one dataset per replicate; apply both
 methods to it. The pattern already appears in the
 `simulate_one` function above.
 
-CRN is essentially the simulation analogue of a paired
+CRN is essentially the simulation analog of a paired
 design in experimental statistics. The variance reduction
 can be dramatic, factors of 5 or more are common for
 methods that are correlated in their responses to the data.
@@ -424,7 +425,7 @@ rejection decisions are positively correlated. The
 variance of the difference in their rejection rates is
 therefore smaller than it would be under independent
 datasets. For a given $R$, CRN produces a tighter estimate
-of the difference. This is the Monte Carlo analogue of a
+of the difference. This is the Monte Carlo analog of a
 paired study: comparing within a unit is more powerful
 than comparing across units when the unit-level
 variability is large. The variance reduction is often a
@@ -785,5 +786,5 @@ simulation.
    themselves rather than sampling noise in the inputs.
    This reduces variance in the comparison and allows
    smaller true differences to be detected. It is the
-   simulation analogue of a paired design in experimental
+   simulation analog of a paired design in experimental
    statistics.

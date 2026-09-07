@@ -27,12 +27,12 @@ Why learn any of this when an LLM will produce working R
 code on request? The preface gave the short answer; in
 this chapter we shall give the long one.
 
-The answer has two parts. The first part is *practical*:
+The answer has two parts. The first part is *practical*.
 LLMs fail in specific, learnable, predictable ways, and a
 statistician who cannot detect those failures will sign
 her name to analyses that are wrong. The second part is
-*structural*: certain decisions in statistical computing
-cannot be delegated to an LLM in principle, because they
+*structural*. Certain decisions in statistical computing
+cannot be delegated to an LLM in principle. That is, they
 depend on information the LLM does not have and cannot
 obtain through prompting.
 
@@ -41,6 +41,24 @@ obtain through prompting.
 For every topic in this book, the statistician-LLM
 division of labor sorts, it appears, into four
 categories.
+
+The framework holds whether the LLM answers you in a
+chat window or acts as a coding agent that edits files
+and runs code on its own. An agent does not change what
+the model knows or does not know. It changes how fast a
+wrong answer becomes a wrong file, which is why the
+categories below matter more, not less, once the LLM in
+front of you can execute its own advice.
+
+Practitioners in 2026 distinguish two disciplines. 'Vibe
+coding' means prompting a model, accepting the result, and
+running it without review. 'Agentic coding,' or 'agentic
+engineering,' means letting an agent plan, write, and run
+code in a loop, but with a human still reviewing the
+result against real acceptance criteria before trusting
+it. This book teaches the second discipline. The four
+categories below are, in effect, what that review has to
+check.
 
 **Category 1: Things the LLM does reliably.**
 
@@ -165,9 +183,11 @@ practices the verification that catches the error.
 Given the four-category framework, our position is
 straightforward:
 
-> **Use LLMs as an amplifier, not a replacement.** Treat
-> every line of generated code as a hypothesis to be
-> tested, not a result to be trusted.
+> **Use LLMs and the agents built on them as an
+> amplifier, not a replacement.** Treat every line of
+> generated code as a hypothesis to be tested, not a
+> result to be trusted, whether you wrote the prompt or
+> the agent wrote and ran it itself.
 
 Specifically, we recommend that students:
 
@@ -187,11 +207,11 @@ Specifically, we recommend that students:
 ## Why the hard work still pays
 
 Students occasionally ask whether this training is
-obsolete, whether, in five years, the LLM will be
-good enough that these warnings no longer apply. The
-honest answer, it seems, is: perhaps, and perhaps not.
-On the other hand, three arguments remain even under the
-optimistic assumption:
+obsolete. Will the LLM, in five years, be good enough
+that these warnings no longer apply? The honest answer,
+it seems, is perhaps, and perhaps not. On the other hand,
+three arguments remain even under the optimistic
+assumption:
 
 1. **Professional accountability does not transfer.**
    However capable the LLM becomes, when an FDA reviewer
@@ -299,7 +319,7 @@ For each chapter, the recommended workflow is:
    this book is designed to build.
 
 Students who follow this workflow learn the material.
-Students who skip steps 2 and 3 do not, and within a
-year they cannot distinguish their own contributions
-from the LLM's, which means, in turn, that they cannot
+Students who skip steps 2 and 3 do not. Within a year
+they cannot distinguish their own contributions from the
+LLM's, and that means, in turn, that they cannot
 professionally account for either.

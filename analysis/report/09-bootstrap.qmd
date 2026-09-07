@@ -31,11 +31,12 @@ By the end of this chapter you should be able to:
 
 ## Orientation
 
-The bootstrap [@efron1979bootstrap; @efron1993bootstrap] is the most
-useful general-purpose inference tool of the last 50 years. It works
-when analytic standard errors are impossible or wrong, and it fails
-in interesting, learnable ways when it does fail. Every
-biostatistician should be comfortable rolling their own bootstrap.
+The bootstrap [@efron1979bootstrap; @efron1993bootstrap] is,
+in our view, the most useful general-purpose inference tool
+of the last fifty years. It works when analytic standard
+errors are impossible or wrong, and when it does fail, it
+fails in interesting, learnable ways. Every biostatistician
+should be comfortable rolling her own bootstrap.
 
 ## The statistician's contribution {#sec-bootstrap-human}
 

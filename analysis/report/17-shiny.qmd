@@ -54,9 +54,9 @@ modern reference.
 
 ## The statistician's contribution {#sec-shiny-human}
 
-Shiny apps look easy until you maintain one. The pitfalls
-are predictable; the judgments that prevent them are not
-in the framework.
+Shiny apps look easy until one has to be maintained. The
+pitfalls are predictable; the judgments that prevent them
+are not in the framework.
 
 **Decide what should be reactive.** Every input change can
 trigger every downstream computation. Sometimes that is
@@ -68,18 +68,18 @@ until a 'Run' button is pressed, is the analyst's
 judgment, not the framework's default.
 
 **Validate inputs.** A Shiny app is a public surface,
-even when 'public' means 'visible to your three
-collaborators'. Inputs that crash the server because the
+even when 'public' means 'visible to three collaborators'.
+Inputs that crash the server because the
 user uploaded a CSV with extra columns, or set a slider to
 zero, are bugs. `validate()` and `req()` catch them
 gracefully. Defensive validation is the cost of a robust
 app.
 
-**Modularise.** A single-file app of 200 lines is fine. A
+**Modularize.** A single-file app of 200 lines is fine. A
 single file of 2000 lines is unmaintainable. Shiny modules
-let you encapsulate UI/server pairs that handle one
-component (a dataset selector, a plot, a table) and
-combine them with namespace isolation. Splitting the
+allow UI/server pairs that handle one component (a dataset
+selector, a plot, a table) to be encapsulated and combined
+with namespace isolation. Splitting the
 monolith is the difference between an app that survives a
 year of feature requests and one that gets rewritten.
 
@@ -591,9 +591,9 @@ include forgetting `ns()` on input ids in the module UI,
 or using global state that breaks with multiple module
 instances.
 
-*Verification.* Run the refactored app. If you have used
-the module's input ids correctly, instantiating two
-copies of the module should not cause id collisions.
+*Verification.* Run the refactored app. If the module's
+input ids are used correctly, instantiating two copies of
+the module should not cause id collisions.
 
 ## Principle in use
 
@@ -604,7 +604,7 @@ Three habits define defensible Shiny development:
    ones need `bindEvent()` and an explicit trigger.
 2. **Validate inputs.** `req()` and `validate()` are a
    small investment that produces graceful failure modes.
-3. **Modularise as the app grows.** Single-file apps
+3. **Modularize as the app grows.** Single-file apps
    above a few hundred lines should be split into
    modules. Modules also enable unit testing.
 

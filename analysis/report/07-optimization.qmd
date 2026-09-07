@@ -37,18 +37,19 @@ By the end of this chapter you should be able to:
 
 ## Orientation
 
-Likelihood-based inference is optimization in disguise.
-Every MLE, every penalized regression, every mixed-effects
-fit, every Cox model, every neural network ultimately calls
-a general-purpose optimizer. Understanding what the optimizer
-is doing, and when it is failing, is the difference between
-producing results and producing plausible-looking noise.
+Likelihood-based inference is, we shall argue, optimization
+in disguise. Every MLE, every penalized regression, every
+mixed-effects fit, every Cox model, and every neural network
+ultimately calls a general-purpose optimizer. Understanding
+what the optimizer is doing, and when it is failing, is the
+difference between producing results and producing
+plausible-looking noise.
 
 The optimizer in R that covers most real cases is `optim()`.
 Underneath, it provides several algorithms. Choosing between
 them, writing an objective function that behaves well
-numerically, and diagnosing failures when they happen are
-the skills this chapter develops.
+numerically, and diagnosing failures when they occur are the
+skills this chapter develops.
 
 ## The statistician's contribution {#sec-optimization-human}
 
@@ -69,7 +70,7 @@ mixture models, neural networks, and many penalized
 problems, no. The statistician's job is to know which case
 they are in and to pick an optimization strategy accordingly.
 
-**Is the parameterisation sensible?** An optimizer sees the
+**Is the parameterization sensible?** An optimizer sees the
 objective function you give it, nothing more. Parameters on
 wildly different scales (one in units of $10^{-6}$, another
 in units of $10^{6}$) produce an ill-conditioned Hessian
@@ -82,9 +83,9 @@ optimizer does not know or care; the analyst does.
 
 **Is the objective numerically stable?** Naively-coded log-
 likelihoods overflow or underflow with alarming frequency
-when the data get large. The standard fixes, working on
-the log scale, log-sum-exp for mixtures, centring covariates
---- are the statistician's responsibility. An optimizer that
+when the data get large. The standard fixes (working on
+the log scale, log-sum-exp for mixtures, centering covariates)
+are the statistician's responsibility. An optimizer that
 diverges because the likelihood overflowed is not a bug in
 the optimizer.
 
@@ -125,11 +126,11 @@ R's core optimization functions:
 - `optimize(f, interval, ...)`, one-dimensional. Combines
   golden-section search and parabolic interpolation. Fast
   and reliable for univariate problems.
-- `optim(par, fn, gr = NULL, method = "Nelder-Mead", ...)` ---
+- `optim(par, fn, gr = NULL, method = "Nelder-Mead", ...)`:
   general-purpose, multidimensional. Default method is
   Nelder-Mead; supports BFGS, L-BFGS-B, CG, SANN, and
   Brent. Pass `method = "BFGS"` for smooth problems.
-- `nlminb(start, objective, gradient = NULL, hessian = NULL, ...)` ---
+- `nlminb(start, objective, gradient = NULL, hessian = NULL, ...)`:
   box-constrained, uses an interior trust-region method.
   Often more robust than `optim()` for MLEs with many
   parameters.
@@ -435,7 +436,7 @@ variance of a normal sample.
 ```r
 neg_loglik_normal <- function(theta, y) {
   mu       <- theta[1]
-  log_sigma <- theta[2]               # optimise on log scale
+  log_sigma <- theta[2]               # optimize on log scale
   sigma    <- exp(log_sigma)
   -sum(dnorm(y, mean = mu, sd = sigma, log = TRUE))
 }
@@ -455,14 +456,14 @@ c(mu_hat    = fit$par[1],
 mean(y); sd(y)                        # compare
 ```
 
-Three idioms in this code are worth internalising.
+Three idioms in this code are worth internalizing.
 
 **1. `log = TRUE` in density functions.** `dnorm(y, log = TRUE)`
 returns $\log p(y)$ directly, avoiding underflow when
 probabilities are tiny.
 
 **2. Optimize on the log scale for positive parameters.** We
-parameterised by $\log \sigma$ instead of $\sigma$ so the
+parameterized by $\log \sigma$ instead of $\sigma$ so the
 optimizer works on an unconstrained space ($\sigma > 0$
 becomes $\log \sigma \in \mathbb R$). This is a universal
 trick: log for positive parameters, logit for probabilities,
@@ -538,7 +539,7 @@ Two caveats:
   sense. If any diagonal of `vcov_hat` is negative, or if
   `chol()` on `fit$hessian` fails, the optimizer did not
   find a proper maximum.
-- The parameterisation matters. If you optimized $\log\sigma$
+- The parameterization matters. If you optimized $\log\sigma$
   and want an SE for $\sigma$, apply the delta method:
   $\mathrm{SE}(\sigma) \approx \sigma \cdot \mathrm{SE}(\log\sigma)$.
 
@@ -620,7 +621,7 @@ patterns work well.
 (e.g., 'a gamma regression with log link'), provide a data
 frame with column names, and ask: 'write the negative log-
 likelihood as a function `nll(theta, data)` using a
-log-parameterised rate, and return a call to `optim` that
+log-parameterized rate, and return a call to `optim` that
 maximizes it.'
 
 *What to watch for.* Common mistakes: missing the
@@ -724,7 +725,7 @@ Two idioms worth memorizing:
 Three habits characterize effective use of optimization in R:
 
 1. **Think before optimizing.** Is the problem convex? Is
-   the parameterisation sensible? Is the objective
+   the parameterization sensible? Is the objective
    numerically stable? The optimizer is only as good as the
    problem you hand it.
 2. **Verify convergence.** `$convergence = 0` is necessary

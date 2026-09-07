@@ -60,8 +60,8 @@ worth it.
 30 seconds in serial does not need parallelism; the time
 spent setting up `future.apply` exceeds the saving. A
 simulation that takes 30 minutes is worth parallelizing;
-30 hours is essential. Knowing which case you are in
-requires profiling first, not parallelizing preemptively.
+30 hours is essential. Knowing which case applies requires
+profiling first, rather than parallelizing preemptively.
 
 **Reproducibility is non-trivial.** Naive parallel code
 with `set.seed()` does not produce reproducible results
@@ -72,11 +72,11 @@ generator. Detecting the difference is the analyst's
 responsibility; software defaults vary across packages.
 
 **Mind the data.** Parallel workers receive copies of
-the global state. A 5 GB dataset in your R session
-becomes 5 GB on each worker; with 8 workers, that is 40 GB
-of memory used. For small data this is fine; for large
-data, you need to load data inside the worker function
-or use shared-memory techniques.
+the global state. A 5 GB dataset in the R session becomes
+5 GB on each worker; with 8 workers, that is 40 GB of
+memory used. For small data this is fine; for large data,
+the data should be loaded inside the worker function, or
+shared-memory techniques should be used instead.
 
 **Mind the BLAS.** R's matrix operations dispatch to BLAS,
 which may itself be multi-threaded (OpenBLAS, MKL).
@@ -84,8 +84,9 @@ Running 8 R workers each with 8 BLAS threads is 64
 threads competing on probably 8 physical cores. The
 typical fix: `RhpcBLASctl::blas_set_num_threads(1)` inside
 the worker so BLAS does not spawn additional threads.
-This pitfall is invisible until you measure and the
-'parallel' code is somehow *slower* than serial.
+This pitfall stays invisible until timing is measured
+and the 'parallel' code turns out somehow *slower* than
+serial.
 
 These judgments are what distinguishes parallel code that
 delivers a speedup from parallel code that delivers a

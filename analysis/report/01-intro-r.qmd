@@ -31,16 +31,16 @@ By the end of this chapter you should be able to:
 
 R is the *lingua franca* of statistical computing in academic
 biostatistics. It is not the fastest language, nor the most
-elegant, but it has by far the richest library of statistical
-methods and the largest community of statisticians reading,
-writing, and reviewing code. This chapter gets you fluent
-enough in R to read the rest of the book.
+elegant. It does, however, have by far the richest library of
+statistical methods and the largest community of statisticians
+reading, writing, and reviewing code. This chapter aims to get
+you fluent enough in R to read the rest of the book.
 
 ## The statistician's contribution {#sec-intro-r-human}
 
 Large language models can produce passable R code for almost
-any introductory task. Three decisions still require the
-statistician's judgment.
+any introductory task. We shall see, however, that three
+decisions still require the statistician's judgment.
 
 **1. Type discipline.** R coerces silently between types in
 ways that can hide errors. `c(1, '2')` becomes

@@ -37,7 +37,7 @@ By the end of this chapter you should be able to:
 Once the grammar of graphics is in hand, the remaining work
 in making a finished figure is largely aesthetic:
 composition, typography, color, and layout. `ggplot2` and
-its ecosystem give you fine-grained control over each. This
+its ecosystem give fine-grained control over each. This
 chapter covers the tools used in every real paper or
 report, the ones that turn 'a plot that conveys the
 analysis' into 'a plot a journal will accept'.
@@ -73,12 +73,12 @@ show that.
 **Compose deliberately.** Multi-panel figures should make
 comparisons easy. Shared axes, shared legends, consistent
 scales, panel labels in the same position. Inconsistent
-panels create work for the reader; that work is what your
-figure should be doing for them.
+panels create work for the reader that the figure itself
+should be doing.
 
 **Choose typography that respects the medium.** Default
 `ggplot2` text is fine on a slide; on a printed page it
-often looks small and gray. Customising the theme is a
+often looks small and gray. Customizing the theme is a
 ten-line investment that pays off across an entire paper.
 
 These judgments determine whether figures get accepted on
@@ -269,7 +269,7 @@ Which color scale is most appropriate?
 
 **Answer.**
 
-A diverging palette centerd on zero. Correlations have a
+A diverging palette centered on zero. Correlations have a
 meaningful midpoint (zero correlation), and positive vs.
 negative correlations should be visually distinguishable.
 Standard choices: `RdBu` (red-to-blue, ColorBrewer),
@@ -489,7 +489,7 @@ movement, an animated plot is not the right medium.
 
 Three habits define defensible advanced visualization:
 
-1. **Customise once, apply everywhere.** A
+1. **Customize once, apply everywhere.** A
    `theme_phb228()` function and a project palette make
    every figure consistent for free.
 2. **Show uncertainty.** Confidence bands, error bars,

@@ -41,13 +41,13 @@ infectious-disease research. The outcome is not 'did the
 event happen' (that is a binary outcome and would be
 analyzed as a GLM) but 'when did it happen, if at all'.
 
-The distinguishing challenge is *censoring*: for many
-participants the event is not observed before the study
-ends, before they withdraw, or before some other time-
-bounded reason for follow-up to stop. A naive analysis
-that drops censored observations is biased; a naive
-analysis that imputes their event times is more biased
-still. Survival methods are the principled response.
+The distinguishing challenge is *censoring*. For many
+participants, the study ends, or they withdraw, or follow-up
+stops for some other time-bounded reason, all before the
+event is observed. A naive analysis that drops censored
+observations is biased, and a naive analysis that imputes
+their event times is more biased still. Survival methods
+are the principled response.
 
 R's `survival` package, written by Terry Therneau, is the
 canonical implementation. It is one of the oldest and
@@ -472,10 +472,10 @@ sf <- survfit(fit, newdata = new_data)
 plot(sf)
 ```
 
-The fixed effects table shows that being female and lower
-ECOG score are associated with longer survival; age has
-weaker effect. The PH check should be inspected before any
-HR is reported.
+The fixed effects table shows that being female and having
+a lower ECOG score are associated with longer survival, while
+age has a weaker effect. We would always inspect the PH check
+before reporting any hazard ratio.
 
 ## Collaborating with an LLM on survival analysis
 
@@ -528,9 +528,10 @@ on the question. Cause-specific Cox models the rate among
 those still at risk; Fine-Gray models the cumulative
 incidence. For prognosis ('what is the patient's
 probability of CV death?'), Fine-Gray is usually more
-appropriate. For aetiology ('does the treatment affect the
-biological pathway to CV death?'), cause-specific Cox is.
-The LLM should distinguish these; if it does not, ask.
+appropriate. For etiology ('does the treatment affect the
+biological pathway to CV death?'), cause-specific Cox is
+the better choice. The LLM should distinguish these; if it
+does not, we would push back and ask.
 
 ## Principle in use
 

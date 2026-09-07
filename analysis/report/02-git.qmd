@@ -38,13 +38,14 @@ By the end of this chapter you should be able to:
 Before we write any statistics, we need a way to keep track of
 the code we have written. Git is the tool almost every data
 scientist uses for this. It is notoriously user-hostile on the
-surface, the error messages are famously unhelpful and the
+surface. The error messages are famously unhelpful, and the
 man pages seem to assume you already understand what they are
-trying to explain, but its core ideas are simple, and the
-payoff of fluency is enormous. No more
-`analysis_final_v3_really.R`. No more emailing zipped folders
-back and forth. No more quiet dread when a collaborator asks
-'which version produced the numbers in Table 2?'.
+trying to explain. Its core ideas are, on the other hand,
+straightforward, and the payoff of fluency is large. A project under version control
+does not accumulate files named
+`analysis_final_v3_really.R`. Collaborators do not exchange
+zipped folders by email. And no one has to guess which version
+produced the numbers in Table 2.
 
 Version control is also the single best tool for building a
 defensible audit trail for a statistical analysis. When a
@@ -101,7 +102,7 @@ Raw data: almost never, and never if it is protected health
 information or subject to a data-use agreement. Rendered
 outputs (`.pdf`, `.html`) are usually derived artifacts and
 should be excluded unless they are the deliverable. This
-distinction, between source (commit) and output (ignore) ---
+distinction, between source (commit) and output (ignore),
 is the same distinction that underlies reproducible research:
 the source should be sufficient to regenerate the outputs.
 
@@ -231,7 +232,7 @@ git push
 git pull
 ```
 
-Five of these, `status`, `add`, `commit`, `push`, `pull` ---
+Five of these (`status`, `add`, `commit`, `push`, `pull`)
 cover perhaps 90% of daily Git use. Mastery of these basics is
 far more important than memorizing obscure options.
 
@@ -627,7 +628,7 @@ messages that make sense to you in the moment. Collaborative
 research projects need messages that explain not only what
 changed but *why*, because other readers (including future
 you) lack your context. For a research project, the commit
-log doubles as documentation of methodological decisions ---
+log doubles as documentation of methodological decisions:
 it becomes the primary source for the methods section of the
 paper months later. Good collaborative commit messages tend
 to have: an imperative first line under 50 characters, a
@@ -755,7 +756,7 @@ they are not, no amount of tooling will save you.
   scientists in three pages.
 - [@chacon2014progit], the comprehensive Git reference.
   Not a first-read book; a second-read-when-stuck reference.
-- [Learn Git Branching](https://learngitbranching.js.org) ---
+- [Learn Git Branching](https://learngitbranching.js.org):
   an interactive visualization of branching and merging.
   Recommended for visual learners.
 

@@ -36,21 +36,23 @@ By the end of this chapter you should be able to:
 
 ## Orientation
 
-A recurring question in applied work is: how do I apply the
-same operation across many elements of a data structure?
-Write the computation once as a function, then pass it to an
-iteration tool that takes care of the mechanics. Once you can
-write functions, you can write functions that take functions
-as arguments, and that is where the leverage comes from.
+A recurring question in applied work is how to apply the same
+operation across many elements of a data structure. The
+answer is to write the computation once as a function, then
+pass it to an iteration tool that handles the mechanics. Once
+you can write functions, you can write functions that take
+functions as arguments. That, in turn, is what lets you
+change the operation without rewriting the loop around it.
 
-R is fundamentally a functional language. Almost everything
-you do in R can be expressed as a composition of functions
-applied to data. The two common iteration toolkits are base
-R's `apply` family (`lapply`, `sapply`, `vapply`, `tapply`,
-`apply`) and the tidyverse's `purrr`. Both do the same core
-job. `purrr` does it with more consistent naming and type
-guarantees; `apply` is ubiquitous and has no dependencies.
-This chapter covers both and recommends `purrr` for most work.
+R is, we should note, fundamentally a functional language.
+Almost everything done in R can be expressed as a composition
+of functions applied to data. The two common iteration
+toolkits are base R's `apply` family (`lapply`, `sapply`,
+`vapply`, `tapply`, `apply`) and the tidyverse's `purrr`. Both
+do the same core job. `purrr` does it with more consistent
+naming and type guarantees, while `apply` is ubiquitous and
+has no dependencies. This chapter covers both and recommends
+`purrr` for most work.
 
 ## The statistician's contribution {#sec-functional-human}
 

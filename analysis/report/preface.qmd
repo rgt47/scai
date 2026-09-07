@@ -2,32 +2,37 @@
 
 ## Why this book when an LLM can already 'do it'?
 
-In April 2026, a graduate biostatistics student can open
-a browser, type 'bootstrap a 95% confidence interval for
-the median of this data', and receive working R code in
-under ten seconds. The code will usually run. It will often
-be correct. And it will sometimes be subtly, dangerously
-wrong in ways the student is not equipped to detect.
+In April 2026, a graduate biostatistics student has two
+ways to get code written. She can open a browser, type
+'bootstrap a 95% confidence interval for the median of
+this data', and receive working R code in under ten
+seconds. Or she can open a coding agent in her terminal,
+describe the same task, and watch it write the function,
+run it, and report the result directly in her project.
+Either way, the code will usually run, and it will often
+be correct. Unfortunately, it will sometimes be subtly,
+dangerously wrong in ways the student is not equipped to
+detect.
 
 This is the premise of the book.
 
 The premise is *not* that large language models are bad.
 They are remarkable tools, and ignoring them in a
-statistics curriculum would be a pedagogical failure. The
-premise is *not* that statisticians should refuse to use
-them. The book assumes, and encourages, daily LLM use in
-statistical computing work. The premise is that an LLM's
-usefulness to a biostatistician is limited by the
+statistics curriculum would be a pedagogical failure.
+Nor is the premise that statisticians should refuse to use
+them. We assume, and we encourage, daily use of LLMs and
+coding agents in statistical computing work. Rather, an
+LLM's usefulness to a biostatistician is limited by the
 statistician's own ability to **verify, critique, and
-extend** what the LLM produces, and that ability must be
+extend** what the LLM produces. That ability must be
 built through training that does not treat the LLM as a
 substitute for learning.
 
-Put differently: the student who learns the material in
+Put differently, the student who learns the material in
 this book will use LLMs more effectively than the student
-who does not. Not because this book teaches prompt
-engineering (it teaches a little of that, at the end of
-each chapter), but because this book teaches the
+who does not. This is not because the book teaches prompt
+engineering, though it teaches a little of that at the end
+of each chapter. It is because the book teaches the
 statistical and computational judgment that LLM output
 *requires* from a human reviewer.
 
@@ -44,31 +49,32 @@ This book is not:
   models are other subjects, covered better elsewhere.
 - An argument that students should skip the hard parts of
   statistical computing because the LLM will handle them.
-  The opposite is true: the arrival of LLMs *raised* the
+  The opposite is true. The arrival of LLMs *raised* the
   bar for what human statisticians must know, because
   deciding whether the LLM is right is now the
   statistician's core contribution.
 
-The book is the middle path: teach statistical computing
-as it has always been taught, but with a consciously
-integrated treatment of where the human statistician
-contributes and where the LLM can be delegated to.
+The book takes the middle path. We teach statistical
+computing as it has always been taught, but with a
+consciously integrated treatment of where the human
+statistician contributes and where the LLM can be
+delegated to.
 
 ## How this book earns its subtitle
 
 Three structural features distinguish the book from its
 predecessors and deliver on the 'in the Age of AI'
-framing:
+framing.
 
 1. **Front-loaded consciousness-raising.** Each content
    chapter opens, after the orientation, with a section
    titled *The statistician's contribution*. That section
    names the two to five decisions about the chapter's
    topic that cannot be delegated to an LLM without human
-   input: is this method appropriate? what is the data
-   structure? which variant of the procedure applies?
-   These sections are short (roughly one printed page
-   each) but are the intellectual scaffolding of the
+   input. Is this method appropriate? What is the data
+   structure? Which variant of the procedure applies?
+   These sections are short, roughly one printed page
+   each, but they are the intellectual scaffolding of the
    whole book.
 
 2. **Adversarial LLM practice.** Each chapter closes with
@@ -77,12 +83,12 @@ framing:
    constructed to expose common failure modes. Each
    prompt is paired with a **Verification** step that
    tells the reader what to check and how. The prompts
-   are not there to show off what LLMs can do; they are
+   are not there to show off what LLMs can do. They are
    there to train the reader to catch what LLMs cannot.
 
 3. **Verification-first pedagogy throughout.** Every
    non-trivial code example is paired with a concrete way
-   to check the answer --- a closed-form result, an
+   to check the answer, whether a closed-form result, an
    alternative implementation, a simulation, or a unit
    test. Code that cannot be verified is called out as
    such.
@@ -104,31 +110,31 @@ of the Posit book family [@wickham2023r4ds; @wickham2019advr;
 
 A reader entering graduate biostatistics has many good
 statistical computing texts to choose from. This book
-does not replace any of them; it fills a gap that has
+does not replace any of them. It fills a gap that has
 opened in the past three years.
 
 - *Advanced R* [@wickham2019advr] and *R for Data Science*
-  [@wickham2023r4ds] teach R itself superbly, but predate
-  widespread LLM use and do not address the
+  [@wickham2023r4ds] teach R itself superbly, but they
+  predate widespread LLM use and do not address the
   human-LLM division of labor. Read them alongside this
   one.
 - *Statistical Computing with R* [@rizzo2019computing]
-  covers the algorithms in more depth than this book,
-  also predates LLM integration, and is longer and more
+  covers the algorithms in more depth than this book. It
+  also predates LLM integration and is longer and more
   mathematical. Consult it when you want theory.
 - The Posit book family on specific tools (*ggplot2*,
   *Mastering Shiny*, *R Packages*) remains the reference
   for those tools. This book cites them rather than
   replacing them.
 - *Statistical Rethinking* [@mcelreath2020rethinking] is
-  the best current introduction to Bayesian computation;
-  this book's Bayesian chapter (@sec-bayesian) is a
+  the best current introduction to Bayesian computation.
+  This book's Bayesian chapter (@sec-bayesian) is a
   gateway, not a substitute.
 
 What this book adds is a unifying pedagogical framework
 for statistical computing *in the presence of competent
-LLMs*. That framework is what the subtitle commits to,
-and it is what Parts I–VI of the book deliver.
+LLMs*. That framework is what the subtitle commits to, and
+it is what Parts I through VI of the book deliver.
 
 ## Prerequisites
 
@@ -142,8 +148,9 @@ Readers should have:
   choosing).
 
 No prior experience with R or Git is assumed. Some prior
-exposure to an LLM (ChatGPT, Claude, Gemini, or similar)
-is helpful but not required.
+exposure to an LLM or a coding agent (ChatGPT, Claude,
+Gemini, Claude Code, or similar) is helpful but not
+required.
 
 ## Conventions
 
@@ -184,28 +191,30 @@ biostatistics curriculum. Each can be read independently.
 
 ## Acknowledgments
 
-The structural conventions of this book (chapter-opening
-diagnostic quiz, end-of-chapter answers, section-level
-exercises) follow the model used in the Posit open-source
-textbook series [@wickham2023r4ds; @wickham2023rpkgs;
-@wickham2019advr]. The tidyverse R packages maintained by
-the Posit engineering team are used throughout the code
-examples, and their consistent interface is reflected in
-the style of the prose.
+The structural conventions of this book, the
+chapter-opening diagnostic quiz, the end-of-chapter
+answers, and the section-level exercises, follow the model
+used in the Posit open-source textbook series
+[@wickham2023r4ds; @wickham2023rpkgs; @wickham2019advr].
+The tidyverse R packages maintained by the Posit
+engineering team are used throughout the code examples,
+and their consistent interface is reflected in the style
+of the prose.
 
 The content rests on the foundational work of numerous
-authors in statistical computing, including
+authors in statistical computing. We note in particular
 Efron and Tibshirani [@efron1993bootstrap] on the
-bootstrap; Bates and colleagues [@bates2015lme4] on
-`lme4`; Golub and Van Loan [@golub2013matrix] on matrix
-computations; and Nocedal and Wright
+bootstrap, Bates and colleagues [@bates2015lme4] on
+`lme4`, Golub and Van Loan [@golub2013matrix] on matrix
+computations, and Nocedal and Wright
 [@nocedal2006numerical] on optimization. Remaining errors
 are the author's.
 
 The graduate students who engaged with early drafts of
-this material contributed materially through their
-questions and their willingness to debate the appropriate
-role of large language models in a statistics curriculum.
+this material contributed materially, through their
+questions and through their willingness to debate the
+appropriate role of large language models in a statistics
+curriculum.
 
 Ronald "Ryy" G. Thomas\
 La Jolla, California\

@@ -41,32 +41,31 @@ By the end of this chapter you should be able to:
 ## Orientation
 
 Clustered and repeated-measures data are the norm in
-biomedicine: patients nested in hospitals, observations
-nested within subjects, multiple pathology slides per
-patient, multiple time points per individual. Ignoring the
-clustering leads to incorrect standard errors, usually
-too small, because non-independence inflates the effective
-sample size used by the inference. Fitting a model that
-treats every cluster level as a separate parameter (one
-intercept per subject) wastes degrees of freedom and does
-not generalize to new subjects.
+biomedicine. Patients are nested in hospitals, observations
+are nested within subjects, and a study may have multiple
+pathology slides per patient or multiple time points per
+individual. Ignoring the clustering leads to incorrect
+standard errors, usually too small, because non-independence
+inflates the effective sample size used by the inference.
+Fitting a model that treats every cluster level as a
+separate parameter (one intercept per subject) wastes
+degrees of freedom and does not generalize to new subjects.
 
-Mixed-effects models are the principled middle path: they
+Mixed-effects models are the principled middle path. They
 treat between-cluster variation as a random component drawn
-from a distribution, with the variance of that distribution
-estimated from the data. This produces correctly-calibrated
-standard errors, generalizable inference, and 'partial
-pooling' of cluster-specific estimates toward the overall
-mean. The `lme4` package by Douglas Bates is the standard
-implementation in R.
+from a distribution, and the variance of that distribution
+is estimated from the data. This produces correctly
+calibrated standard errors, generalizable inference, and
+'partial pooling' of cluster-specific estimates toward the
+overall mean. The `lme4` package by Douglas Bates is the
+standard implementation in R.
 
 ## The statistician's contribution {#sec-mixed-models-human}
 
 Mixed models are not harder to *fit* than ordinary linear
-models, `lmer(y ~ x + (1 | subject), data = d)` is
-trivial syntax. They are harder to *specify*, *interpret*,
-and *defend*. The judgment calls are where the analysis
-lives.
+models; `lmer(y ~ x + (1 | subject), data = d)` is trivial
+syntax. They are harder to *specify*, *interpret*, and
+*defend*. The judgment calls are where the analysis lives.
 
 **Fixed or random?** A factor is fixed when its levels are
 the only ones of interest (treatment vs. control: nobody
@@ -75,50 +74,50 @@ the trial). It is random when the observed levels are a
 sample from a population, and the inferential target is the
 population (subjects, hospitals, sites, items in a
 psycholinguistic experiment). The same variable can be
-either depending on the question. With many levels and
-sparse per-level data, random tends to be more honest;
-with few levels and ample data per level, fixed may be
-cleaner. The decision is not purely statistical; it depends
-on the scientific question.
+either, depending on the question. With many levels and
+sparse per-level data, random tends to be the more honest
+choice; with few levels and ample data per level, fixed may
+be cleaner. The decision is not purely statistical, since it
+depends on the scientific question as well.
 
 **Which random effects to include.** Barr et al. (2013)
-made the case for 'maximal' random effects, random
+made the case for 'maximal' random effects, meaning random
 slopes for every fixed effect that varies within cluster.
 The cost is convergence; the benefit is honest standard
 errors. Matuschek et al. (2017) argue for parsimony when
 maximal models do not converge. The right answer depends
-on the data: if you have 8 subjects and 1000 trials each, a
-random slope per subject is feasible; if you have 50
-subjects and 4 trials each, it is probably not.
+on the data. With 8 subjects and 1000 trials each, a random
+slope per subject is feasible; with 50 subjects and 4 trials
+each, it probably is not.
 
 **ICC interpretation.** The intraclass correlation
 $\rho = \sigma^2_\text{between} / (\sigma^2_\text{between} + \sigma^2_\text{within})$
 measures the proportion of total variance attributable to
-the cluster level. ICC = 0.05 means clusters explain 5% of
-variance; ICC = 0.5 means half. The implications for
-analysis differ: low ICC, ignoring clustering may not
-disastrously bias inference (though it should still be
-modeled); high ICC, ignoring it definitely does. Knowing
-the ICC of your design before publication review is much
-better than learning it during.
+the cluster level. An ICC of 0.05 means clusters explain 5%
+of variance; an ICC of 0.5 means half. The implications for
+analysis differ. At low ICC, ignoring clustering may not
+disastrously bias inference, though it should still be
+modeled. At high ICC, ignoring it definitely does. Knowing
+the ICC of a design before submitting for peer review is
+much better than learning it during.
 
-**Convergence warnings are not optional.** A
-non-converging mixed model has not been fit. Reporting
-its coefficients is reporting numerical noise. The right
-responses, rescale predictors, simplify random
-effects, switch optimizer, are documented and
-reproducible. Ignoring the warning and reporting anyway
-is a serious methodological failure.
+**Convergence warnings are not optional.** A non-converging
+mixed model has not been fit, and reporting its coefficients
+is reporting numerical noise. The right responses, rescaling
+predictors, simplifying random effects, switching optimizer,
+should all be documented and reproducible. Ignoring the
+warning and reporting anyway is a serious methodological
+failure.
 
 These decisions distinguish mixed-model analyses that
 survive peer review from ones that do not.
 
 ## Why ordinary regression fails on clustered data
 
-Suppose you have repeated measurements on each of $n$
-subjects: $K$ trials per subject, $nK$ observations total.
-A naive `lm(y ~ x, data = d)` treats all $nK$ observations
-as independent.
+Consider repeated measurements on each of $n$ subjects: $K$
+trials per subject, $nK$ observations total. A naive
+`lm(y ~ x, data = d)` treats all $nK$ observations as
+independent.
 
 Two problems result:
 
@@ -140,8 +139,9 @@ within-subject variability, often halving statistical
 power. The 'separate analysis per subject' alternative does
 not generalize to new subjects.
 
-Mixed models fix both problems simultaneously by modeling
-between-cluster variation explicitly.
+Mixed models address both problems at once, by modeling
+between-cluster variation explicitly rather than ignoring it
+or aggregating it away.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: when ordinary regression fails
@@ -183,10 +183,10 @@ are random: this study's 100 subjects are not the
 inferential target; the population they were sampled from
 is.
 
-Practical heuristic: if you would replicate the experiment
-with new units (subjects, items, sites), and the new units
-would not be the same physical entities as the old, that
-factor is random.
+A practical heuristic: if the experiment would be replicated
+with new units (subjects, items, sites), and those new units
+would not be the same physical entities as the old ones,
+that factor is random.
 
 Mathematically, for a random intercepts model:
 
@@ -459,17 +459,18 @@ ranef(fit)$Subject
 ```
 
 The fixed effects table shows the population-average effect
-of sleep deprivation. The random-effects variance
-components show how much subjects vary in baseline RT and
-in their day-by-day slopes. The correlation between the
-two random effects (often substantial in such data)
-indicates whether subjects with high baselines also have
-steep slopes.
+of sleep deprivation. The random-effects variance components
+show how much subjects vary in baseline reaction time and in
+their day-by-day slopes. We note that the correlation between
+the two random effects is often substantial in data of this
+kind, and it indicates whether subjects with high baselines
+also tend to have steep slopes.
 
 ## Collaborating with an LLM on mixed models
 
-LLMs handle the syntax of `lmer` reasonably well; they
-handle the conceptual judgments much less reliably.
+Large language models handle the syntax of `lmer`
+reasonably well. They handle the conceptual judgments, in
+our experience, much less reliably.
 
 **Prompt 1: writing the formula.** Describe the data
 structure (subjects nested within sites; items crossed with
@@ -526,16 +527,15 @@ Three habits define defensible mixed-model practice:
 1. **Specify random effects deliberately.** Identify which
    factors are sampled (random) and which are fixed.
    Include random slopes for within-cluster fixed effects
-   when the data support them; drop them when convergence
-   demands it.
+   when the data support them, and drop them when
+   convergence demands it.
 2. **Report the ICC.** The strength of clustering is part
    of the result, not a nuisance. Readers need to know
-   whether you are reporting a tightly-clustered design
-   with little independent information or a loosely-
-   clustered one.
+   whether a design is tightly clustered, with little
+   independent information, or loosely clustered.
 3. **Take convergence warnings seriously.** A
    non-converging mixed model has not been fit. Document
-   what you did to address the warning; ignoring it is not
+   what was done to address the warning; ignoring it is not
    a defensible choice.
 
 ## Exercises
