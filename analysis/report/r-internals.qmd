@@ -4,7 +4,7 @@
 
 Answer the following questions to see if you can bypass this
 chapter. You can find the answers at the end of the chapter in
-@sec-quiz-answers-03.
+@sec-quiz-answers-r-internals.
 
 1. Given `x <- list(a = 1, b = 2, c = 3)`, what is the type
    and value returned by `x[["b"]]`, and how does it differ
@@ -38,17 +38,18 @@ By the end of this chapter you should be able to:
 
 ## Orientation
 
-Writing fast R code requires knowing where your R code is
-slow, and that requires knowing a little about how R
-represents objects in memory. This chapter is the minimum you
-need to reason about performance without leaving R.
+Writing fast R code requires knowing where the code is slow.
+That, in turn, requires knowing a little about how R
+represents objects in memory. We present here the minimum
+needed to reason about performance without leaving R.
 
-It is also the bridge between 'R works' and 'R works
-efficiently'. Every practicing R user has written code that
-felt inexplicably slow. Most of those incidents trace back to
-a small number of misunderstandings about R's memory model.
-The payoff for internalising these ideas is disproportionate:
-100× speedups on real analyses are common.
+This chapter is also the bridge between 'R works' and 'R
+works efficiently'. Every practicing R user has written code
+that felt inexplicably slow. Most of those incidents, it
+appears, trace back to a small number of misunderstandings
+about R's memory model. The payoff for internalizing these
+ideas is disproportionate. Speedups of 100x on real analyses
+are common.
 
 ## The statistician's contribution {#sec-r-internals-human}
 
@@ -72,7 +73,7 @@ effort.
 more than R's interpreted loops can deliver. Rcpp, data.table,
 and (for pure-numeric work) vectorized BLAS calls are the
 standard escape hatches. The question is not 'is this faster?'
---- C++ is almost always faster, but 'is the speedup worth
+(C++ is almost always faster) but 'is the speedup worth
 the cost in code clarity, testability, and maintainability?'
 For a function run once per analysis, probably not. For a
 function inside an MCMC or a bootstrap loop that runs millions
@@ -622,9 +623,9 @@ Three habits define effective use of R's memory semantics:
    column-oriented analysis. Convert between them as the
    analysis moves between phases.
 
-Internalise these three habits and most R performance
-problems become non-problems. The deeper memory model ---
-copy-on-modify, reference counting, environments, is the
+Internalize these three habits and most R performance
+problems become non-problems. The deeper memory model
+(copy-on-modify, reference counting, environments) is the
 explanation for *why* the habits work, and the material you
 reach for when the habits are not enough.
 
@@ -660,7 +661,7 @@ reach for when the habits are not enough.
   documentation is excellent, short, and includes runnable
   examples.
 
-## Practice test {#sec-practice-test-03}
+## Practice test {#sec-practice-test-r-internals}
 
 The following multiple-choice questions exercise the
 chapter's content. Attempt each question before expanding
@@ -779,7 +780,7 @@ n(n+1)/2 = O(n²). Options A, B, and D are all O(n) or
 better.
 :::
 
-## Prerequisites answers {#sec-quiz-answers-03}
+## Prerequisites answers {#sec-quiz-answers-r-internals}
 
 1. `x[["b"]]` extracts the element at key `'b'` and returns
    it at its own type, here the numeric scalar `2`. `x["b"]`

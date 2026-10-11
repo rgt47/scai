@@ -4,7 +4,7 @@
 
 Answer the following questions to see if you can bypass this
 chapter. You can find the answers at the end of the chapter in
-@sec-quiz-answers-05.
+@sec-quiz-answers-matrix-algebra.
 
 1. State the identity for the inverse of a product of two
    invertible matrices, $(AB)^{-1}$. Why is the order of the
@@ -39,18 +39,18 @@ By the end of this chapter you should be able to:
 
 ## Orientation
 
-Every model in this book, linear regression, GLM, mixed
-models, ridge, lasso, Cox, factor analysis, reduces to a
-linear algebra computation on a carefully constructed matrix.
-This chapter develops the vocabulary and the numerical
-intuition you need for the rest of the book.
+Every model in this book, whether linear regression, GLM,
+mixed models, ridge, lasso, Cox, or factor analysis, reduces
+to a linear algebra computation on a carefully constructed
+matrix. This chapter develops the vocabulary and the
+numerical intuition needed for the rest of the book.
 
 Under the hood, `lm()` performs a QR decomposition on the
-design matrix; `prcomp()` performs an SVD on a centerd data
-matrix; mixed models, GLMs, and penalized regression all
-reduce to iterative linear algebra. Learning to think
-directly in matrices, rather than through the cushion of
-formula syntax, is the move that makes these methods
+design matrix, and `prcomp()` performs an SVD on a centered
+data matrix. Mixed models, GLMs, and penalized regression all
+reduce, in turn, to iterative linear algebra. Learning to
+think directly in matrices, rather than through the cushion
+of formula syntax, is the move that makes these methods
 transparent rather than magical.
 
 The critical syntactic point, repeated on purpose: `*` is
@@ -68,8 +68,8 @@ numerical code from code that silently produces garbage.
 **What to compute, and what to avoid computing.** The
 canonical example: if you want $\beta = (X^T X)^{-1} X^T y$,
 the operation you actually perform is *not* an explicit
-inverse followed by a multiply. It is `solve(crossprod(X), crossprod(X, y))`
---- or, better, a QR decomposition, which is what `lm()`
+inverse followed by a multiply. It is `solve(crossprod(X), crossprod(X, y))`,
+or, better, a QR decomposition, which is what `lm()`
 does. Explicit inverses are slower and numerically less
 stable. The statistician's judgment is to refuse to compute
 an inverse unless the inverse itself is the object of
@@ -707,7 +707,7 @@ math trustworthy.
 - [@petersen2012matrixcookbook], quick reference for the
   matrix identities that appear in statistics papers.
 
-## Practice test {#sec-practice-test-05}
+## Practice test {#sec-practice-test-matrix-algebra}
 
 The following multiple-choice questions exercise the
 chapter's content. Attempt each question before expanding
@@ -802,7 +802,7 @@ structure. This is among the most common silent-then-
 loud bugs in matrix code.
 :::
 
-## Prerequisites answers {#sec-quiz-answers-05}
+## Prerequisites answers {#sec-quiz-answers-matrix-algebra}
 
 1. $(AB)^{-1} = B^{-1} A^{-1}$. The order reverses because
    you must undo $B$ before undoing $A$:

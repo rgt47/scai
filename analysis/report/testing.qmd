@@ -4,7 +4,7 @@
 
 Answer the following questions to see if you can bypass this
 chapter. You can find the answers at the end of the chapter in
-@sec-quiz-answers-20.
+@sec-quiz-answers-testing.
 
 1. What is the difference between `expect_equal()` and
    `expect_identical()` in `testthat`?
@@ -32,17 +32,17 @@ By the end of this chapter you should be able to:
 
 ## Orientation
 
-Tests are how you convince a future reader (including
-future-you) that your code does what you think it does.
-`R CMD check` is how you convince CRAN, your collaborators,
-and your build pipeline. Vignettes are how you convince a
-human to use your package at all.
+Tests are how we convince a future reader, including our
+future selves, that the code does what we think it does.
+`R CMD check` is how we convince CRAN, our collaborators,
+and the build pipeline. Vignettes are how we convince a
+human to use the package at all.
 
 This chapter is the testing companion to the package-
 development chapter. It treats testing as a first-class
 activity rather than something to add at the end. A
-package without tests is a research script with extra
-ceremony; a package with tests is a tool that other people
+package without tests asks a reader to trust the code on
+faith. A package with tests is a tool that other people
 can rely on.
 
 The canonical R testing framework is `testthat` (currently
@@ -56,12 +56,12 @@ Testing is software engineering, but the testing
 priorities for statistical code are specific.
 
 **Test the math, not just the syntax.** A test that
-verifies your function returns a tibble of the right shape
-is not the test you need; it is a structural check. The
-test you need is whether the function returns the right
-*answer* on a known case. Compare to a closed-form
-solution where one exists, to a reference implementation
-otherwise.
+verifies a function returns a tibble of the right shape is
+not the test that matters; it is a structural check. The
+test that matters is whether the function returns the
+right *answer* on a known case. We would compare to a
+closed-form solution where one exists, and to a reference
+implementation otherwise.
 
 **Test edge cases that change the math.** Empty input. All
 NA. Single observation. Floating-point near-machine-zero.
@@ -85,7 +85,7 @@ false sense of security. Track coverage; aim for high
 numbers; but never substitute it for actual thought about
 what could go wrong.
 
-**Tests are the spec.** When you cannot tell whether a
+**Tests are the spec.** When it is not clear whether a
 piece of behavior is a bug or a feature, the existence
 or absence of a test is the answer. A function that
 returns NA on an edge case has a test for that behavior:
@@ -502,10 +502,10 @@ Three habits define defensible testing practice:
 2. **Test edge cases deliberately.** Empty input, NA,
    single observation, type mismatch. These are where
    silent failures hide.
-3. **Use CI.** Tests that run only on your machine catch
-   only your bugs. Tests that run on every push, on
-   multiple OS/R-version combinations, catch the bugs
-   that affect your users.
+3. **Use CI.** Tests that run only on the developer's
+   machine catch only the developer's bugs. Tests that
+   run on every push, on multiple OS and R-version
+   combinations, catch the bugs that affect users.
 
 ## Exercises
 
@@ -536,7 +536,7 @@ Three habits define defensible testing practice:
   in the broader context of robust R programming.
 - The `testthat` and `covr` package documentation.
 
-## Practice test {#sec-practice-test-20}
+## Practice test {#sec-practice-test-testing}
 
 The following multiple-choice questions exercise the
 chapter's content. Attempt each question before expanding
@@ -645,7 +645,7 @@ as a floor and continue thinking about what could go
 wrong.
 :::
 
-## Prerequisites answers {#sec-quiz-answers-20}
+## Prerequisites answers {#sec-quiz-answers-testing}
 
 1. `expect_equal()` uses `all.equal()` semantics:
    numerical closeness within a small tolerance, with

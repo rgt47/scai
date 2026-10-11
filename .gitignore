@@ -2,6 +2,8 @@
 .quarto/
 /.quarto/
 _book/
+_book-vol1/
+_book-vol2/
 _freeze/
 _site/
 **/*.quarto_ipynb

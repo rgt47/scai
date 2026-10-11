@@ -1,0 +1,76 @@
+# Print Volume I: first quarter. Chapters 1 to 15, Parts I to V.
+#
+# Must list the same files, in the same order, as the first half of
+# _quarto-html.yml, so that chapter numbers agree between the website
+# and the printed volume.
+
+project:
+  output-dir: _book-vol1
+
+book:
+  title: 'Statistical Computing in the Age of AI'
+  subtitle: 'Volume I: Foundations and Core Models'
+  cover-image: images/cover.png
+  output-file: scai-vol1
+
+  chapters:
+    - half-title.qmd
+    - copyright.qmd
+    - index.qmd
+    - preface.qmd
+    - conventions.qmd
+    - intro.qmd
+
+    - part: 'Foundations'
+      chapters:
+        - intro-r.qmd
+        - git.qmd
+        - r-internals.qmd
+        - functional.qmd
+
+    - part: 'Numerical Methods'
+      chapters:
+        - matrix-algebra.qmd
+        - decompositions.qmd
+        - optimization.qmd
+
+    - part: 'Computational Statistics'
+      chapters:
+        - simulation.qmd
+        - bootstrap.qmd
+
+    - part: 'Statistical Models'
+      chapters:
+        - linear-models.qmd
+        - glm.qmd
+        - mixed-models.qmd
+        - survival.qmd
+
+    - part: 'Visualization'
+      chapters:
+        - viz-grammar.qmd
+        - ggplot2-advanced.qmd
+
+    - references.qmd
+
+  appendices:
+    - credits.qmd
+    - colophon.qmd
+
+format:
+  pdf:
+    include-in-header:
+      text: |
+        \usepackage{fontspec}
+        \setmonofont{DejaVu Sans Mono}[Scale=0.9]
+    include-before-body:
+      text: |
+        \begin{titlepage}
+        \thispagestyle{empty}
+        \newgeometry{margin=0pt}
+        \noindent\makebox[\paperwidth]{%
+          \includegraphics[width=\paperwidth,height=\paperheight,keepaspectratio]{images/cover.png}%
+        }
+        \restoregeometry
+        \end{titlepage}
+        \cleardoublepage

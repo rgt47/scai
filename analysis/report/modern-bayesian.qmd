@@ -1,0 +1,644 @@
+# Modern Bayesian Computation {#sec-modern-bayesian}
+
+## Learning objectives
+
+By the end of this chapter you should be able to:
+
+- Distinguish probabilistic programming languages (Stan,
+  PyMC, Turing) from front-end packages (`rstanarm`, `brms`,
+  `cmdstanr`) and choose between them for a given task.
+- Implement a Bayesian regression model in `brms` and
+  inspect the generated Stan code to verify that priors and
+  likelihood match your intent.
+- Diagnose a fit with the four-quadrant workflow:
+  convergence ($\hat R$, ESS), posterior predictive checks,
+  prior predictive checks, and influential observations
+  (Pareto-$\hat k$).
+- Compute and interpret leave-one-out cross-validation
+  (`loo`) and WAIC for model comparison, recognizing when
+  Pareto-$\hat k$ warns that the importance-sampling
+  approximation has failed.
+- Decide when full HMC, when variational inference (ADVI,
+  Pathfinder), and when a Laplace or INLA approximation is
+  the right tool for the problem at hand.
+- Articulate Gelman et al.'s Bayesian workflow as a
+  sequence of falsifiable checks rather than a one-shot
+  fit-and-summarize.
+
+## Orientation
+
+The introductory SCAI volume showed how to fit a Bayesian
+model in `brms` and how to read a posterior. This chapter
+takes the next step: how the fit is produced, how to verify
+it, how to compare competing models, and what to do when
+HMC is too slow to be practical.
+
+Three currents shape modern Bayesian computation. First,
+**probabilistic programming languages (PPLs)**, Stan, PyMC,
+Turing, NumPyro, separate model specification from inference
+algorithm. You write the joint density; the compiler produces
+samplers and gradient code. Second, **the Bayesian workflow**
+[@gelman2020bayesian] reframes inference as iterative
+model-criticism rather than a single posterior summary.
+Third, **scalable approximations**, variational inference,
+Pathfinder, INLA, Laplace, extend Bayesian computation to
+problem sizes where MCMC is hopeless.
+
+The chapter follows that arc. We start with the PPL stack
+and the front-end packages most users meet first (`rstanarm`,
+`brms`). We then turn to model checking and comparison,
+where `loo` and `bayesplot` do most of the heavy lifting.
+Finally we cover variational inference and adjacent
+approximations, with explicit attention to when each fails.
+
+## The statistician's contribution {#sec-modern-bayesian-human}
+
+LLMs can write Stan code, run `brms` calls, and produce
+`loo` comparisons. What they cannot do is decide which model
+is actually relevant to the scientific question, which prior
+encodes domain knowledge honestly, and when a passing
+diagnostic is hiding a deeper failure.
+
+**(Judgment 1.) Priors are part of the model, not
+nuisance.** Default priors in `brms` are weakly informative
+and adequate for many regression problems, but they are not
+universally appropriate. A logistic regression on rare-event
+data with default flat priors on coefficients will produce
+posteriors driven by the few events present and will be
+sensitive to the parameterization. The statistician decides
+what the prior should encode: a rough plausible range for
+treatment effects on the log-odds scale, a known boundary
+on a variance component, a hierarchical structure that
+shares information across centers. None of these decisions
+are visible from the data alone, and an LLM that proposes
+'use the default priors' is dodging the question rather
+than answering it.
+
+**(Judgment 2.) A passing diagnostic is necessary, not
+sufficient.** $\hat R = 1.00$ and ESS in the thousands tell
+you the chains agree on the posterior they have explored.
+They do not tell you the chains explored the right posterior.
+Two pathologies in particular evade automatic checks.
+The first is a multimodal posterior where chains separately
+settle in different modes. Each chain looks fine on its own,
+and pooled diagnostics flag nothing if all modes happen to be
+visited proportionally. The second is a posterior with
+regions of high curvature that the sampler silently skips. The defense is **posterior predictive
+checking** (does the fitted model produce data that look
+like the observed data on quantities you care about?) and
+**prior predictive checking** (does the model produce
+remotely plausible data before seeing any observations?).
+These are scientific questions that the statistician frames.
+
+**(Judgment 3.) Model comparison is a means, not an end.**
+`loo_compare()` will return a difference in expected
+log-pointwise predictive density (elpd) with a standard
+error and rank competing models. It will not tell you
+whether either model is good enough for the decision the
+analysis informs. A Bayesian workflow that ends at 'model B
+is preferred by 4 elpd units' has skipped the step where
+the statistician asks whether B's predictions are in the
+right ballpark, whether it extrapolates safely, and whether
+its assumptions are defensible to a reviewer. LLMs are
+strong at running `loo_compare`; they are weak at noticing
+when the answer is 'neither model is fit for purpose.'
+
+These judgments are what distinguish an analysis that
+survives review from one that does not.
+
+## The probabilistic programming stack
+
+Bayesian computation in 2026 is layered. From bottom to top:
+
+**Inference engines.** Stan [@carpenter2017stan] is a C++
+library implementing HMC/NUTS, ADVI, Pathfinder, and a
+Laplace approximation. PyMC [@salvatier2016pymc] is a
+Python library built on PyTensor that offers similar
+samplers. Turing [@ge2018turing] is a Julia counterpart.
+NumPyro is JAX-based and prized for speed on hierarchical
+models. All four expose roughly the same primitives: a
+domain-specific syntax for declaring parameters and a
+log-density, plus algorithms that consume that density.
+
+**R interfaces.** `cmdstanr` is the recommended R interface
+to Stan; `rstan` is older and bundles its own Stan version.
+`reticulate` plus `cmdstanpy` lets you reach Stan from R via
+Python, but `cmdstanr` is the simpler path. PyMC is reachable
+from R only via `reticulate`; if your team is R-first, Stan
+is the natural choice.
+
+**Front-end packages.** `rstanarm` [@goodrich2024rstanarm]
+ships with pre-compiled Stan models for common GLMs and
+GLMMs and is the fastest way to fit a Bayesian regression
+in R. `brms` [@burkner2017brms] generates Stan code on the
+fly from an R formula and supports a much wider class of
+models, multivariate outcomes, distributional regression,
+nonlinear models, missing-data imputation, time-varying
+effects via splines and Gaussian processes. `brms` is the
+workhorse of applied Bayesian regression in R.
+
+**Post-processing packages.** `posterior` standardizes the
+draws-as-array data structure across engines. `bayesplot`
+provides diagnostic and posterior-predictive-check plots.
+`tidybayes` exposes posterior draws as tidy tibbles,
+playing nicely with the rest of the tidyverse. `loo`
+implements approximate leave-one-out cross-validation.
+
+The implication for your workflow: **most applied work
+should start in `brms` or `rstanarm`, drop to raw Stan only
+when the model cannot be expressed in the front-end syntax,
+and never reimplement the post-processing stack.**
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: choosing the layer
+
+**Question.** A collaborator asks you to fit a Bayesian
+two-level random-intercept logistic regression with about
+20 centers and 8000 patients, with a known prior on the
+treatment effect informed by an earlier trial. Which layer
+of the stack is the right starting point?
+
+**Answer.**
+
+`brms` is the right starting point. The model is a standard
+GLMM with an informative prior on a single coefficient:
+both expressible in `brm(y ~ trt + (1 | center), family =
+bernoulli(), prior = prior(normal(0.3, 0.1), class = b,
+coef = "trt"), ...)`. Dropping to raw Stan would be premature.
+`rstanarm`'s `stan_glmer()` would also work, but the ability
+to inspect and modify the generated Stan code is more
+straightforward in `brms` if the prior must later be
+replaced with something non-standard. Inspect the generated
+code with `make_stancode()` before running the fit.
+
+:::
+
+## A `brms` fit, end to end
+
+The minimum viable fit has six steps: declare the model,
+inspect the generated code, run prior predictive checks, fit,
+run posterior diagnostics, and run posterior predictive
+checks. We illustrate with a simulated logistic regression
+with a known random-intercept structure.
+
+````{.r}
+library(brms)
+library(bayesplot)
+library(loo)
+
+set.seed(228)
+n_centres <- 20
+n_per <- 80
+sim <- tibble::tibble(
+  centre = rep(1:n_centres, each = n_per),
+  x = rnorm(n_centres * n_per)
+)
+b0 <- rnorm(n_centres, 0, 0.6)
+sim$y <- rbinom(
+  nrow(sim), 1,
+  plogis(-0.5 + 0.4 * sim$x + b0[sim$centre])
+)
+
+priors <- c(
+  prior(normal(0, 1), class = "b"),
+  prior(normal(0, 2), class = "Intercept"),
+  prior(student_t(3, 0, 1), class = "sd")
+)
+
+fit <- brm(
+  y ~ x + (1 | centre),
+  data = sim,
+  family = bernoulli(),
+  prior = priors,
+  chains = 4, cores = 4, iter = 2000,
+  backend = "cmdstanr",
+  sample_prior = "yes"
+)
+````
+
+`sample_prior = "yes"` retains prior draws so we can run
+prior predictive checks side by side with posterior checks.
+
+**Step 1: inspect the generated code.** `make_stancode(fit)`
+prints the Stan program `brms` produced. Read it. If the
+priors do not match what you wrote, or the parameter names
+are not what you expected, fix the formula before fitting.
+Skipping this step is the single most common source of
+silent specification errors with `brms`.
+
+**Step 2: prior predictive checks.** Before fitting, draw
+samples from the prior alone and pass them through the
+likelihood. Plausible? Implausible? `pp_check(fit, type =
+"bars", prefix = "ppd")` plots prior predictive draws against
+the data. If the priors imply outcomes far from anything the
+collaborator considers possible, tighten them.
+
+**Step 3: convergence diagnostics.** `summary(fit)` reports
+$\hat R$ and ESS bulk/tail per parameter; flag any $\hat R >
+1.01$ or ESS bulk $< 400$. `mcmc_trace()` and
+`mcmc_pairs()` from `bayesplot` reveal divergent transitions
+and funnel pathologies in hierarchical models.
+
+**Step 4: posterior predictive checks.** `pp_check(fit, type
+= "bars")` for binary or count outcomes; `pp_check(fit, type
+= "dens_overlay")` for continuous. Look for systematic
+discrepancies between simulated and observed data, the
+model under-predicts large values, mis-locates the mean,
+under-disperses the tails. These are the structural failures
+$\hat R$ will not catch.
+
+**Step 5: targeted posterior predictive checks.** Beyond
+'does the marginal density match,' ask: does the model
+reproduce the *quantity the analysis is about*? If the
+report quotes the center-level event rate, run
+`pp_check(fit, type = "stat_grouped", group = "center", stat
+= "mean")` and check the center means line up. A model can
+match the marginal and miss the conditional badly.
+
+**Step 6: model criticism.** `loo(fit)` returns the
+leave-one-out elpd estimate and Pareto-$\hat k$ diagnostics
+for each observation. Observations with $\hat k > 0.7$
+indicate that the importance-sampling approximation to
+leave-one-out is unreliable for that point, usually because
+the point is influential. Refit those points exactly with
+`reloo()` if the comparison hinges on them.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: failing the right check
+
+**Question.** A `brms` fit returns $\hat R = 1.00$, ESS bulk
+in the low thousands, no divergent transitions, and
+`pp_check(fit, type = "dens_overlay")` shows the simulated
+densities tracking the observed density well. The
+collaborator declares the model fit and ready for inference
+on a center-specific event rate. What additional check is
+non-negotiable before agreeing?
+
+**Answer.**
+
+`pp_check(fit, type = "stat_grouped", group = "center", stat
+= "mean")`. The marginal density check confirms the model
+matches the overall outcome distribution; it does not confirm
+the model matches center-specific rates. If the report
+quotes a center-specific quantity, the center-level
+predictive check is the relevant one. A passing marginal
+check with a failing grouped check is a common signature of
+mis-specified random-effects structure.
+
+:::
+
+## Model comparison: `loo` and WAIC
+
+Cross-validation answers the question 'which model predicts
+new observations better.' True $K$-fold CV is expensive when
+each fit takes hours. **Pareto-smoothed importance-sampling
+LOO** [@vehtari2017practical] approximates exact LOO from a
+single fit by reweighting posterior draws, it is the
+default in `loo`.
+
+`loo_compare(loo(fit1), loo(fit2))` returns the difference
+in expected log-pointwise predictive density and its
+standard error. The convention is to interpret the
+comparison as decisive only when |$\Delta$elpd| is several
+times its SE; small differences are often within sampling
+noise.
+
+**WAIC** [@watanabe2010asymptotic] is a related criterion
+computable from the same machinery; it generally agrees
+with LOO on well-behaved problems but can be unstable on
+hierarchical models with strong shrinkage. `loo` is the
+recommended default; report WAIC only when it is required.
+
+Two failure modes deserve emphasis. First, **Pareto-$\hat k$
+flags above 0.7** indicate the importance-sampling step has
+broken for that observation; the elpd estimate is unreliable
+unless those observations are refit exactly. Second,
+**comparison across data subsets is invalid**. `loo` compares
+models on the *same* data; refitting model B with one
+observation removed and comparing its elpd to model A's full
+elpd is not a comparison.
+
+A worked comparison:
+
+````{.r}
+fit_a <- brm(y ~ x + (1 | centre), data = sim,
+             family = bernoulli(), prior = priors,
+             chains = 4, cores = 4)
+fit_b <- brm(y ~ x + (x | centre), data = sim,
+             family = bernoulli(), prior = priors_b,
+             chains = 4, cores = 4)
+
+loo_a <- loo(fit_a)
+loo_b <- loo(fit_b)
+loo_compare(loo_a, loo_b)
+````
+
+The comparison reads:
+
+```
+       elpd_diff se_diff
+fit_b    0.0       0.0
+fit_a   -8.4       3.7
+```
+
+The random-slope model is preferred by 8.4 elpd units with
+SE 3.7, about 2.3 SE units, evidence in favor of the
+slope-varying model but not overwhelming. Re-examine
+Pareto-$\hat k$ values for both fits before concluding.
+
+## Variational inference and faster approximations
+
+When HMC is too slow, the model has hundreds of thousands
+of parameters, or the user needs a fit in seconds for an
+interactive dashboard, three approximations are in common
+use.
+
+**Mean-field ADVI** [@kucukelbir2017automatic] approximates
+the posterior by a factorized Gaussian (after a transform to
+unconstrained space) and minimizes the KL divergence to the
+true posterior using stochastic gradients. It is fast and
+scales to large data. It is also wrong in characteristic
+ways: it underestimates posterior variance (mean-field
+ignores correlation between parameters), can return draws
+from a Gaussian when the true posterior is multimodal, and
+provides no diagnostic for whether the approximation is
+adequate. Use it for exploration; verify with HMC before
+quoting an interval.
+
+**Full-rank ADVI** retains correlation and is more accurate
+but quadratically more expensive. **Pathfinder**
+[@zhang2022pathfinder] is a newer alternative that runs an
+L-BFGS optimization, fits a Gaussian along the path, and
+returns importance-resampled draws. It is fast, more robust
+than ADVI, and serves as a high-quality initialization for
+HMC.
+
+**Laplace approximation** treats the posterior as Gaussian
+centered at the MAP with covariance equal to the inverse
+observed information. For posteriors that are nearly Gaussian
+,  well-identified models with substantial data, it is
+accurate and trivially fast. It fails badly on skewed or
+multimodal posteriors and on hierarchical models with funnel
+geometry.
+
+**INLA** [@rue2009approximate] (Integrated Nested Laplace
+Approximation) is a structured approximation specialized for
+latent Gaussian models, GLMMs, spatial Gaussian random
+fields, time-series models with Gaussian latent structure.
+For models that fit its template, INLA is dramatically
+faster than MCMC and accurate enough that the
+spatial-statistics community treats it as the default. The
+`R-INLA` package is mature; `inlabru` extends it for
+spatial-point processes and ecology applications.
+
+The decision rule:
+
+| Approximation | Use when | Avoid when |
+|--------------|----------|------------|
+| HMC/NUTS | Default; correctness matters | Many parameters with weak data |
+| Pathfinder | Fast warm-start needed | Highly multimodal target |
+| ADVI mean-field | Quick exploration only | Reporting intervals |
+| Laplace | Posterior near Gaussian | Skewed or hierarchical funnels |
+| INLA | Latent Gaussian model | Non-conjugate non-Gaussian latent |
+
+## Worked example: hospital readmission with `brms` and `loo`
+
+We illustrate the full Bayesian workflow on a simulated
+hospital-readmission problem. The outcome is 30-day
+readmission for 12 hospitals over 4 quarters; the predictors
+are case-mix index, admission service line, and a quarterly
+indicator.
+
+````{.r}
+library(brms); library(loo); library(bayesplot)
+
+set.seed(2026)
+hosp <- tibble::tibble(
+  hospital = factor(rep(1:12, each = 200)),
+  quarter = factor(rep(rep(1:4, each = 50), 12)),
+  service = factor(sample(
+    c("med","surg","cards"), 12 * 200, replace = TRUE)),
+  cmi = rnorm(12 * 200, 1.5, 0.4)
+)
+b_hosp <- rnorm(12, 0, 0.4)
+b_q <- c(0, 0.1, -0.1, 0.05)
+hosp$y <- rbinom(
+  nrow(hosp), 1,
+  plogis(-2 + 0.5 * (hosp$cmi - 1.5) +
+         b_q[as.integer(hosp$quarter)] +
+         b_hosp[as.integer(hosp$hospital)])
+)
+
+priors_m1 <- c(
+  prior(normal(0, 1), class = "b"),
+  prior(normal(-2, 1), class = "Intercept"),
+  prior(student_t(3, 0, 0.5), class = "sd")
+)
+
+m1 <- brm(
+  y ~ cmi + service + quarter + (1 | hospital),
+  data = hosp, family = bernoulli(),
+  prior = priors_m1, chains = 4, cores = 4,
+  iter = 2000, backend = "cmdstanr"
+)
+
+m2 <- brm(
+  y ~ cmi + service + quarter +
+      (1 + cmi | hospital),
+  data = hosp, family = bernoulli(),
+  prior = priors_m1, chains = 4, cores = 4,
+  iter = 2000, backend = "cmdstanr",
+  control = list(adapt_delta = 0.95)
+)
+````
+
+The convergence summary for `m1` reports $\hat R \le 1.00$
+across parameters, ESS bulk in the low thousands, no
+divergent transitions. The summary for `m2` initially
+flagged a small number of divergent transitions, addressed
+by raising `adapt_delta` to 0.95.
+
+The posterior predictive check at the hospital level:
+`pp_check(m1, type = "stat_grouped", group = "hospital",
+stat = "mean")`, shows the hospital-specific readmission
+rates are well-recovered for `m1`. The same check on `m2`
+shows similar performance.
+
+The model comparison:
+
+````{.r}
+loo_m1 <- loo(m1); loo_m2 <- loo(m2)
+loo_compare(loo_m1, loo_m2)
+#       elpd_diff se_diff
+# m1     0.0       0.0
+# m2    -2.1       1.4
+````
+
+`m1` is preferred by 2.1 elpd units with SE 1.4, a
+difference within sampling noise. The simpler model is
+adequate; the data do not support the additional flexibility.
+This is the kind of result that LLMs frequently
+mis-interpret as 'no difference, both fine.' The correct
+reading is 'no evidence the slope-varying model improves
+predictive accuracy here, prefer the simpler model on
+parsimony grounds.'
+
+A Pareto-$\hat k$ check on `loo_m1` reports all values below
+0.7. The elpd estimate is reliable. If a handful of values
+exceeded 0.7 we would refit those exactly with
+`reloo(m1, loo_m1)`.
+
+The marginal posterior on the case-mix coefficient is
+0.51 [0.41, 0.62] (90% CI), in line with the simulation
+truth of 0.5. The hospital-level standard deviation
+posterior is 0.42 [0.27, 0.61].
+
+## Collaborating with an LLM on modern Bayesian computation
+
+Three patterns dominate. LLMs are reliable at translating a
+verbal model description into `brms` formula syntax and at
+suggesting standard prior choices. They are unreliable at
+diagnosing posterior failures and at interpreting `loo`
+comparisons in context. They cannot judge whether a
+posterior predictive check is passing on the right quantity.
+
+**Prompt 1: 'Translate this model to `brms` syntax.'**
+Provide a clean specification, outcome, family, fixed
+effects, random-effects structure, priors, and ask for the
+formula and `prior()` calls.
+
+*What to watch for.* The LLM will sometimes add or drop
+random effects, conflate `(1 | g)` with `(1 + x | g)`, or
+specify priors on the wrong `class`. The `class` argument
+in `prior()` is particularly error-prone: priors on slopes
+are `class = "b"`, intercept is `class = "Intercept"`, group
+SDs are `class = "sd"`. Run `make_stancode()` and confirm.
+
+*Verification.* Print the generated Stan code with
+`make_stancode(fit)`. Confirm parameter names, prior
+distributions, and the likelihood block match your
+specification line by line.
+
+**Prompt 2: 'Diagnose this fit.'** Paste the `summary(fit)`
+table and any divergent-transition counts. Ask the LLM to
+flag concerns and recommend next steps.
+
+*What to watch for.* The LLM will typically suggest raising
+`adapt_delta`, increasing iterations, or reparameterizing
+the random effects. These are correct standard moves, but
+the LLM cannot tell whether the *posterior itself* is the
+problem (e.g., a multimodal posterior arising from a
+non-identifiable parameterization) versus a sampler tuning
+issue. Trace plots, pair plots, and prior predictive checks
+remain your job.
+
+*Verification.* After applying suggestions, re-run
+diagnostics. If divergent transitions persist after
+`adapt_delta = 0.99` and non-centered parameterization, the
+issue is the model, not the sampler. Stop tuning, look at
+pair plots, suspect non-identifiability.
+
+**Prompt 3: 'Interpret this `loo_compare()` output.'** Paste
+the `loo_compare` table and the Pareto-$\hat k$ summaries
+and ask for an interpretation.
+
+*What to watch for.* The LLM will quote the elpd difference
+and the SE and recommend the model with higher elpd. It
+typically does not check Pareto-$\hat k$ flags before doing
+so; it does not ask about the standard error of the
+difference relative to the magnitude; it does not consider
+whether the analysis question is even decided by predictive
+accuracy. A model with worse elpd may still be the right
+answer if its parameters are interpretable and the elpd
+difference is small.
+
+*Verification.* Always read Pareto-$\hat k$ before reading
+elpd. If $\hat k > 0.7$ on more than a handful of points,
+elpd is unreliable until you `reloo()`. Then ask whether
+the elpd difference is several SE units; if not, the
+comparison is inconclusive.
+
+The meta-pattern: LLMs are excellent at the *mechanics* of
+Bayesian workflow, formula syntax, function calls,
+diagnostic interpretation in textbook cases. They are poor
+at the *adjudication*, deciding when a passing diagnostic
+is misleading, when a comparison is too noisy to act on,
+when a model is fit-for-purpose. Treat the LLM as a fluent
+intern who knows the syntax but has never sat through a
+model-criticism review.
+
+## Principle in use
+
+Three habits define defensible work in this area:
+
+1. **Read the generated Stan code before running the fit.**
+   `make_stancode()` is two seconds of effort that
+   eliminates the most common silent failure mode in
+   `brms` analyses. If the priors or likelihood do not
+   match your intent, find out before the chains run for
+   an hour.
+
+2. **Run prior predictive checks before posterior
+   predictive checks.** Posterior predictive checks
+   confirm the model fits the data; prior predictive
+   checks confirm the model is even capable of producing
+   plausible data. A model that produces implausible draws
+   under the prior will draw the wrong inferences in
+   regions where data is sparse.
+
+3. **Read `loo_compare` together with Pareto-$\hat k$.**
+   Never quote an elpd difference without checking that
+   the importance-sampling approximation has not failed.
+   The `loo` package prints both; the temptation to skim
+   to the elpd table is a recipe for over-confident model
+   selection.
+
+## Exercises
+
+1. Refit the readmission worked example with the default
+   `brms` priors (omit the `prior` argument). Compare the
+   posterior on the case-mix coefficient to the
+   informative-prior fit. Under what data conditions
+   would the difference matter?
+
+2. Use `make_stancode()` on a `brm(y ~ x + (1 + x | g))`
+   call with no explicit priors. Identify the
+   correlation-matrix prior `brms` chose by default and
+   explain what it implies about the relationship between
+   the random intercept and slope.
+
+3. Implement a Bayesian negative binomial regression in
+   `brms` for an over-dispersed count outcome. Run prior
+   predictive checks and verify that the prior on the
+   dispersion parameter does not place excessive mass on
+   near-Poisson dispersion.
+
+4. Take a `brms` fit and approximate its posterior with
+   ADVI (`vi(fit)`) and with Pathfinder (via the
+   `cmdstanr` interface). Compare the marginal posterior
+   for one regression coefficient across HMC, ADVI, and
+   Pathfinder. Which approximation underestimates
+   variance? On which parameters?
+
+5. Construct a scenario where two `brms` models have
+   nearly identical elpd (within 1 SE) but make
+   meaningfully different predictions on an
+   out-of-distribution test point. What does this
+   illustrate about treating elpd as the sole comparison
+   metric?
+
+## Further reading
+
+- @gelman2020bayesian, *Bayesian Workflow*. The canonical
+  argument for iterative model-criticism over one-shot
+  fitting.
+- @mcelreath2020statistical, *Statistical Rethinking*
+  (2nd edition). Applied Bayesian regression with `brms`
+  and `rethinking`, accessible to a first-time audience.
+- @vehtari2017practical, *Practical Bayesian model
+  evaluation using leave-one-out cross-validation and
+  WAIC*. The reference for `loo` and Pareto-$\hat k$
+  diagnostics.
+- The `brms` documentation
+  (<https://paul-buerkner.github.io/brms/>) and `loo`
+  vignettes (<https://mc-stan.org/loo/>) are exemplary.

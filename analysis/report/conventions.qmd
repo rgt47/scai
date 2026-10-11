@@ -52,3 +52,11 @@ A failure mode reported by past students of the course.
 An adversarial prompt for use with a language model, paired
 with an explicit verification step.
 :::
+
+## Mathematical notation
+
+Conventional notation throughout. Vectors are bold
+lower-case ($\mathbf{x}$); matrices are bold upper-case
+($\mathbf{X}$); scalars and parameters are non-bold.
+Estimators carry hats ($\hat\theta$). Sample size is $n$;
+parameter dimension is $p$.

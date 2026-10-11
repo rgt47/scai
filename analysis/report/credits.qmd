@@ -5,6 +5,20 @@
 TODO: add source and license of the cover image here once
 chosen.
 
+The Volume II cover (`images/cover-vol2.png`) is generated
+procedurally by the Python script at
+`images/build-cover-vol2.py`. Watercolor palette:
+deep wine through plum and rose to warm amber, anchored on
+burgundy `#7a2c4e`. Typography: Avenir family; body text in
+Source Serif 4.
+
+## Chapter selection
+
+The chapter list of the second half was constructed by
+surveying 12 publicly available syllabi from major US
+biostatistics programs and adopting the topics that appeared
+in three or more of them.
+
 ## Portraits
 
 The portraits of foundational figures in statistical computing

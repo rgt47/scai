@@ -1,0 +1,672 @@
+# Advanced Optimization {#sec-advanced-optimization}
+
+## Learning objectives
+
+By the end of this chapter you should be able to:
+
+- Recognize constrained optimization problems and write
+  the KKT conditions for equality-constrained and
+  inequality-constrained cases.
+- Express penalized regression (lasso, ridge, elastic net)
+  as constrained optimization, and use the equivalence to
+  understand the geometry of regularization.
+- Apply proximal methods (proximal gradient, ISTA, FISTA)
+  to non-smooth convex optimization problems where
+  ordinary gradient descent fails.
+- Apply ADMM to splitting problems where two parts of the
+  objective are individually easy but jointly hard.
+- Choose between deterministic and stochastic optimizers
+  based on the data size and the structure of the
+  objective.
+- Apply L-BFGS for large-scale unconstrained
+  optimization, and recognize when its limited memory
+  becomes a bottleneck.
+- Diagnose convergence in optimizers more rigorously than
+  $\Delta f < 10^{-8}$: KKT residuals, gradient norms,
+  duality gaps.
+- Use modern R packages (`CVXR` for general convex,
+  `glmnet` for lasso, `optimx` for unified non-linear
+  optimization) appropriately.
+
+## Orientation
+
+@sec-optimization covered Newton's method and
+quasi-Newton methods (BFGS, L-BFGS) for unconstrained
+optimization. That treatment handles the vast majority of
+likelihood-based estimators: GLMs, mixed-effects models,
+survival models. It does not handle:
+
+- **Constrained problems**, where the parameter must lie
+  in a feasible set (probabilities sum to one, variances
+  are nonnegative, the maximum margin classifier).
+- **Non-smooth objectives**, where the gradient is
+  undefined at the solution (lasso, group lasso, fused
+  lasso, total-variation denoising, robust regression
+  with absolute-value loss).
+- **Very-large-scale problems**, where computing one full
+  gradient is too expensive and stochastic methods are
+  required (deep learning, large-$n$ logistic
+  regression).
+
+We take up in this chapter the modern optimization toolkit
+that covers these cases. The mathematical framing is convex
+optimization. The implementations we use are R packages
+with mature backends (`CVXR`, `glmnet`, `optimx`, `Rsolnp`).
+
+## The statistician's contribution {#sec-advanced-optimization-human}
+
+Modern optimization is a deep and rapidly-evolving field.
+A statistician does not need to become a numerical
+optimization researcher; they need to identify which
+problem they have, choose the matching tool, and verify
+that the tool worked.
+
+**Recognize non-smoothness early.** A non-smooth objective
+(an absolute value, a max, an indicator function) cannot
+be minimized by methods that assume the gradient exists
+everywhere. The classic mistake is to feed a lasso
+objective to `optim(method = 'BFGS')` and accept the
+warning-laden output. The right tools are proximal
+methods or coordinate descent; using them is non-optional
+for the result to be correct.
+
+**Constraints are statistical, not just numerical.** A
+constraint that the parameter lies in $[0, 1]$ is usually
+a constraint that the parameter is a probability. A
+constraint that two parameters sum to a constant is
+usually an identifiability constraint imposed by the
+model. Treating constraints as numerical inconveniences
+to be reparameterized away can hide problematic model
+structure. The constraint exists because the science
+demands it; the optimizer should respect it explicitly,
+not work around it.
+
+**Regularization is a modeling choice, not a stability
+trick.** The ridge penalty $\lambda \|\boldsymbol\beta\|_2^2$
+shrinks coefficients toward zero; the lasso penalty
+$\lambda \|\boldsymbol\beta\|_1$ shrinks them toward zero
+*and* sets some exactly to zero. Choosing among
+unpenalized, ridge, lasso, or elastic net is a choice
+about what bias is acceptable in exchange for what
+variance reduction. Choosing $\lambda$ is a choice about
+how much bias. These are statistical choices; the
+optimizer executes the choice, but the choice does not
+emerge from the optimizer.
+
+**Verify with KKT residuals.** A converged optimizer
+returns a candidate optimum. The verification is the KKT
+conditions: gradient stationarity, primal feasibility,
+dual feasibility, complementary slackness. For unconstrained
+problems this reduces to $\|\nabla f\| < \epsilon$; for
+constrained problems it is more elaborate and easier to
+check than to derive. Most modern solvers report KKT
+residuals; reading them is the analyst's job.
+
+These judgments determine whether the converged result
+solves the right problem.
+
+## Constrained optimization
+
+The general constrained problem:
+
+$$
+\begin{aligned}
+\min_{\mathbf{x}} \quad & f(\mathbf{x}) \\
+\text{subject to} \quad & g_i(\mathbf{x}) \le 0, \quad i = 1, \ldots, m \\
+& h_j(\mathbf{x}) = 0, \quad j = 1, \ldots, p
+\end{aligned}
+$$
+
+For convex $f$ and convex $g_i$ and affine $h_j$, the
+problem is a **convex program** with strong duality:
+the global minimum is unique (or, for non-strictly-convex
+$f$, on a unique convex set), and the duality gap is
+zero.
+
+### Karush-Kuhn-Tucker (KKT) conditions
+
+For a candidate $\mathbf{x}^*$ to be a constrained optimum,
+the KKT conditions must hold at some Lagrange multipliers
+$\boldsymbol\lambda \ge 0$ and $\boldsymbol\nu$:
+
+$$
+\begin{aligned}
+\nabla f(\mathbf{x}^*) + \sum_i \lambda_i \nabla g_i(\mathbf{x}^*) + \sum_j \nu_j \nabla h_j(\mathbf{x}^*) &= 0 \\
+g_i(\mathbf{x}^*) &\le 0 \\
+h_j(\mathbf{x}^*) &= 0 \\
+\lambda_i &\ge 0 \\
+\lambda_i g_i(\mathbf{x}^*) &= 0
+\end{aligned}
+$$
+
+In words: stationarity (gradient of Lagrangian is zero),
+primal feasibility (constraints are satisfied), dual
+feasibility (multipliers are nonnegative), complementary
+slackness (each multiplier is zero unless its constraint
+is active).
+
+The KKT conditions generalize 'set the gradient to zero'
+to constrained problems. They are necessary for an
+optimum and sufficient when the problem is convex and a
+constraint qualification holds (Slater's condition: the
+strict feasibility of at least one point).
+
+### Solving constrained problems
+
+For convex problems, R's `CVXR` package is the
+modern interface. It accepts a problem in
+disciplined-convex-programming form and dispatches to
+appropriate solvers:
+
+```r
+library(CVXR)
+
+# minimise ||X b - y||^2 subject to b >= 0
+n <- 200; p <- 5
+X <- matrix(rnorm(n * p), n, p)
+y <- as.numeric(X %*% c(1, -1, 0, 2, 0) + rnorm(n))
+
+beta <- Variable(p)
+objective <- Minimize(sum_squares(X %*% beta - y))
+constraints <- list(beta >= 0)
+
+problem <- Problem(objective, constraints)
+result  <- solve(problem)
+result$status
+#> [1] "optimal"
+result$getValue(beta)
+#> [1] 0.892 0.000 0.000 1.978 0.030
+```
+
+The non-negative solution differs from the unconstrained
+LS solution; the constraint forces some coefficients
+exactly to zero. CVXR handles the disciplined-convex
+algebra and dispatches to ECOS, SCS, or other backends.
+
+For non-convex constrained problems, `Rsolnp::solnp` and
+`alabama::auglag` provide augmented Lagrangian methods.
+Convergence is local and the user supplies the Jacobian
+of the constraints if available.
+
+### Equality constraints by reparameterization
+
+For some equality constraints, reparameterization
+eliminates the constraint and makes the problem
+unconstrained. Common cases:
+
+- $\sum p_i = 1$: parameterize via softmax
+  $p_i = \exp(z_i) / \sum \exp(z_j)$.
+- $p \in (0, 1)$: parameterize via logit $p = \text{plogis}(z)$.
+- $\sigma > 0$: parameterize via $\log \sigma = z$.
+- Correlation $\rho \in (-1, 1)$: parameterize via Fisher
+  $z$ transform $\rho = \tanh(z)$.
+
+Reparameterization is computationally simpler than
+constrained optimization but loses the ability to report
+constraints' Lagrange multipliers (which carry
+interpretation as shadow prices in the optimization).
+For constraints whose multipliers are not of interest,
+reparameterization is preferred.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: when to use CVXR
+
+**Question.** You want to fit a linear model with the
+constraint that the coefficient on `age` is between -0.1
+and 0.1 (a clinical bound). Should you use CVXR, or can
+you reparameterize?
+
+**Answer.**
+
+Either works; CVXR is more transparent. The
+reparameterization route would set $\beta_{\text{age}} = 0.1 \tanh(z)$
+and optimize unconstrained over $z$. This is fine but
+hides the constraint inside the parameterization, and
+the gradient at the boundary becomes infinite (a barrier
+in disguise). The CVXR route writes the constraint
+explicitly: `constraints <- list(beta[age_index] >= -0.1, beta[age_index] <= 0.1)`.
+The reported solution either lies strictly inside the
+constraint (the constraint is inactive) or on the
+boundary with a Lagrange multiplier reporting how much
+the optimum would improve if the constraint were
+relaxed. The Lagrange multiplier is clinically
+interpretable as 'how much would the fit improve if I
+loosened my bound by 1 unit'. For a constraint with
+clinical meaning, the explicit form preserves the
+interpretation.
+
+:::
+
+## Regularization as constrained optimization
+
+The lasso problem
+
+$$
+\min_{\boldsymbol\beta} \frac{1}{2n} \|\mathbf{y} - X \boldsymbol\beta\|_2^2 + \lambda \|\boldsymbol\beta\|_1
+$$
+
+has an equivalent constrained form
+
+$$
+\min_{\boldsymbol\beta} \frac{1}{2n} \|\mathbf{y} - X \boldsymbol\beta\|_2^2 \quad \text{subject to} \quad \|\boldsymbol\beta\|_1 \le t
+$$
+
+for some $t$ depending on $\lambda$. The two are
+**Lagrangian duals**: as you sweep $\lambda$ from 0 to
+infinity, $t$ sweeps from infinity to 0, tracing out the
+same set of solutions in different parameterizations.
+
+The constrained form makes the geometry visible: the
+feasible region is the $\ell_1$ ball, whose corners on
+the axes are where the unconstrained-quadratic
+loss-minimizer usually contacts it. At those corners,
+some coordinates are exactly zero. This is why the lasso
+produces sparse solutions: the geometry of the $\ell_1$
+ball forces zeros at the corners.
+
+The same geometry argument distinguishes lasso ($\ell_1$,
+sparse solutions, corners on axes) from ridge ($\ell_2$,
+shrunk solutions, no corners) and from group lasso (block
+$\ell_2$, sparse at the group level). Each penalty's ball
+shape determines what kind of sparsity the solution has.
+
+For implementation, `glmnet` is the production-grade
+solver for lasso, ridge, and elastic net. It uses
+coordinate descent and produces the entire regularization
+path in a single fit.
+
+```r
+library(glmnet)
+fit <- glmnet(X, y, alpha = 1)        # lasso (alpha = 1)
+plot(fit, xvar = "lambda")            # solution paths
+cv  <- cv.glmnet(X, y, alpha = 1)
+coef(cv, s = "lambda.min")
+```
+
+`alpha = 1` is lasso; `alpha = 0` is ridge; `alpha`
+between 0 and 1 is elastic net. The `cv.glmnet` cross-
+validation chooses $\lambda$. We treat the high-
+dimensional setting in detail in @sec-high-dim.
+
+## Proximal methods
+
+Gradient descent updates $\mathbf{x} \leftarrow \mathbf{x} - \eta \nabla f(\mathbf{x})$.
+This requires $f$ to be differentiable. For non-smooth
+objectives, gradient descent does not directly apply.
+
+The **proximal gradient** method handles
+$f(\mathbf{x}) = g(\mathbf{x}) + h(\mathbf{x})$ where $g$
+is smooth and $h$ is convex but possibly non-smooth.
+The update is
+
+$$
+\mathbf{x}^{(k+1)} = \text{prox}_{\eta h}\!\left(\mathbf{x}^{(k)} - \eta \nabla g(\mathbf{x}^{(k)})\right)
+$$
+
+where the **proximal operator** of $h$ is
+
+$$
+\text{prox}_{\eta h}(\mathbf{z}) = \arg\min_{\mathbf{x}} \left\{ \frac{1}{2\eta} \|\mathbf{x} - \mathbf{z}\|^2 + h(\mathbf{x}) \right\}.
+$$
+
+For many non-smooth $h$, the proximal operator has a
+closed form:
+
+| $h(\mathbf{x})$              | $\text{prox}_{\eta h}(\mathbf{z})$                                  |
+|-------------------------------|---------------------------------------------------------------------|
+| $\lambda \|\mathbf{x}\|_1$    | $\text{sign}(z_i) \cdot \max(|z_i| - \eta\lambda, 0)$ (soft thresh) |
+| $\lambda \|\mathbf{x}\|_2^2$  | $\mathbf{z} / (1 + 2\eta\lambda)$                                   |
+| $\mathbf{1}_{\mathbf{x} \ge 0}$ | $\max(\mathbf{z}, 0)$ (projection onto nonnegative orthant)         |
+| $\mathbf{1}_{\|\mathbf{x}\|_2 \le 1}$ | projection onto the unit ball                                |
+
+So lasso is proximal gradient with the soft-thresholding
+operator. Each iteration is one gradient step on the
+smooth part followed by one soft-threshold; the cost per
+iteration is the same as gradient descent.
+
+**ISTA** (Iterative Soft-Thresholding Algorithm) is the
+proximal gradient applied to lasso. **FISTA** (Fast ISTA)
+adds Nesterov acceleration for an $O(1/k^2)$ rather than
+$O(1/k)$ convergence rate.
+
+```r
+# proximal gradient for lasso, illustrative
+prox_grad_lasso <- function(X, y, lambda, eta = 0.001,
+                            n_iter = 1000) {
+  beta <- rep(0, ncol(X))
+  for (k in seq_len(n_iter)) {
+    grad <- t(X) %*% (X %*% beta - y) / nrow(X)
+    z    <- beta - eta * grad
+    beta <- sign(z) * pmax(abs(z) - eta * lambda, 0)
+  }
+  as.numeric(beta)
+}
+```
+
+In practice, use `glmnet` for lasso; `prox_grad_lasso` is
+educational.
+
+## ADMM
+
+The Alternating Direction Method of Multipliers solves
+
+$$
+\min_{\mathbf{x}, \mathbf{z}} f(\mathbf{x}) + g(\mathbf{z}) \quad \text{subject to} \quad A \mathbf{x} + B \mathbf{z} = \mathbf{c}
+$$
+
+by alternating between updating $\mathbf{x}$ (treating
+$\mathbf{z}$ and the dual variable $\mathbf{u}$ as fixed),
+updating $\mathbf{z}$ (treating $\mathbf{x}$ and
+$\mathbf{u}$ as fixed), and updating $\mathbf{u}$ (the
+dual ascent step).
+
+ADMM is most useful when $f$ and $g$ are individually
+easy to optimize (each has a simple proximal operator)
+but their sum is hard. Examples:
+
+- **Generalized lasso** with a structured penalty
+  $\|D \boldsymbol\beta\|_1$ for some difference matrix
+  $D$ (fused lasso, total variation).
+- **Distributed optimization**, where the data is split
+  across machines and each machine handles its own block
+  with a consensus constraint.
+- **Constrained estimation** where the constraint is
+  expressed via $g$ as an indicator function.
+
+The Boyd et al. (2011) monograph is the standard
+reference; the `ADMM` and `genlasso` R packages provide
+implementations for common biostatistical cases.
+
+## Stochastic optimization
+
+For very large $n$, computing one full gradient
+$\nabla f(\boldsymbol\beta) = \sum_i \nabla \ell_i(\boldsymbol\beta)$
+is the bottleneck. Stochastic gradient descent (SGD)
+replaces the full gradient with a stochastic estimate
+based on one observation or a small mini-batch:
+
+$$
+\boldsymbol\beta^{(k+1)} = \boldsymbol\beta^{(k)} - \eta_k \nabla \ell_{i(k)}(\boldsymbol\beta^{(k)})
+$$
+
+where $i(k)$ is sampled uniformly from $\{1, \ldots, n\}$.
+
+The trade-off: each iteration is $O(1)$ rather than
+$O(n)$, but the iterations are noisy. With a decreasing
+step size $\eta_k = O(1/k)$, SGD converges in expectation
+at the optimal rate for non-strongly-convex problems.
+
+Modern variants:
+
+- **SGD with momentum.** Adds a velocity term;
+  accelerates convergence on poorly-conditioned problems.
+- **Adam.** Combines momentum with per-parameter
+  step-size adaptation. Default optimizer for deep
+  learning; competitive for many statistical learning
+  problems.
+- **RMSProp, AdaGrad.** Earlier per-parameter adaptive
+  methods.
+
+For statistical applications, SGD-family optimizers are
+the right choice when:
+
+- $n$ is in the millions or more.
+- The model is differentiable end-to-end (deep learning,
+  large-$n$ GLMs).
+- Approximate solutions are acceptable.
+
+For $n$ in the thousands or tens of thousands, full-batch
+methods (BFGS, L-BFGS, Newton, IRLS for GLMs) are usually
+faster and more accurate. The crossover is problem-
+specific; benchmark before defaulting to either side.
+
+## L-BFGS in detail
+
+L-BFGS is the default for large-scale unconstrained
+optimization in R (`optim(method = 'L-BFGS-B')` for box
+constraints, `lbfgs` package for unconstrained). Its
+distinguishing feature is the limited-memory
+approximation to the inverse Hessian: instead of storing
+an $n \times n$ matrix, it stores the last $m$ pairs of
+parameter and gradient differences (typically $m = 5$
+to $20$).
+
+The cost per iteration is $O(mn)$, where $n$ is the
+parameter dimension. For $n$ in the thousands, this is
+tractable; for $n$ in the millions (deep neural
+networks), even L-BFGS is too expensive and SGD is the
+only option.
+
+L-BFGS is sensitive to the initial step size and to the
+line-search routine. Convergence problems often resolve
+by tightening the tolerance, increasing the memory
+length $m$, or providing better initial values.
+
+```r
+# example: maximum likelihood for a logistic regression
+neg_loglik <- function(beta, X, y) {
+  eta <- as.numeric(X %*% beta)
+  # numerically stable: -log(1 + exp(eta)) is unsafe for
+  # eta >> 0 (overflow). Use the rewriting from Ch 1.
+  -sum(y * eta - pmax(eta, 0) - log1p(exp(-abs(eta))))
+}
+gradient <- function(beta, X, y) {
+  p <- plogis(as.numeric(X %*% beta))
+  -as.numeric(t(X) %*% (y - p))
+}
+
+set.seed(1)
+n <- 1000; p <- 50
+X <- cbind(1, matrix(rnorm(n * p), n, p))
+y <- rbinom(n, 1, plogis(X %*% rnorm(p + 1)))
+
+fit <- optim(rep(0, p + 1), neg_loglik, gr = gradient,
+             X = X, y = y, method = 'L-BFGS-B',
+             control = list(maxit = 200))
+fit$convergence
+#> [1] 0
+```
+
+For larger problems, `lbfgs::lbfgs` is faster and more
+configurable. For very large problems, `RhpcBLASctl::blas_set_num_threads(1)`
+inside the L-BFGS call prevents BLAS oversubscription
+when multiple L-BFGS instances run in parallel.
+
+## Convergence diagnostics beyond $\Delta f$
+
+Most optimizers stop when $|f^{(k+1)} - f^{(k)}| < \epsilon_f$
+or $\|\boldsymbol\beta^{(k+1)} - \boldsymbol\beta^{(k)}\| < \epsilon_\beta$.
+These are necessary conditions but not sufficient; the
+optimizer may stall at a flat region without being at an
+optimum.
+
+Better diagnostics:
+
+- **Gradient norm.** $\|\nabla f(\boldsymbol\beta)\| < \epsilon_g$.
+  Direct test of stationarity.
+- **KKT residuals.** For constrained problems, all KKT
+  conditions must hold. Modern solvers report each
+  residual.
+- **Duality gap.** For convex problems, the duality gap
+  $f(\mathbf{x}^*) - g(\boldsymbol\lambda^*)$ where $g$ is
+  the dual function bounds the suboptimality. Some
+  solvers (CVXR's interior-point methods) report this
+  directly.
+- **Multiple starting points.** For non-convex problems,
+  run from several starting values and confirm the same
+  optimum. Disagreement signals multiple local optima.
+
+For likelihood maximization, the gradient norm should be
+small relative to $\sqrt{n}$ (the gradient at the truth
+is asymptotically $O(\sqrt{n})$, so the gradient at the
+MLE should be much smaller).
+
+## Worked example: lasso via three different solvers
+
+A small comparison: the same lasso problem solved via
+proximal gradient, coordinate descent (`glmnet`), and the
+disciplined convex form (`CVXR`). All three should reach
+the same solution.
+
+```r
+library(glmnet)
+library(CVXR)
+
+set.seed(1)
+n <- 200; p <- 50
+X <- scale(matrix(rnorm(n * p), n, p))
+beta_true <- c(rep(c(2, -1, 0), length.out = p))
+y <- as.numeric(X %*% beta_true + rnorm(n))
+
+lambda_val <- 0.1
+
+# 1. glmnet (production-grade)
+fit_glmnet <- glmnet(X, y, alpha = 1, lambda = lambda_val,
+                     standardize = FALSE, intercept = FALSE)
+b_glmnet <- as.numeric(coef(fit_glmnet))[-1]
+
+# 2. CVXR (disciplined convex)
+b_var <- Variable(p)
+objective <- Minimize(
+  sum_squares(y - X %*% b_var) / (2 * n) +
+  lambda_val * p_norm(b_var, 1)
+)
+prob <- Problem(objective)
+res  <- solve(prob)
+b_cvxr <- as.numeric(res$getValue(b_var))
+
+# 3. proximal gradient (educational)
+b_prox <- prox_grad_lasso(X, y, lambda_val, eta = 0.001,
+                          n_iter = 5000)
+
+# all three should agree
+max(abs(b_glmnet - b_cvxr))
+#> [1] 4e-05            # CVXR is iterative; tolerance is set there
+max(abs(b_glmnet - b_prox))
+#> [1] 6e-04            # prox grad converges slowly without acceleration
+```
+
+The three solvers reach the same solution to within
+their respective tolerances. `glmnet` is fastest in
+wall-clock time; `CVXR` is most flexible (any disciplined
+convex problem); proximal gradient is the educational
+implementation that makes the geometry visible.
+
+## Collaborating with an LLM on advanced optimization
+
+LLMs handle the textbook material well; they are
+weaker at recognizing which advanced tool fits a
+specific applied problem.
+
+**Prompt 1: tool selection.** Describe the objective
+(smooth or non-smooth, constrained or not, problem
+size, structure). Ask: 'recommend a solver and an R
+package, and justify the choice in terms of the
+problem's structure.'
+
+*What to watch for.* For non-smooth problems, the LLM
+should recommend proximal methods, coordinate descent
+(via `glmnet` or similar), or `CVXR`. For constrained
+problems, `CVXR` or augmented-Lagrangian methods
+(`Rsolnp`, `alabama`). For very large $n$, SGD or
+L-BFGS. If the LLM defaults to `optim` regardless of
+problem structure, push for the more specific tool.
+
+*Verification.* Solve a small instance with the
+recommended tool and with a reference (e.g., closed
+form for a small lasso). The two should agree.
+
+**Prompt 2: convergence diagnosis.** Paste a converged
+optimizer's output (parameters, gradient norm,
+function value, iteration count) and ask: 'is this
+converged? What additional diagnostics should I check?'
+
+*What to watch for.* For unconstrained, the gradient
+norm should be small (relative to data scale). For
+constrained, KKT residuals should be small. For
+non-convex, multi-start verification. The LLM should
+mention these; if it accepts $\Delta f < \epsilon$ as
+sufficient, push.
+
+*Verification.* Run from a different starting point;
+check the gradient norm; for constrained problems
+inspect each KKT residual.
+
+**Prompt 3: writing custom proximal operators.**
+Describe a non-smooth penalty (e.g., 'fused lasso with
+graph-based smoothness') and ask the LLM to write the
+proximal operator and an ADMM splitting.
+
+*What to watch for.* Closed-form proximal operators are
+known for many penalties; the LLM should know the
+common ones. For a custom penalty, the proximal
+operator may not be closed-form; an iterative inner
+solve is required. The LLM should distinguish these
+cases.
+
+*Verification.* Test the proximal operator on a small
+problem where the closed-form answer is known. For
+ADMM, verify primal and dual feasibility at
+convergence.
+
+The meta-pattern: advanced optimization is a deep
+subject. LLMs are reliable for the standard cases
+(lasso, ridge, basic ADMM); for novel splittings or
+custom proximal operators, treat the output as a draft
+and verify carefully.
+
+## Principle in use
+
+Three habits define defensible advanced-optimization
+practice:
+
+1. **Match the tool to the problem structure.**
+   Non-smooth requires proximal methods; constrained
+   requires augmented Lagrangian or interior point;
+   large-$n$ requires stochastic. Generic
+   `optim()` is for smooth unconstrained.
+2. **Verify with KKT, not with $\Delta f$.** Stationarity,
+   feasibility, complementary slackness. The textbook
+   convergence test is necessary but not sufficient.
+3. **Use production solvers for production problems.**
+   `glmnet` for lasso/ridge/elastic net; `CVXR` for
+   general convex; `lbfgs` for large-scale unconstrained.
+   Reach for hand-rolled implementations only when
+   teaching or for problems the production tools do not
+   cover.
+
+## Exercises
+
+1. Implement the soft-thresholding proximal operator and
+   verify it against `glmnet` on a small lasso problem.
+2. Use `CVXR` to fit a non-negative least-squares problem.
+   Compare to `nnls::nnls`. Both should give the same
+   answer to high precision.
+3. Reformulate ridge regression as a constrained
+   problem; fit it via `CVXR`; verify it matches
+   `glmnet(alpha = 0)`.
+4. Take a logistic regression on a moderate dataset
+   ($n = 10{,}000$). Fit via L-BFGS (`optim`), via
+   `glm()` (which uses IRLS), and via SGD with manual
+   step-size schedule. Compare wall-clock times and
+   final coefficients.
+5. For a constrained problem in your work, write the
+   KKT conditions explicitly. Identify which constraints
+   are active at the solution; report the corresponding
+   Lagrange multipliers and interpret them as shadow
+   prices.
+
+## Further reading
+
+- [@boyd2004convex], *Convex Optimization*. The
+  reference. Free at `web.stanford.edu/~boyd/cvxbook`.
+- [@parikh2014proximal], 'Proximal algorithms'.
+  Free at `web.stanford.edu/~boyd/papers/prox_algs.html`.
+- [@boyd2011admm], 'Distributed optimization and
+  statistical learning via the alternating direction
+  method of multipliers'. The ADMM monograph.
+- [@nocedal2006numerical], the constrained-optimization
+  chapters give the engineering view (interior point,
+  SQP, augmented Lagrangian).
+- The `CVXR` and `glmnet` package vignettes for applied
+  R usage.

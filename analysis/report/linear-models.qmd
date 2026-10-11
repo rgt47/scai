@@ -4,7 +4,7 @@
 
 Answer the following questions to see if you can bypass this
 chapter. You can find the answers at the end of the chapter in
-@sec-quiz-answers-10.
+@sec-quiz-answers-linear-models.
 
 1. Name three assumptions of the classical linear regression
    model.
@@ -38,12 +38,12 @@ By the end of this chapter you should be able to:
 
 ## Orientation
 
-`lm()` is the workhorse of applied statistics and the first
-real test of everything we have built so far: matrix algebra,
-QR decomposition, vectorized R, and the grammar of data
-frames. This chapter treats `lm()` as a white box. We will
-not invoke it until we have reimplemented most of what it
-does.
+`lm()` is the workhorse of applied statistics, and it is the
+first real test of everything we have built so far: matrix
+algebra, QR decomposition, vectorized R, and the grammar of
+data frames. This chapter treats `lm()` as a white box. We
+shall not invoke it until we have reimplemented most of what
+it does.
 
 The linear model assumes
 
@@ -79,7 +79,7 @@ produce standard errors that understate uncertainty and
 coefficients that do not mean what they appear to mean.
 
 **Which scale.** A coefficient on age is interpretable if
-age is in years; less so if centerd at 50 but unscaled; less
+age is in years; less so if centered at 50 but unscaled; less
 still if transformed to a z-score. The choice depends on the
 audience. For a clinical paper, a one-year increment is
 natural; for a methods paper, a z-score may read more
@@ -290,7 +290,7 @@ The default reference level is alphabetical: 'high-dose'.
 So the intercept estimates the mean outcome in the high-
 dose group (18.2), and the low-dose coefficient gives the
 difference between low-dose and high-dose (-4.1), meaning
-low-dose mean is 14.1. To get placebo as the reference ---
+low-dose mean is 14.1. To get placebo as the reference,
 usually what you want in a trial, use
 `factor(treatment, levels = c("placebo", "low-dose", "high-dose"))`
 or `relevel(treatment, ref = "placebo")`. This is a
@@ -707,7 +707,7 @@ Three habits define defensible linear-model practice:
 - [@ucla-regdiag], a thorough walkthrough of residual
   diagnostics in R.
 
-## Practice test {#sec-practice-test-10}
+## Practice test {#sec-practice-test-linear-models}
 
 The following multiple-choice questions exercise the
 chapter's content. Attempt each question before expanding
@@ -816,7 +816,7 @@ additive model (`mgcv::gam`). Robust SEs do not fix a
 wrong mean function.
 :::
 
-## Prerequisites answers {#sec-quiz-answers-10}
+## Prerequisites answers {#sec-quiz-answers-linear-models}
 
 1. Linearity of the mean function, independence of
    observations, constant error variance

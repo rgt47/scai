@@ -1,0 +1,128 @@
+# Introduction to the Second Half {#sec-intro-advanced .unnumbered}
+
+## What the second half is
+
+The first half of this book covers programming, numerical
+linear algebra, optimization, simulation, the bootstrap, the
+standard frequentist models, and statistical graphics. It is
+written for the first quarter of a two-quarter graduate
+sequence. The second half, which begins here, is written for
+the second quarter and begins where the first leaves off. In
+print it is Volume II.
+
+## What 'advanced' means here
+
+The word 'advanced' carries three meanings in the second half,
+in increasing strength.
+
+The first is **a deeper treatment of foundational topics.**
+@sec-numerical-stability and @sec-numerical-linalg, on
+numerical stability and numerical linear algebra, revisit
+material the first half touches but does not treat in depth.
+Floating-point arithmetic, condition numbers, sparse and
+iterative solvers, and BLAS-level performance are the
+load-bearing fundamentals for everything that follows. An
+advanced treatment that omits them is, we would argue, missing
+a layer.
+
+The second is **topics that exceed introductory scope.**
+@sec-advanced-optimization through @sec-modern-bayesian take
+up advanced optimization, the EM algorithm and its extensions,
+Monte Carlo in depth, Bayesian computation, MCMC in depth, and
+modern Bayesian computation. Each chapter extends the
+first-half treatment of its topic into the territory needed
+for current methodological research and for applied practice
+with modern tools.
+
+The third is **topics that did not appear in the first half
+at all.** @sec-parallel through @sec-interactive-viz take up
+parallel and high-performance computing, high-dimensional
+methods, machine learning, R package development and testing,
+software engineering for statisticians, reproducible
+computational environments, and interactive applications and
+dashboards. This is ground the first half deliberately sets
+aside. Each is the kind of topic a practicing biostatistician
+meets mid-career, and that graduate training ought to prepare
+them for.
+
+## What 'in the Age of AI' commits the second half to
+
+The subtitle is a structural commitment and not decoration.
+Every chapter carries two named sections that exercise it.
+
+The first, **The statistician's contribution**, is placed
+early: it is an explicit articulation of the judgments at the
+center of the chapter that no large language model can make on
+the reader's behalf. Advanced material is exactly where the
+human-LLM division of labor matters most. A careless prompt in
+an introductory bootstrap chapter produces a bug that a re-run
+will catch. A careless prompt in a Hamiltonian Monte Carlo or a
+high-dimensional chapter produces results that look plausible
+and are wrong. The stakes rise further once the prompt is
+handed to a coding agent that edits the analysis code and
+reruns the pipeline unattended, rather than typed into a chat
+window. In that case nothing forces a human to see the
+intermediate step where the mistake was made.
+
+The second, **Collaborating with an LLM on the topic at
+hand**, comes at the end of the chapter: specific prompts,
+each paired with what to watch for and how to verify. Each
+prompt is structured as a triple, the prompt itself, the
+failure modes the model may exhibit, and a verification step
+the reader runs to catch them. We apply the framework
+uniformly across the second half, as in the first.
+
+## Reading order
+
+The chapters may be read in order or out of order, subject to
+the following dependencies.
+
+- @sec-numerical-stability and @sec-numerical-linalg, the
+  numerical foundations, underpin all the numerical work in
+  @sec-advanced-optimization through @sec-modern-bayesian.
+- @sec-advanced-optimization feeds @sec-em-extensions, the EM
+  algorithm and its extensions, and @sec-high-dim,
+  high-dimensional methods.
+- @sec-monte-carlo, Monte Carlo, feeds @sec-bayesian, Bayesian
+  computation, which feeds @sec-mcmc-depth, MCMC, which in
+  turn feeds @sec-modern-bayesian, modern Bayesian
+  computation.
+- @sec-parallel, parallel computing, comes before @sec-hpc,
+  high-performance and distributed computing.
+- @sec-packages, package development, comes before
+  @sec-testing, testing, and both come before
+  @sec-software-engineering and
+  @sec-reproducible-environments.
+- @sec-shiny, Shiny, comes before @sec-interactive-viz,
+  interactive visualization and dashboards.
+- Otherwise the computing and software chapters are largely
+  independent of one another and of the numerical chapters,
+  with one exception: @sec-machine-learning uses the
+  optimization tools of @sec-advanced-optimization.
+
+A reader who follows the dependencies in order treats the
+second half as a course; a reader who picks topics ad hoc
+treats it as a reference.
+
+## What this book does not cover
+
+We have set aside several topics that are usually taught in
+dedicated methods courses elsewhere in a biostatistics
+curriculum:
+
+- Causal inference computing.
+- Longitudinal data analysis beyond the introductory GLMM
+  material.
+- Missing-data computing in depth.
+- Meta-analysis.
+
+We point to the standard references for each as they arise.
+
+## Software environment
+
+The second half assumes a current R installation, a current
+Quarto, and the package set used in the first half. New
+software is named in the chapter that uses it. The companion
+*Biostatistics Practicum* documents the workflow, the
+infrastructure, and the deployment conventions assumed
+throughout.

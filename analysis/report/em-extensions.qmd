@@ -1,0 +1,601 @@
+# EM and Its Extensions {#sec-em-extensions}
+
+## Learning objectives
+
+By the end of this chapter you should be able to:
+
+- Derive the EM algorithm from the marginal likelihood
+  for a generic latent-variable model, and identify the
+  E-step and M-step as the two halves of a coordinate
+  ascent on the evidence lower bound.
+- Implement EM for two canonical biostatistical cases:
+  Gaussian mixture models and the multinomial-logit
+  formulation of mixed-effects models.
+- Recognize when ECM (Expectation-Conditional-
+  Maximization), MCEM (Monte Carlo EM), or variational
+  EM is more appropriate than ordinary EM.
+- Diagnose convergence rigorously: monitor the marginal
+  log-likelihood, watch for slow tails, recognize non-
+  identifiability via flat regions in the M-step.
+- Compute observed-information standard errors for
+  EM-fitted models via Louis's method or supplemented
+  EM (SEM).
+- Avoid the common antipatterns: stopping at the
+  conditional log-likelihood instead of the marginal,
+  using EM where direct numerical maximization is
+  faster, missing label-switching in mixture models.
+
+## Orientation
+
+EM is the workhorse of latent-variable estimation. Mixed-
+effects models, mixture models, hidden Markov models,
+factor analysis, principal components with missing data,
+and many missing-data problems all reduce to maximizing a
+likelihood with unobserved or missing components. The EM
+algorithm is the standard tool for that maximization.
+
+@sec-mixed-models treated
+mixed-effects models via `lme4`, which uses penalized
+quasi-likelihood plus a deterministic Laplace
+approximation rather than EM. EM is needed when the
+likelihood has missing or latent components that admit a
+closed-form expectation given the observed data.
+Variational EM and MCEM extend the framework to cases
+where that expectation is intractable.
+
+This chapter develops EM from first principles, then
+treats its modern variants. The mathematical derivation
+gives the variants their structure; the implementations
+are R packages or short hand-coded loops, depending on
+the model.
+
+## The statistician's contribution {#sec-em-extensions-human}
+
+EM is famously easy to implement and famously easy to
+get wrong. The judgments at the center of this chapter
+are about recognizing when EM is the right tool, when it
+is converged, and when it is producing the wrong answer
+for a subtle reason.
+
+**EM is not always the fastest.** For problems where the
+joint likelihood is tractable as a function of the
+parameters, direct maximization via Newton or BFGS is
+typically faster than EM. EM's appeal is conceptual
+(separating the latent from the observed) and lies in its
+guarantee of monotonic likelihood improvement. Its runtime,
+however, is often slower than that of direct methods. When
+you can compute the gradient of the marginal
+log-likelihood, you can probably skip EM.
+
+**Convergence to a local maximum is the rule, not the
+exception.** Mixture models in particular have multiple
+modes, and EM converges to whichever is closest to the
+starting point. The fix is multi-start: run from many
+initial values, keep the best. Without this, the
+reported solution is whichever starting value happened
+to land near a good mode.
+
+**Label switching matters and is not a bug.** A two-
+component mixture has two equivalent solutions
+permuting the component labels; neither is preferred.
+For a single fit this is invisible; for posterior
+summaries or comparison across multi-start runs,
+labels must be aligned (post-process by, say, ordering
+components by their mean). Forgetting this produces
+artifacts in summaries that look real and are not.
+
+**Standard errors require deliberate work.** EM produces
+parameter estimates but does not compute standard
+errors as a side effect. Louis's method or supplemented
+EM (SEM) computes the observed information matrix
+explicitly. Reporting parameter estimates without standard errors is
+common enough in EM applications. Doing so without
+acknowledging the gap is, in our view, a genuine reporting
+failure.
+
+These judgments distinguish a working EM implementation
+from one that confidently reports the wrong answer.
+
+## The EM algorithm
+
+Consider a model with parameters $\boldsymbol\theta$,
+observed data $\mathbf{y}$, and unobserved (latent or
+missing) data $\mathbf{z}$. The complete-data log-
+likelihood is $\ell_c(\boldsymbol\theta; \mathbf{y}, \mathbf{z})$;
+the marginal log-likelihood (the one we actually want to
+maximize) is
+
+$$
+\ell(\boldsymbol\theta; \mathbf{y}) = \log \int p(\mathbf{y}, \mathbf{z} \mid \boldsymbol\theta) \, d\mathbf{z}.
+$$
+
+The marginal is intractable in general because of the
+integral. EM circumvents the integral by alternating
+between two steps.
+
+**E-step.** Given the current parameter estimate
+$\boldsymbol\theta^{(k)}$, compute the expected complete-
+data log-likelihood:
+
+$$
+Q(\boldsymbol\theta \mid \boldsymbol\theta^{(k)}) = E_{\mathbf{z} \mid \mathbf{y}, \boldsymbol\theta^{(k)}}\!\left[ \ell_c(\boldsymbol\theta; \mathbf{y}, \mathbf{z}) \right].
+$$
+
+**M-step.** Maximize $Q$ to obtain the new estimate:
+
+$$
+\boldsymbol\theta^{(k+1)} = \arg\max_{\boldsymbol\theta} Q(\boldsymbol\theta \mid \boldsymbol\theta^{(k)}).
+$$
+
+The key theorem (Dempster, Laird, Rubin 1977): each EM
+iteration weakly increases the marginal log-likelihood,
+$\ell(\boldsymbol\theta^{(k+1)}; \mathbf{y}) \ge \ell(\boldsymbol\theta^{(k)}; \mathbf{y})$,
+with equality only at a stationary point.
+
+The proof uses Jensen's inequality and the Kullback-Leibler
+divergence. The intuition: the E-step finds the best
+lower bound on the marginal log-likelihood given the
+current parameter; the M-step maximizes that lower
+bound. Both halves move uphill on the marginal.
+
+### Worked example: two-component Gaussian mixture
+
+Consider $y_i \sim \pi_1 N(\mu_1, \sigma^2) + \pi_2 N(\mu_2, \sigma^2)$
+with $\pi_1 + \pi_2 = 1$. The latent indicator $z_i$
+takes value 1 if observation $i$ came from component 1
+and 0 otherwise.
+
+E-step: given current parameters, compute the
+responsibility (posterior probability that observation
+$i$ came from component 1):
+
+$$
+\gamma_i = P(z_i = 1 \mid y_i, \boldsymbol\theta^{(k)}) = \frac{\pi_1 \phi(y_i; \mu_1, \sigma)}{\pi_1 \phi(y_i; \mu_1, \sigma) + \pi_2 \phi(y_i; \mu_2, \sigma)}.
+$$
+
+M-step: update parameters using the responsibilities:
+
+$$
+\hat\pi_1 = \frac{1}{n} \sum_i \gamma_i, \quad
+\hat\mu_1 = \frac{\sum_i \gamma_i y_i}{\sum_i \gamma_i}, \quad
+\hat\mu_2 = \frac{\sum_i (1-\gamma_i) y_i}{\sum_i (1-\gamma_i)}.
+$$
+
+The variance update is similar, weighted by the
+responsibilities.
+
+```r
+em_mixture <- function(y, n_iter = 100, tol = 1e-8) {
+  # initialise
+  k     <- 2
+  mu    <- quantile(y, c(0.25, 0.75))
+  sigma <- sd(y)
+  pi_1  <- 0.5
+
+  ll_old <- -Inf
+  for (k in seq_len(n_iter)) {
+    # E-step
+    p1   <- pi_1 * dnorm(y, mu[1], sigma)
+    p2   <- (1 - pi_1) * dnorm(y, mu[2], sigma)
+    gamma <- p1 / (p1 + p2)
+
+    # M-step
+    pi_1   <- mean(gamma)
+    mu[1]  <- sum(gamma * y) / sum(gamma)
+    mu[2]  <- sum((1 - gamma) * y) / sum(1 - gamma)
+    sigma  <- sqrt(
+      (sum(gamma * (y - mu[1])^2) +
+       sum((1 - gamma) * (y - mu[2])^2)) / length(y)
+    )
+
+    # marginal log-likelihood for convergence check
+    ll <- sum(log(pi_1 * dnorm(y, mu[1], sigma) +
+                  (1 - pi_1) * dnorm(y, mu[2], sigma)))
+    if (abs(ll - ll_old) < tol) break
+    ll_old <- ll
+  }
+  list(pi = c(pi_1, 1 - pi_1), mu = mu, sigma = sigma,
+       loglik = ll, iter = k)
+}
+
+set.seed(1)
+y <- c(rnorm(200, 0, 1), rnorm(300, 4, 1))
+fit <- em_mixture(y)
+fit$mu
+#> [1] 0.04 4.06           # close to truth
+fit$pi
+#> [1] 0.41 0.59           # close to truth
+```
+
+The same idea extends to $k$-component mixtures, mixtures
+with covariate-dependent component probabilities, and
+hidden Markov models (where the latent variable is a
+Markov chain rather than independent indicators).
+
+### When EM applies
+
+The EM algorithm is the right tool when:
+
+1. The complete-data likelihood is *much simpler* than the
+   marginal. If the M-step has a closed form given $z$
+   but the marginal does not, EM converts a hard
+   optimization into many easy ones.
+2. The latent structure is *interpretable*. Mixture
+   components, latent classes, missing-at-random data:
+   the latent variable has substantive meaning.
+3. Direct numerical maximization of the marginal is
+   difficult. If the marginal is smooth and tractable,
+   BFGS is faster than EM and produces standard errors as
+   a side effect.
+
+EM is the *wrong* tool when the complete-data likelihood
+is nearly as hard as the marginal, or when the M-step has
+no closed form (in which case ECM or generalized EM
+becomes necessary; see below).
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: EM vs. direct
+
+**Question.** You want to fit a logistic regression
+$P(Y = 1 \mid X) = \text{plogis}(X \boldsymbol\beta)$.
+Should you use EM?
+
+**Answer.**
+
+No, ordinary logistic regression has no latent
+variables. The likelihood is $\prod_i p_i^{y_i} (1-p_i)^{1-y_i}$
+which is directly maximizable by IRLS (what `glm()`
+does internally) or by Newton on $\beta$. EM applies
+where the model has a latent component: a logistic
+regression with random intercepts (mixed-effects
+logistic), a logistic mixture model, a logistic
+regression with missing covariates, a latent-class
+analysis. For ordinary logistic regression, EM would
+be a more complicated way to compute the same answer.
+The 'do I have a latent variable' question is the
+diagnostic for whether EM is appropriate.
+
+:::
+
+## ECM: Expectation-Conditional-Maximization
+
+Ordinary EM requires the M-step to maximize $Q$ jointly
+over all parameters. For complex models, this joint
+maximization may not have a closed form. **ECM** (Meng
+and Rubin, 1993) replaces the single joint M-step with a
+sequence of conditional maximizations: maximize over one
+parameter (or block) at a time, holding the others fixed.
+
+The convergence guarantee carries over: each conditional
+maximization increases $Q$, and so the marginal log-
+likelihood increases monotonically.
+
+ECM is appropriate when:
+
+- The joint M-step has no closed form but the conditional
+  M-steps do.
+- Some parameters have closed-form updates and others
+  require iterative inner maximization.
+
+A common biostatistical case: mixed-effects models with
+several variance components. The variance components do
+not have a joint closed form but each, given the
+others, does. ECM updates one component at a time.
+
+### MCEM: Monte Carlo EM
+
+When the E-step expectation is intractable (no closed
+form, no efficient deterministic computation), **MCEM**
+replaces it with a Monte Carlo average:
+
+$$
+\tilde Q(\boldsymbol\theta \mid \boldsymbol\theta^{(k)}) = \frac{1}{M} \sum_{m=1}^M \ell_c(\boldsymbol\theta; \mathbf{y}, \mathbf{z}^{(m)})
+$$
+
+where $\mathbf{z}^{(m)} \sim p(\mathbf{z} \mid \mathbf{y}, \boldsymbol\theta^{(k)})$
+are samples from the conditional posterior of the latent
+variables given the data and the current parameter.
+
+MCEM applies when:
+
+- The E-step expectation has no closed form.
+- Sampling from $p(\mathbf{z} \mid \mathbf{y}, \boldsymbol\theta)$
+  is feasible (often via MCMC).
+
+The trade-offs:
+
+- The Monte Carlo average has variance $O(1/M)$;
+  convergence to a fixed point is noisy.
+- $M$ should typically grow with the iteration to
+  ensure proper convergence (Booth and Hobert, 1999).
+- Total cost is the inner sampling cost times the outer
+  iteration count, which can be substantial.
+
+MCEM is the standard for generalized linear mixed models
+in some packages (e.g., `glmmADMB`, parts of `lme4`'s
+internals for non-Gaussian outcomes).
+
+### Variational EM
+
+When the E-step expectation is intractable but Monte
+Carlo is too expensive, **variational EM** approximates
+the conditional posterior of $\mathbf{z}$ by a tractable
+family $q(\mathbf{z}; \boldsymbol\phi)$ and minimizes the
+KL divergence to the true posterior.
+
+The E-step becomes: optimize $\boldsymbol\phi$ to minimize
+$\text{KL}(q \| p(\mathbf{z} \mid \mathbf{y}, \boldsymbol\theta))$.
+The M-step is unchanged in form but uses $q$ rather than
+the exact posterior.
+
+Variational EM is the engine behind variational
+autoencoders, latent Dirichlet allocation, and the
+variational implementations of Bayesian models in Stan
+(`variational()`) and PyMC. We treat the broader
+variational-inference picture in @sec-modern-bayesian.
+
+The trade-off: the variational approximation is biased
+(unlike Monte Carlo, which is unbiased). The bias is
+hard to characterize in advance and depends on the
+choice of $q$. Variational EM is the right tool when
+speed is essential and the bias is acceptable.
+
+## Convergence diagnostics
+
+Three diagnostics characterize EM convergence rigorously.
+
+**1. Marginal log-likelihood trace.** Plot the marginal
+log-likelihood against iteration. The trace should be
+monotonically non-decreasing (the EM theorem); if it
+ever decreases, there is a bug. The trace should
+plateau at convergence; the rate of approach gives the
+convergence rate (linear for ordinary EM, faster for
+ECM-Newton or accelerated EM variants).
+
+**2. Parameter trace.** Plot each parameter against
+iteration. Slow drift in late iterations indicates poor
+identifiability or a near-flat region of the
+likelihood; not necessarily a bug, but a signal that
+standard errors will be large.
+
+**3. KKT or gradient at termination.** Compute the
+gradient of the marginal log-likelihood at the
+candidate solution. It should be small. EM does not
+directly produce this gradient; you compute it
+separately. A large gradient indicates premature
+termination.
+
+```r
+# at convergence, check the marginal score
+score <- function(theta, y) {
+  numDeriv::grad(function(t) marginal_loglik(t, y), theta)
+}
+max(abs(score(theta_hat, y)))
+#> [1] 4e-08            # well-converged
+```
+
+## Standard errors via Louis's method
+
+EM does not compute standard errors as a side effect.
+The observed Fisher information $I(\boldsymbol\theta)$
+must be computed separately. Louis's method (Louis,
+1982) gives:
+
+$$
+I(\boldsymbol\theta) = -E\!\left[\frac{\partial^2 \ell_c}{\partial \boldsymbol\theta^2} \mid \mathbf{y}\right] - \text{Var}\!\left[\frac{\partial \ell_c}{\partial \boldsymbol\theta} \mid \mathbf{y}\right].
+$$
+
+In words: the observed information equals the expected
+complete-data Hessian minus the variance of the complete-
+data score, both evaluated at $\hat{\boldsymbol\theta}$
+and conditional on the observed data.
+
+The two terms have intuitive content. The first is what
+the information would be if we observed $\mathbf{z}$
+directly (the *complete information*). The second
+penalizes that quantity for the uncertainty introduced by
+not observing $\mathbf{z}$ (the *missing information*).
+Their difference is what the data actually tell us about
+$\boldsymbol\theta$.
+
+For models where the conditional expectations are
+tractable, Louis's method is implementable in a few
+lines beyond the EM loop. For complex models,
+**supplemented EM (SEM)** numerically estimates the rate
+of convergence of EM and uses it to compute the observed
+information; the implementation is more involved but
+more general.
+
+## Identifiability and label switching
+
+Mixture models have a fundamental non-identifiability:
+permuting the component labels gives an equivalent
+model with the same likelihood. EM converges to one of
+the equivalent solutions; which one depends on the
+starting values.
+
+For a single fit, this is invisible (you report
+*some* labeling). For multiple fits (multi-start runs,
+bootstrap, posterior simulation), the labels must be
+aligned. Standard approaches:
+
+- **Order by mean.** After each fit, sort components by
+  $\mu_1 < \mu_2 < \ldots < \mu_k$. Works when the means
+  separate the components clearly.
+- **Order by mixing weight.** Sort by $\pi_1 \le \pi_2 \le \ldots$.
+- **Hungarian algorithm.** For more complex cases
+  (multivariate components), match across runs by
+  minimizing the total distance between matched
+  components. The `label.switching` R package provides
+  this.
+
+For ordinary EM with a single starting point, label
+switching does not affect the parameter estimates but
+does affect interpretation. State explicitly which
+component is which when reporting.
+
+## Worked example: SE for the mixture model
+
+Adding Louis's method to the mixture-model EM loop
+above:
+
+```r
+em_mixture_with_se <- function(y, n_iter = 100, tol = 1e-8) {
+  fit <- em_mixture(y, n_iter, tol)
+
+  # parameters: pi_1, mu_1, mu_2, sigma
+  theta <- c(fit$pi[1], fit$mu, fit$sigma)
+
+  # marginal log-likelihood as a function of theta
+  marginal_ll <- function(theta) {
+    pi_1   <- theta[1]
+    mu     <- theta[2:3]
+    sigma  <- theta[4]
+    sum(log(pi_1 * dnorm(y, mu[1], sigma) +
+            (1 - pi_1) * dnorm(y, mu[2], sigma)))
+  }
+
+  # observed information via numerical differentiation of the score
+  H <- -numDeriv::hessian(marginal_ll, theta)
+  se <- sqrt(diag(solve(H)))
+
+  list(estimates = theta, se = se,
+       ci_lo = theta - 1.96 * se,
+       ci_hi = theta + 1.96 * se,
+       loglik = fit$loglik)
+}
+
+fit <- em_mixture_with_se(y)
+fit$estimates
+#> [1] 0.41 0.04 4.06 1.00
+fit$se
+#> [1] 0.022 0.082 0.080 0.041
+fit$ci_lo
+#> [1] 0.36 -0.12  3.91  0.92
+```
+
+For mixture models specifically, `mclust::Mclust`
+provides production-grade fitting with BIC-based model
+selection and standard errors via the bootstrap. The
+hand-coded version above is illustrative.
+
+## Collaborating with an LLM on EM
+
+LLMs are reliable for the textbook EM derivations and
+for the standard mixture / hidden Markov / missing-data
+implementations. They are weaker on:
+
+- Recognizing when ECM is needed (vs ordinary EM).
+- Recognizing when MCEM or variational EM is needed
+  (vs direct optimization of the marginal).
+- The bookkeeping of label switching across multiple
+  runs.
+- Standard-error computation via Louis or SEM.
+
+**Prompt 1: derive the E-step and M-step.** Describe the
+model (likelihood, latent structure). Ask the LLM to
+derive the E-step expectation and the M-step update,
+showing intermediate steps.
+
+*What to watch for.* For standard models (Gaussian
+mixture, multinomial, Poisson regression with random
+effects), the LLM should produce correct closed-form
+updates. For non-standard models, the LLM may produce
+plausible-looking but wrong derivations. Verify every
+step against a textbook or published derivation.
+
+*Verification.* Implement the algorithm; check that the
+marginal log-likelihood is non-decreasing. If the
+likelihood ever decreases, the M-step is wrong.
+
+**Prompt 2: write convergence diagnostics.** Paste the
+inner EM loop. Ask the LLM to add: a marginal-log-
+likelihood trace, a parameter trace, and a final
+gradient check.
+
+*What to watch for.* The marginal log-likelihood is the
+key diagnostic; the conditional log-likelihood
+(complete-data, summed with current responsibilities)
+is *not*. The LLM may confuse these.
+
+*Verification.* Run on a problem where the answer is
+known. The marginal log-likelihood at convergence
+should match the closed-form value (where one exists).
+
+**Prompt 3: compute standard errors.** Describe the
+model and the converged parameter. Ask the LLM to
+implement Louis's method or supplemented EM.
+
+*What to watch for.* Louis's method requires the
+expected complete-data Hessian and the variance of the
+complete-data score. The LLM may compute the *observed*
+complete-data Hessian (without the expectation) which
+is wrong. Verify the expectation is taken over the
+conditional posterior of the latent variable.
+
+*Verification.* Compare to bootstrap standard errors on
+the same problem. The two should agree to within bootstrap
+noise. If they disagree by an order of magnitude, the
+Louis implementation is wrong.
+
+The meta-pattern: EM derivations are simple in
+principle and prone to subtle errors in practice. Using
+an LLM to draft the derivation is fine; using it to
+generate the implementation without a manual derivation
+check is risky.
+
+## Principle in use
+
+Three habits define defensible EM practice:
+
+1. **Choose EM deliberately.** EM is the right tool
+   when the complete-data likelihood is much simpler
+   than the marginal. For models where direct
+   maximization works, use it.
+2. **Multi-start.** Run from several initial values;
+   keep the best by marginal log-likelihood. Local
+   optima are common; multi-start is the cheap
+   defense.
+3. **Compute standard errors explicitly.** Louis's
+   method, supplemented EM, or bootstrap. Reporting
+   point estimates without SEs is incomplete; doing
+   so silently is dishonest.
+
+## Exercises
+
+1. Implement EM for a three-component Gaussian mixture
+   with shared variance. Test on synthetic data where
+   the truth is known. Run from 50 random starts;
+   verify the best run reaches the same likelihood
+   each time.
+2. Modify the mixture-model EM to allow component-
+   specific variances. Show that the algorithm can
+   collapse a component onto a single observation
+   (variance shrinks to zero, density goes to
+   infinity). Add a regularization that prevents this.
+3. Implement Louis's method standard errors for the
+   two-component mixture. Compare to bootstrap SEs
+   from 1000 resamples. They should agree to within
+   bootstrap noise.
+4. Use `mclust::Mclust` to fit a Gaussian mixture
+   model on a real dataset (e.g., `iris[, 1:4]`).
+   Compare BIC across $k = 1, \ldots, 8$. Report the
+   selected number of components and interpret.
+5. For a missing-data problem (any biostatistical
+   dataset with a missing covariate), implement EM
+   for the complete-case parameter estimates. Compare
+   to multiple imputation via `mice`. Both should
+   agree to roughly the precision permitted by the
+   data.
+
+## Further reading
+
+- [@dempster1977em], the original EM paper.
+- [@mclachlan2008em], *The EM Algorithm and
+  Extensions*, the canonical reference, includes ECM,
+  MCEM, accelerated EM.
+- [@meng1993ecm], Meng and Rubin, the ECM paper.
+- [@booth1999mcem], Booth and Hobert, MCEM with
+  automated $M$ scheduling.
+- The `mclust` and `flexmix` package documentation for
+  applied mixture-model fitting in R.

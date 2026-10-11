@@ -4,7 +4,7 @@
 
 Answer the following questions to see if you can bypass this
 chapter. You can find the answers at the end of the chapter in
-@sec-quiz-answers-06.
+@sec-quiz-answers-decompositions.
 
 1. What is LU decomposition, and what class of matrices does
    it apply to?
@@ -35,23 +35,22 @@ By the end of this chapter you should be able to:
 ## Orientation
 
 Direct methods for numerical linear algebra all factor a
-matrix into simpler pieces. The three you will actually use
-often in biostatistics are QR (for regression), Cholesky (for
+matrix into simpler pieces. The three most useful in
+biostatistics are QR (for regression), Cholesky (for
 positive-definite systems, including covariance matrices),
 and SVD (for rank-deficient or near-singular problems). LU is
-the engine behind `solve()` but appears less often in user
-code. Eigendecomposition appears via its product ---
-principal components, spectral methods, rather than by
-name.
+the engine behind `solve()`, but it appears less often in
+user code. Eigendecomposition appears via its product
+(principal components, spectral methods) rather than by name.
 
 Every decomposition factors $A$ into a product with special
-structure: triangular, orthogonal, diagonal. The structure is
-what makes downstream computations fast or stable. Solving a
-triangular system is $O(n^2)$ instead of $O(n^3)$; an
-orthogonal transformation preserves norms and so does not
-amplify rounding error. The decompositions are therefore not
-mathematical curiosities; they are the reason statistical
-software can fit models on realistic data at all.
+structure, whether triangular, orthogonal, or diagonal. The
+structure is what makes downstream computations fast or
+stable. Solving a triangular system is $O(n^2)$ instead of
+$O(n^3)$, and an orthogonal transformation preserves norms and
+so does not amplify rounding error. The decompositions are
+therefore not mathematical curiosities. They are the reason
+statistical software can fit models on realistic data at all.
 
 ## The statistician's contribution {#sec-decompositions-human}
 
@@ -209,9 +208,9 @@ $$
 \kappa(X^T X) = \kappa(X)^2
 $$
 
-If $X$ is ill-conditioned, collinear predictors, widely
-different scales, polynomial expansions with high-order terms
---- then $X^T X$ is spectacularly ill-conditioned. In finite-
+If $X$ is ill-conditioned (collinear predictors, widely
+different scales, polynomial expansions with high-order terms),
+then $X^T X$ is spectacularly ill-conditioned. In finite-
 precision arithmetic, this can cost you 5, 10, or more
 decimal digits of accuracy in $\hat\beta$.
 
@@ -441,7 +440,7 @@ A_k <- svd_A$u[, 1:k] %*% diag(svd_A$d[1:k]) %*% t(svd_A$v[, 1:k])
 
 Applications:
 
-- **PCA.** Truncated SVD on the centerd data matrix gives the
+- **PCA.** Truncated SVD on the centered data matrix gives the
   top-$k$ principal components. The singular values squared
   (divided by $n - 1$) are the variances of the principal
   components.
@@ -596,10 +595,9 @@ Three habits characterize effective use of decompositions:
    or near-singular → SVD. Using the general-purpose tool
    when a specialized one applies costs time and precision.
 2. **Prefer decomposition-based solves to explicit
-   inverses.** Same principle as matrix algebra, but with
-   the additional leverage that the decomposition gives you
-   extras (determinants, Mahalanobis distances, simulation)
-   for free.
+   inverses.** Same principle as matrix algebra, and the
+   decomposition also gives you extras (determinants,
+   Mahalanobis distances, simulation) for free.
 3. **Treat rank deficiency as information.** The SVD makes
    rank visible. Use it to understand *why* the design
    matrix is deficient, not just to smooth over the
@@ -642,7 +640,7 @@ Three habits characterize effective use of decompositions:
 - [@halko2011randomized], the standard reference for
   randomized algorithms for large-scale matrix decomposition.
 
-## Practice test {#sec-practice-test-06}
+## Practice test {#sec-practice-test-decompositions}
 
 The following multiple-choice questions exercise the
 chapter's content. Attempt each question before expanding
@@ -743,7 +741,7 @@ $k$ approximation to $A$ in the Frobenius norm is:
 compression, matrix completion, and low-rank denoising.
 :::
 
-## Prerequisites answers {#sec-quiz-answers-06}
+## Prerequisites answers {#sec-quiz-answers-decompositions}
 
 1. LU decomposition factors a square matrix $A$ into a
    lower triangular $L$ and an upper triangular $U$ such

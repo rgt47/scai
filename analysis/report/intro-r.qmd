@@ -4,7 +4,7 @@
 
 Answer the following questions to see if you can bypass this
 chapter. You can find the answers at the end of the chapter in
-@sec-quiz-answers-01.
+@sec-quiz-answers-intro-r.
 
 1. What is the difference between `c(1, 'a')` and `list(1, 'a')`?
 2. In the expression `df[df$x > 0, ]`, what kind of R object is
@@ -31,16 +31,16 @@ By the end of this chapter you should be able to:
 
 R is the *lingua franca* of statistical computing in academic
 biostatistics. It is not the fastest language, nor the most
-elegant, but it has by far the richest library of statistical
-methods and the largest community of statisticians reading,
-writing, and reviewing code. This chapter gets you fluent
-enough in R to read the rest of the book.
+elegant. It does, however, have by far the richest library of
+statistical methods and the largest community of statisticians
+reading, writing, and reviewing code. This chapter aims to get
+you fluent enough in R to read the rest of the book.
 
 ## The statistician's contribution {#sec-intro-r-human}
 
 Large language models can produce passable R code for almost
-any introductory task. Three decisions still require the
-statistician's judgment.
+any introductory task. We shall see, however, that three
+decisions still require the statistician's judgment.
 
 **1. Type discipline.** R coerces silently between types in
 ways that can hide errors. `c(1, '2')` becomes
@@ -445,7 +445,7 @@ broken data.
 - [@wickham2019advr] Chapters 1-3, essential for reading other people's R code.
 - [@grolemund2017r4ds], the 1st edition is still a readable slower-paced introduction to the tidyverse.
 
-## Prerequisites answers {#sec-quiz-answers-01}
+## Prerequisites answers {#sec-quiz-answers-intro-r}
 
 1. `c(1, 'a')` coerces both elements to the most permissive
    atomic type, producing `c('1', 'a')` (character).

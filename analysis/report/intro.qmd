@@ -27,12 +27,12 @@ Why learn any of this when an LLM will produce working R
 code on request? The preface gave the short answer; in
 this chapter we shall give the long one.
 
-The answer has two parts. The first part is *practical*:
+The answer has two parts. The first part is *practical*.
 LLMs fail in specific, learnable, predictable ways, and a
 statistician who cannot detect those failures will sign
 her name to analyses that are wrong. The second part is
-*structural*: certain decisions in statistical computing
-cannot be delegated to an LLM in principle, because they
+*structural*. Certain decisions in statistical computing
+cannot be delegated to an LLM in principle. That is, they
 depend on information the LLM does not have and cannot
 obtain through prompting.
 
@@ -41,6 +41,24 @@ obtain through prompting.
 For every topic in this book, the statistician-LLM
 division of labor sorts, it appears, into four
 categories.
+
+The framework holds whether the LLM answers you in a
+chat window or acts as a coding agent that edits files
+and runs code on its own. An agent does not change what
+the model knows or does not know. It changes how fast a
+wrong answer becomes a wrong file, which is why the
+categories below matter more, not less, once the LLM in
+front of you can execute its own advice.
+
+Practitioners in 2026 distinguish two disciplines. 'Vibe
+coding' means prompting a model, accepting the result, and
+running it without review. 'Agentic coding,' or 'agentic
+engineering,' means letting an agent plan, write, and run
+code in a loop, but with a human still reviewing the
+result against real acceptance criteria before trusting
+it. This book teaches the second discipline. The four
+categories below are, in effect, what that review has to
+check.
 
 **Category 1: Things the LLM does reliably.**
 
@@ -165,9 +183,11 @@ practices the verification that catches the error.
 Given the four-category framework, our position is
 straightforward:
 
-> **Use LLMs as an amplifier, not a replacement.** Treat
-> every line of generated code as a hypothesis to be
-> tested, not a result to be trusted.
+> **Use LLMs and the agents built on them as an
+> amplifier, not a replacement.** Treat every line of
+> generated code as a hypothesis to be tested, not a
+> result to be trusted, whether you wrote the prompt or
+> the agent wrote and ran it itself.
 
 Specifically, we recommend that students:
 
@@ -187,11 +207,11 @@ Specifically, we recommend that students:
 ## Why the hard work still pays
 
 Students occasionally ask whether this training is
-obsolete, whether, in five years, the LLM will be
-good enough that these warnings no longer apply. The
-honest answer, it seems, is: perhaps, and perhaps not.
-On the other hand, three arguments remain even under the
-optimistic assumption:
+obsolete. Will the LLM, in five years, be good enough
+that these warnings no longer apply? The honest answer,
+it seems, is perhaps, and perhaps not. On the other hand,
+three arguments remain even under the optimistic
+assumption:
 
 1. **Professional accountability does not transfer.**
    However capable the LLM becomes, when an FDA reviewer
@@ -212,7 +232,9 @@ biostatistician is for.
 
 ## What you will be able to do
 
-By the end of this book, the reader should be able to:
+The book is written for a two-quarter sequence, one quarter
+per half. By the end of the first half, the reader should be
+able to:
 
 - Write clean, vectorized, functional R code that is
   easy for collaborators to read and maintain.
@@ -226,18 +248,34 @@ By the end of this book, the reader should be able to:
 - Design and execute a simulation study that produces
   defensible answers to a research question.
 - Fit, diagnose, and interpret linear, generalized
-  linear, mixed-effects, survival, and Bayesian models on
-  real biomedical data, including recognizing when each
-  is and is not appropriate.
+  linear, mixed-effects, and survival models on real
+  biomedical data, including recognizing when each is
+  and is not appropriate.
 - Bootstrap inferential quantities for statistics whose
   analytic standard errors are unavailable, and
   recognize the cases where the bootstrap fails.
-- Produce publication-quality graphics with `ggplot2`
-  and build an interactive exploratory tool with Shiny.
+- Produce publication-quality graphics with `ggplot2`.
+
+By the end of the [second half](intro-advanced.qmd), the
+reader should also be able to:
+
+- Recognize and repair numerically unstable computations,
+  and choose sparse or iterative linear algebra when the
+  problem calls for it.
+- Fit models by constrained, proximal, and EM-type
+  algorithms, with standard errors.
+- Fit and diagnose Bayesian models, from a hand-written
+  sampler to Stan, and compare them by cross-validation.
 - Scale a computation across cores with the `future`
-  framework.
+  framework, and beyond one machine when that is
+  warranted.
+- Fit and validate penalized regression and machine
+  learning models.
 - Package a set of analysis functions as an R package,
-  with unit tests and automated documentation.
+  with unit tests and automated documentation, in a
+  reproducible computational environment.
+- Build an interactive exploratory tool with Shiny or a
+  dashboard framework.
 
 And, across all of these:
 
@@ -279,6 +317,14 @@ labor explicit:
     the course's exam bank), multiple-choice questions
     drawn from the course test bank.
 
+Chapters that came from the second-quarter course
+(@sec-numerical-stability through @sec-monte-carlo,
+@sec-mcmc-depth, @sec-modern-bayesian, @sec-hpc,
+@sec-high-dim, @sec-machine-learning,
+@sec-software-engineering, @sec-reproducible-environments,
+and @sec-interactive-viz) do not yet carry items 1, 9, and
+10.
+
 ## How to work through this book
 
 For each chapter, the recommended workflow is:
@@ -299,7 +345,7 @@ For each chapter, the recommended workflow is:
    this book is designed to build.
 
 Students who follow this workflow learn the material.
-Students who skip steps 2 and 3 do not, and within a
-year they cannot distinguish their own contributions
-from the LLM's, which means, in turn, that they cannot
+Students who skip steps 2 and 3 do not. Within a year
+they cannot distinguish their own contributions from the
+LLM's, and that means, in turn, that they cannot
 professionally account for either.

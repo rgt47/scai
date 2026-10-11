@@ -4,7 +4,7 @@
 
 Answer the following questions to see if you can bypass this
 chapter. You can find the answers at the end of the chapter in
-@sec-quiz-answers-19.
+@sec-quiz-answers-packages.
 
 1. What are the two absolutely essential files or
    directories required for a minimal functional R
@@ -35,7 +35,7 @@ By the end of this chapter you should be able to:
 
 ## Orientation
 
-Everything you have written so far has been a script. A
+Everything written so far in this book has been a script. A
 script is a set of instructions that runs top-to-bottom and
 ends. A *package* is a reusable library of functions with
 documentation, tests, and a dependency declaration.
@@ -59,33 +59,34 @@ Package development looks like software engineering, and it
 is. The judgments specific to statistical packages are
 about audience and scope.
 
-**Who will use this?** A package for your own analysis
+**Who will use this?** A package for one's own analysis
 needs little more than working code and a `DESCRIPTION`. A
-package for your research group needs documentation and
+package for a research group needs documentation and
 tests. A package for the public CRAN repository needs
 clean dependencies, vignettes, and continuous integration.
-Pick the audience first; the engineering follows.
+We would pick the audience first; the engineering follows.
 
 **What goes in the package, and what stays in the
 analysis?** A function reused across two projects belongs
 in a package; one used once does not. A regression
 diagnostic that comes up in every analysis is a candidate;
 a one-off plot for one paper is not. The boundary is
-fuzzy; the heuristic is that anything you would otherwise
-copy-paste between projects is a packaging candidate.
+fuzzy, but the heuristic is that anything one would
+otherwise copy and paste between projects is a packaging
+candidate.
 
 **Documentation as a contract.** The roxygen comment above
 a function is a promise about its behavior: what arguments
 it takes, what it returns, what conditions it expects.
 Vague documentation produces confused users and bug
-reports about expected behavior. Specific documentation
---- including the edge cases the function does or does not
+reports about expected behavior. Specific documentation,
+including the edge cases the function does or does not
 handle, saves time over the package's life.
 
-**Dependencies are a tax.** Each package you `Import`
-becomes a thing your users must install. Each version
+**Dependencies are a tax.** Each package listed under
+`Import` becomes something users must install. Each version
 restriction (`dplyr (>= 1.0.0)`) constrains the environments
-your package will work in. The minimum-viable dependency
+the package will work in. The minimum-viable dependency
 list saves friction; the maximalist 'use whatever is
 convenient' approach produces packages that are hard to
 install five years later.
@@ -138,9 +139,9 @@ This creates:
 Then add the standard scaffolding:
 
 ```r
-use_git()                    # initialise git repository
+use_git()                    # initialize git repository
 use_github()                 # create a GitHub repository
-use_mit_license()            # add an MIT licence
+use_mit_license()            # add an MIT license
 use_readme_rmd()             # README that knits to README.md
 use_testthat()               # set up the testing framework
 use_news_md()                # NEWS.md for changelog
@@ -464,8 +465,8 @@ most of them reasonably and stumble on a few specific
 ones.
 
 **Prompt 1: drafting a roxygen header.** Paste the
-function and ask: 'write a roxygen2 header with @param,
-@return, @export, and @examples. The example should be a
+function and ask: 'write a roxygen2 header with `@param`,
+`@return`, `@export`, and `@examples`. The example should be a
 realistic, runnable use of the function.'
 
 *What to watch for.* The example needs to actually run. A
@@ -551,7 +552,7 @@ Three habits define defensible package development:
   the technical reference; usually a last resort, but
   authoritative when conflicts arise.
 
-## Practice test {#sec-practice-test-19}
+## Practice test {#sec-practice-test-packages}
 
 The following multiple-choice questions exercise the
 chapter's content. Attempt each question before expanding
@@ -654,7 +655,7 @@ and the namespace from roxygen comments. Hand-editing
 `.Rd` files is wrong; they will be overwritten.
 :::
 
-## Prerequisites answers {#sec-quiz-answers-19}
+## Prerequisites answers {#sec-quiz-answers-packages}
 
 1. The `DESCRIPTION` file (metadata) and the `R/`
    directory (source code). Everything else (`NAMESPACE`,
