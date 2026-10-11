@@ -1,0 +1,45 @@
+# Netlify redirects, copied into _book by the project resources list.
+# Rules are matched top to bottom; the first match wins.
+
+# Old scai chapter URLs (numbered file names, before the merge).
+/00-intro.html                 /intro.html                   301!
+/01-intro-r.html               /intro-r.html                 301!
+/02-git.html                   /git.html                     301!
+/03-r-internals.html           /r-internals.html             301!
+/04-functional.html            /functional.html              301!
+/05-matrix-algebra.html        /matrix-algebra.html          301!
+/06-decompositions.html        /decompositions.html          301!
+/07-optimization.html          /optimization.html            301!
+/08-simulation.html            /simulation.html              301!
+/09-bootstrap.html             /bootstrap.html               301!
+/10-linear-models.html         /linear-models.html           301!
+/11-glm.html                   /glm.html                     301!
+/12-mixed-models.html          /mixed-models.html            301!
+/13-survival.html              /survival.html                301!
+/14-bayesian.html              /bayesian.html                301!
+/15-viz-grammar.html           /viz-grammar.html             301!
+/16-ggplot2-advanced.html      /ggplot2-advanced.html        301!
+/17-shiny.html                 /shiny.html                   301!
+/18-parallel.html              /parallel.html                301!
+/19-packages.html              /packages.html                301!
+/20-testing.html               /testing.html                 301!
+
+# Old scai-advanced URLs. These match only once
+# scai-advanced.rgtlab.org is a domain alias of this Netlify site.
+https://scai-advanced.rgtlab.org/                                   https://scai.rgtlab.org/intro-advanced.html             301!
+https://scai-advanced.rgtlab.org/index.html                         https://scai.rgtlab.org/intro-advanced.html             301!
+https://scai-advanced.rgtlab.org/00-intro.html                      https://scai.rgtlab.org/intro-advanced.html             301!
+https://scai-advanced.rgtlab.org/01-numerical-stability.html        https://scai.rgtlab.org/numerical-stability.html        301!
+https://scai-advanced.rgtlab.org/02-numerical-linalg.html           https://scai.rgtlab.org/numerical-linalg.html           301!
+https://scai-advanced.rgtlab.org/03-advanced-optimization.html      https://scai.rgtlab.org/advanced-optimization.html      301!
+https://scai-advanced.rgtlab.org/04-em-extensions.html              https://scai.rgtlab.org/em-extensions.html              301!
+https://scai-advanced.rgtlab.org/05-monte-carlo.html                https://scai.rgtlab.org/monte-carlo.html                301!
+https://scai-advanced.rgtlab.org/06-mcmc-depth.html                 https://scai.rgtlab.org/mcmc-depth.html                 301!
+https://scai-advanced.rgtlab.org/07-modern-bayesian.html            https://scai.rgtlab.org/modern-bayesian.html            301!
+https://scai-advanced.rgtlab.org/08-hpc.html                        https://scai.rgtlab.org/hpc.html                        301!
+https://scai-advanced.rgtlab.org/09-high-dim.html                   https://scai.rgtlab.org/high-dim.html                   301!
+https://scai-advanced.rgtlab.org/10-machine-learning.html           https://scai.rgtlab.org/machine-learning.html           301!
+https://scai-advanced.rgtlab.org/11-software-engineering.html       https://scai.rgtlab.org/software-engineering.html       301!
+https://scai-advanced.rgtlab.org/11b-reproducible-environments.html https://scai.rgtlab.org/reproducible-environments.html  301!
+https://scai-advanced.rgtlab.org/12-interactive-viz.html            https://scai.rgtlab.org/interactive-viz.html            301!
+https://scai-advanced.rgtlab.org/*                                  https://scai.rgtlab.org/:splat                          301!

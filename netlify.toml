@@ -1,9 +1,14 @@
+# Deploys come from .github/workflows/render-book.yml, which renders
+# analysis/report and uploads _book through the Netlify API, so Netlify
+# never runs this build block. It is kept correct for a Netlify-side
+# build. Page redirects live in analysis/report/_redirects, which is
+# copied into the published directory and is honored on API deploys.
 [build]
-  publish = "_book"
-  command = "quarto render"
+  publish = "analysis/report/_book"
+  command = "quarto render analysis/report --to html"
 
 [build.environment]
-  QUARTO_VERSION = "1.5.57"
+  QUARTO_VERSION = "1.10.18"
 
 [[headers]]
   for = "/*"
@@ -12,6 +17,8 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
 
+# The book does not yet render a 404.html, so this falls back to
+# Netlify's default 404 page.
 [[redirects]]
   from = "/*"
   to = "/404.html"

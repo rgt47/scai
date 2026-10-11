@@ -12,6 +12,8 @@ project:
   pre-render:
     - ../../tools/us-spelling
   type: book
+  resources:
+    - _redirects
 
 profile:
   default: html
