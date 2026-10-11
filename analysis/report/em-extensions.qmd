@@ -34,7 +34,7 @@ and many missing-data problems all reduce to maximizing a
 likelihood with unobserved or missing components. The EM
 algorithm is the standard tool for that maximization.
 
-The introductory volume (@sec-mixed-models) treated
+@sec-mixed-models treated
 mixed-effects models via `lme4`, which uses penalized
 quasi-likelihood plus a deterministic Laplace
 approximation rather than EM. EM is needed when the

@@ -1,49 +1,51 @@
 # Introduction to the Second Half {#sec-intro-advanced .unnumbered}
 
-## What this book is
+## What the second half is
 
-This is a graduate textbook in advanced statistical computing
-for biostatistics, intended as the second volume in a two-book
-sequence. The introductory volume,
-[*Statistical Computing in the Age of AI*](https://scai.rgtlab.org),
-covers programming, numerical linear algebra, optimization,
-simulation, the bootstrap, the standard statistical models,
-and reproducibility infrastructure at a one-quarter graduate
-pace. The present volume begins where that one leaves off.
+The first half of this book covers programming, numerical
+linear algebra, optimization, simulation, the bootstrap, the
+standard frequentist models, and statistical graphics. It is
+written for the first quarter of a two-quarter graduate
+sequence. The second half, which begins here, is written for
+the second quarter and begins where the first leaves off. In
+print it is Volume II.
 
 ## What 'advanced' means here
 
-The word 'advanced' carries three meanings in this book, in
-increasing strength.
+The word 'advanced' carries three meanings in the second half,
+in increasing strength.
 
 The first is **a deeper treatment of foundational topics.**
-Chapters 1 and 2, on numerical stability and numerical linear
-algebra, revisit material the introductory volume touches but
-does not treat in depth. Floating-point arithmetic, condition
-numbers, sparse and iterative solvers, and BLAS-level
-performance are the load-bearing fundamentals for everything
-that follows. An advanced book that omits them is, we would
-argue, missing a layer.
+@sec-numerical-stability and @sec-numerical-linalg, on
+numerical stability and numerical linear algebra, revisit
+material the first half touches but does not treat in depth.
+Floating-point arithmetic, condition numbers, sparse and
+iterative solvers, and BLAS-level performance are the
+load-bearing fundamentals for everything that follows. An
+advanced treatment that omits them is, we would argue, missing
+a layer.
 
 The second is **topics that exceed introductory scope.**
-Chapters 3 through 7 take up advanced optimization, the EM
-algorithm and its extensions, Monte Carlo in depth, MCMC in
-depth, and modern Bayesian computation. Each chapter extends
-the introductory treatment of its topic into the territory
-needed for current methodological research and for applied
-practice with modern tools.
+@sec-advanced-optimization through @sec-modern-bayesian take
+up advanced optimization, the EM algorithm and its extensions,
+Monte Carlo in depth, Bayesian computation, MCMC in depth, and
+modern Bayesian computation. Each chapter extends the
+first-half treatment of its topic into the territory needed
+for current methodological research and for applied practice
+with modern tools.
 
-The third is **topics that did not appear in the introductory
-volume at all.** Chapters 8 through 13 take up high-performance
-computing, high-dimensional methods, machine learning,
+The third is **topics that did not appear in the first half
+at all.** @sec-parallel through @sec-interactive-viz take up
+parallel and high-performance computing, high-dimensional
+methods, machine learning, R package development and testing,
 software engineering for statisticians, reproducible
-computational environments, and advanced interactive
-visualization. This is ground the introductory volume
-deliberately set aside. Each is the kind of topic a practicing
-biostatistician meets mid-career, and that graduate training
-ought to prepare them for.
+computational environments, and interactive applications and
+dashboards. This is ground the first half deliberately sets
+aside. Each is the kind of topic a practicing biostatistician
+meets mid-career, and that graduate training ought to prepare
+them for.
 
-## What 'in the Age of AI' commits the book to
+## What 'in the Age of AI' commits the second half to
 
 The subtitle is a structural commitment and not decoration.
 Every chapter carries two named sections that exercise it.
@@ -68,30 +70,39 @@ each paired with what to watch for and how to verify. Each
 prompt is structured as a triple, the prompt itself, the
 failure modes the model may exhibit, and a verification step
 the reader runs to catch them. We apply the framework
-uniformly across the thirteen chapters.
+uniformly across the second half, as in the first.
 
 ## Reading order
 
 The chapters may be read in order or out of order, subject to
 the following dependencies.
 
-- Chapters 1 and 2, the numerical foundations, underpin all
-  the numerical work in chapters 3 through 7.
-- Chapter 3, advanced optimization, feeds chapter 4, the EM
-  algorithm and its extensions, and chapter 9, high-dimensional
-  methods.
-- Chapter 5, Monte Carlo, feeds chapter 6, MCMC, which in turn
-  feeds chapter 7, modern Bayesian computation.
-- Chapters 10 through 13, machine learning, software
-  engineering, reproducible computational environments, and
-  interactive visualization, are largely independent of one
-  another and of the numerical chapters, with two exceptions:
-  chapter 10 uses the optimization tools of chapter 3, and
-  chapter 12 follows naturally from chapter 11.
+- @sec-numerical-stability and @sec-numerical-linalg, the
+  numerical foundations, underpin all the numerical work in
+  @sec-advanced-optimization through @sec-modern-bayesian.
+- @sec-advanced-optimization feeds @sec-em-extensions, the EM
+  algorithm and its extensions, and @sec-high-dim,
+  high-dimensional methods.
+- @sec-monte-carlo, Monte Carlo, feeds @sec-bayesian, Bayesian
+  computation, which feeds @sec-mcmc-depth, MCMC, which in
+  turn feeds @sec-modern-bayesian, modern Bayesian
+  computation.
+- @sec-parallel, parallel computing, comes before @sec-hpc,
+  high-performance and distributed computing.
+- @sec-packages, package development, comes before
+  @sec-testing, testing, and both come before
+  @sec-software-engineering and
+  @sec-reproducible-environments.
+- @sec-shiny, Shiny, comes before @sec-interactive-viz,
+  interactive visualization and dashboards.
+- Otherwise the computing and software chapters are largely
+  independent of one another and of the numerical chapters,
+  with one exception: @sec-machine-learning uses the
+  optimization tools of @sec-advanced-optimization.
 
-A reader who follows the dependencies in order treats the book
-as a course; a reader who picks topics ad hoc treats it as a
-reference.
+A reader who follows the dependencies in order treats the
+second half as a course; a reader who picks topics ad hoc
+treats it as a reference.
 
 ## What this book does not cover
 
@@ -105,15 +116,13 @@ curriculum:
 - Missing-data computing in depth.
 - Meta-analysis.
 
-We point to the standard references for each as they arise,
-and the peer-syllabus survey in `docs/syllabi-survey.md`
-documents the rationale.
+We point to the standard references for each as they arise.
 
 ## Software environment
 
-The book assumes a current R installation, a current Quarto,
-and the package set used in the introductory volume. New
-software introduced in this volume is named in the chapter
-that uses it. The companion *Biostatistics Practicum* volume
-documents the workflow, the infrastructure, and the deployment
-conventions assumed throughout.
+The second half assumes a current R installation, a current
+Quarto, and the package set used in the first half. New
+software is named in the chapter that uses it. The companion
+*Biostatistics Practicum* documents the workflow, the
+infrastructure, and the deployment conventions assumed
+throughout.

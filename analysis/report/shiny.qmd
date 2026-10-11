@@ -4,7 +4,7 @@
 
 Answer the following questions to see if you can bypass this
 chapter. You can find the answers at the end of the chapter in
-@sec-quiz-answers-17.
+@sec-quiz-answers-shiny.
 
 1. What are the two top-level components of every Shiny
    application?
@@ -638,7 +638,7 @@ Three habits define defensible Shiny development:
 - The `shiny` package vignettes, especially 'Reactivity:
   An overview'.
 
-## Practice test {#sec-practice-test-17}
+## Practice test {#sec-practice-test-shiny}
 
 The following multiple-choice questions exercise the
 chapter's content. Attempt each question before expanding
@@ -742,7 +742,7 @@ is:
 which reactives ran when, in response to which events.
 :::
 
-## Prerequisites answers {#sec-quiz-answers-17}
+## Prerequisites answers {#sec-quiz-answers-shiny}
 
 1. A user-interface (UI) function and a server function.
    The UI defines inputs and output placeholders; the

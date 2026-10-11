@@ -4,7 +4,7 @@
 
 Answer the following questions to see if you can bypass this
 chapter. You can find the answers at the end of the chapter in
-@sec-quiz-answers-06.
+@sec-quiz-answers-decompositions.
 
 1. What is LU decomposition, and what class of matrices does
    it apply to?
@@ -640,7 +640,7 @@ Three habits characterize effective use of decompositions:
 - [@halko2011randomized], the standard reference for
   randomized algorithms for large-scale matrix decomposition.
 
-## Practice test {#sec-practice-test-06}
+## Practice test {#sec-practice-test-decompositions}
 
 The following multiple-choice questions exercise the
 chapter's content. Attempt each question before expanding
@@ -741,7 +741,7 @@ $k$ approximation to $A$ in the Frobenius norm is:
 compression, matrix completion, and low-rank denoising.
 :::
 
-## Prerequisites answers {#sec-quiz-answers-06}
+## Prerequisites answers {#sec-quiz-answers-decompositions}
 
 1. LU decomposition factors a square matrix $A$ into a
    lower triangular $L$ and an upper triangular $U$ such

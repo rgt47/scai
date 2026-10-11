@@ -10,8 +10,12 @@ carried an uncommitted wording fix), bibliographies merged (144
 entries; 8 shared keys differed only in formatting, 03's version
 kept), `sec-intro` collision fixed, 04's notation section added to
 `conventions.qmd`. HTML renders with no unresolved cross-references.
-Remaining: text edits 2 and 3 below, redirects and deploy, the
-cross-volume filter, then content harmonization.
+
+**Status (2026-10-11, step 2 done).** Text edits 1 to 3 below are
+complete; preface, index, and introduction describe one book in two
+halves; 04's credits and acknowledgments folded in; the Volume II
+cover regenerated with the merged title. Remaining: redirects and
+deploy, the cross-volume filter, then content harmonization.
 
 ## Files
 

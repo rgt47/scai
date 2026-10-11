@@ -4,7 +4,7 @@
 
 Answer the following questions to see if you can bypass this
 chapter. You can find the answers at the end of the chapter in
-@sec-quiz-answers-14.
+@sec-quiz-answers-bayesian.
 
 1. State Bayes' theorem for posterior inference on a
    parameter $\theta$ given data $y$, identifying the
@@ -666,7 +666,7 @@ Three habits define defensible Bayesian computation:
 - Bürkner (2017), 'brms: An R package for Bayesian
   multilevel models using Stan', *JSS*, the brms paper.
 
-## Practice test {#sec-practice-test-14}
+## Practice test {#sec-practice-test-bayesian}
 
 The following multiple-choice questions exercise the
 chapter's content. Attempt each question before expanding
@@ -777,7 +777,7 @@ misspecification that no diagnostic of the parameters
 alone catches.
 :::
 
-## Prerequisites answers {#sec-quiz-answers-14}
+## Prerequisites answers {#sec-quiz-answers-bayesian}
 
 1. Bayes' theorem:
    $p(\theta \mid y) = p(y \mid \theta) p(\theta) / p(y)$,

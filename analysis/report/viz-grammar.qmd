@@ -4,7 +4,7 @@
 
 Answer the following questions to see if you can bypass this
 chapter. You can find the answers at the end of the chapter in
-@sec-quiz-answers-15.
+@sec-quiz-answers-viz-grammar.
 
 1. Name the seven main components of a statistical plot
    according to the Grammar of Graphics.
@@ -523,7 +523,7 @@ forms before relying on the result.
 - [@healy2018data], shorter, applied, with R code; a
   good complement to Wickham's reference.
 
-## Practice test {#sec-practice-test-15}
+## Practice test {#sec-practice-test-viz-grammar}
 
 The following multiple-choice questions exercise the
 chapter's content. Attempt each question before expanding
@@ -621,7 +621,7 @@ species do not have; the ggplot2 defaults are not
 color-blind-safe.
 :::
 
-## Prerequisites answers {#sec-quiz-answers-15}
+## Prerequisites answers {#sec-quiz-answers-viz-grammar}
 
 1. Data, aesthetic mappings, geometries (geoms),
    statistical transformations (stats), scales,

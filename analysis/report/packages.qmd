@@ -4,7 +4,7 @@
 
 Answer the following questions to see if you can bypass this
 chapter. You can find the answers at the end of the chapter in
-@sec-quiz-answers-19.
+@sec-quiz-answers-packages.
 
 1. What are the two absolutely essential files or
    directories required for a minimal functional R
@@ -552,7 +552,7 @@ Three habits define defensible package development:
   the technical reference; usually a last resort, but
   authoritative when conflicts arise.
 
-## Practice test {#sec-practice-test-19}
+## Practice test {#sec-practice-test-packages}
 
 The following multiple-choice questions exercise the
 chapter's content. Attempt each question before expanding
@@ -655,7 +655,7 @@ and the namespace from roxygen comments. Hand-editing
 `.Rd` files is wrong; they will be overwritten.
 :::
 
-## Prerequisites answers {#sec-quiz-answers-19}
+## Prerequisites answers {#sec-quiz-answers-packages}
 
 1. The `DESCRIPTION` file (metadata) and the `R/`
    directory (source code). Everything else (`NAMESPACE`,

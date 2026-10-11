@@ -4,7 +4,7 @@
 
 Answer the following questions to see if you can bypass this
 chapter. You can find the answers at the end of the chapter in
-@sec-quiz-answers-03.
+@sec-quiz-answers-r-internals.
 
 1. Given `x <- list(a = 1, b = 2, c = 3)`, what is the type
    and value returned by `x[["b"]]`, and how does it differ
@@ -661,7 +661,7 @@ reach for when the habits are not enough.
   documentation is excellent, short, and includes runnable
   examples.
 
-## Practice test {#sec-practice-test-03}
+## Practice test {#sec-practice-test-r-internals}
 
 The following multiple-choice questions exercise the
 chapter's content. Attempt each question before expanding
@@ -780,7 +780,7 @@ n(n+1)/2 = O(n²). Options A, B, and D are all O(n) or
 better.
 :::
 
-## Prerequisites answers {#sec-quiz-answers-03}
+## Prerequisites answers {#sec-quiz-answers-r-internals}
 
 1. `x[["b"]]` extracts the element at key `'b'` and returns
    it at its own type, here the numeric scalar `2`. `x["b"]`

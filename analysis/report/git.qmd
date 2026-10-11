@@ -4,7 +4,7 @@
 
 Answer the following questions to see if you can bypass this
 chapter. You can find the answers at the end of the chapter in
-@sec-quiz-answers-02.
+@sec-quiz-answers-git.
 
 1. What is the primary purpose of version control, and how does
    it differ from keeping backup copies of files with dated
@@ -760,7 +760,7 @@ they are not, no amount of tooling will save you.
   an interactive visualization of branching and merging.
   Recommended for visual learners.
 
-## Practice test {#sec-practice-test-02}
+## Practice test {#sec-practice-test-git}
 
 The following multiple-choice questions exercise the chapter's
 content. Attempt each question before expanding the answer.
@@ -838,7 +838,7 @@ Treat it as a disclosure incident and handle it through
 the appropriate compliance channel.
 :::
 
-## Prerequisites answers {#sec-quiz-answers-02}
+## Prerequisites answers {#sec-quiz-answers-git}
 
 1. Version control tracks changes to files over time,
    enabling you to review history, revert to earlier

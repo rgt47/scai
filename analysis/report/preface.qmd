@@ -134,7 +134,7 @@ opened in the past three years.
 What this book adds is a unifying pedagogical framework
 for statistical computing *in the presence of competent
 LLMs*. That framework is what the subtitle commits to, and
-it is what Parts I through VI of the book deliver.
+it is what Parts I through X of the book deliver.
 
 ## Prerequisites
 
@@ -159,34 +159,32 @@ cues used throughout the book.
 
 ## How this book relates to its siblings
 
-This volume is the introductory volume in a four-volume
-graduate sequence.
+This book is one of three in a graduate sequence.
 
 - [*Biostatistics Practicum*](https://rgtlab.org/practicum)
   covers the workflow that surrounds the methods:
   reproducibility, Git, Docker, renv, Quarto reporting,
   tidyverse data wrangling, CDISC, SAS, AI-assisted
   coding, and clinical-trial case studies.
-- *Statistical Computing in the Age of AI* (this volume)
-  covers the methods: programming in R, numerical
-  algorithms, and the core inferential techniques (linear
-  models, GLMs, mixed models, survival, Bayesian,
-  bootstrap, simulation).
-- [*Advanced Statistical Computing in the Age of AI*](https://scai-advanced.rgtlab.org)
-  is the second methods volume, covering numerical
-  stability, numerical linear algebra in depth, advanced
-  optimization, EM, Monte Carlo, MCMC, modern Bayesian
-  computation, high-performance and distributed
+- *Statistical Computing in the Age of AI* (this book)
+  covers the methods in two halves, one per quarter, and
+  is printed in two volumes. The first half covers
+  programming in R, numerical algorithms, simulation, the
+  bootstrap, and the core models (linear models, GLMs,
+  mixed models, survival). The second half covers
+  numerical stability, numerical linear algebra in depth,
+  advanced optimization, EM, Monte Carlo, Bayesian
+  computation and MCMC, parallel and high-performance
   computing, high-dimensional methods, machine learning
-  for biostatistics, software engineering, and advanced
-  interactive visualization.
+  for biostatistics, package development and software
+  engineering, and interactive visualization.
 - [*Applied Generative AI for Health Sciences Research*](https://applied-genai.rgtlab.org)
   treats generative AI as the orthogonal axis: capability
   classes, reasoning models, biomedical RAG, multimodal
   medical AI, agents and the Model Context Protocol,
   evaluation, safety, regulation, and deployment.
 
-Together the four books form a two-year graduate
+Together the three books form a two-year graduate
 biostatistics curriculum. Each can be read independently.
 
 ## Acknowledgments
@@ -196,7 +194,10 @@ chapter-opening diagnostic quiz, the end-of-chapter
 answers, and the section-level exercises, follow the model
 used in the Posit open-source textbook series
 [@wickham2023r4ds; @wickham2023rpkgs; @wickham2019advr].
-The tidyverse R packages maintained by the Posit
+*Bayesian Data Analysis* and *Statistical Rethinking*
+shaped the Bayesian chapters of the second half, and
+*Mastering Shiny* and *ggplot2* informed its visual-design
+decisions. The tidyverse R packages maintained by the Posit
 engineering team are used throughout the code examples,
 and their consistent interface is reflected in the style
 of the prose.

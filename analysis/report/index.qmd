@@ -16,20 +16,20 @@ We have written it in the tradition of the Posit book family
 ([*R for Data Science*](https://r4ds.hadley.nz),
 [*Advanced R*](https://adv-r.hadley.nz),
 [*R Packages*](https://r-pkgs.org)), and we use the same Quarto
-toolchain. The book is the introductory volume in a four-volume
-graduate sequence:
+toolchain. The book is written for a two-quarter course, one
+quarter per half, and is printed in two volumes. It is one of
+three books in a graduate sequence:
 
 - [*Biostatistics Practicum*](https://rgtlab.org/practicum)
   covers the workflow infrastructure (Git, Docker, renv,
   Quarto, CDISC, SAS) that surrounds the methods.
-- *Statistical Computing in the Age of AI* (this volume).
-- [*Advanced Statistical Computing in the Age of AI*](https://scai-advanced.rgtlab.org)
-  covers the advanced material: numerical stability,
-  numerical linear algebra in depth, advanced optimization,
-  EM, Monte Carlo, MCMC, modern Bayesian computation,
-  high-performance and distributed computing,
+- *Statistical Computing in the Age of AI* (this book). The
+  first half covers the foundations and the core models; the
+  [second half](intro-advanced.qmd) covers numerical
+  stability, advanced optimization, EM, Monte Carlo,
+  Bayesian computation, high-performance computing,
   high-dimensional methods, machine learning, software
-  engineering, interactive visualization.
+  engineering, and interactive visualization.
 - [*Applied Generative AI for Health Sciences Research*](https://applied-genai.rgtlab.org)
   treats generative AI as the orthogonal axis: capability
   classes, reasoning models, biomedical RAG, multimodal

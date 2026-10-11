@@ -4,7 +4,7 @@
 
 Answer the following questions to see if you can bypass this
 chapter. You can find the answers at the end of the chapter in
-@sec-quiz-answers-04.
+@sec-quiz-answers-functional.
 
 1. What is the primary purpose of the `purrr` package? In what
    situations would you reach for it rather than base R's
@@ -611,7 +611,7 @@ subtle bugs, just at a higher level of abstraction than a
  , a particularly clear treatment of the
   row-oriented/column-oriented distinction.
 
-## Practice test {#sec-practice-test-04}
+## Practice test {#sec-practice-test-functional}
 
 The following multiple-choice questions exercise the
 chapter's content. Attempt each question before expanding
@@ -711,7 +711,7 @@ you need when you want to report *which* strata failed and
 aborts at the first failure; `walk()` is for side effects.
 :::
 
-## Prerequisites answers {#sec-quiz-answers-04}
+## Prerequisites answers {#sec-quiz-answers-functional}
 
 1. `purrr` provides a consistent family of
    functional-programming tools, chiefly the `map_*()`

@@ -28,7 +28,7 @@ By the end of this chapter you should be able to:
 
 ## Orientation
 
-The introductory volume's Bayesian chapter
+The preceding chapter on Bayesian computation
 (@sec-bayesian) introduced MCMC at the
 Metropolis-Hastings and Gibbs-sampler level. That
 treatment shows the mathematical structure but produces

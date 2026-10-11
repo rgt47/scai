@@ -232,7 +232,9 @@ biostatistician is for.
 
 ## What you will be able to do
 
-By the end of this book, the reader should be able to:
+The book is written for a two-quarter sequence, one quarter
+per half. By the end of the first half, the reader should be
+able to:
 
 - Write clean, vectorized, functional R code that is
   easy for collaborators to read and maintain.
@@ -246,18 +248,34 @@ By the end of this book, the reader should be able to:
 - Design and execute a simulation study that produces
   defensible answers to a research question.
 - Fit, diagnose, and interpret linear, generalized
-  linear, mixed-effects, survival, and Bayesian models on
-  real biomedical data, including recognizing when each
-  is and is not appropriate.
+  linear, mixed-effects, and survival models on real
+  biomedical data, including recognizing when each is
+  and is not appropriate.
 - Bootstrap inferential quantities for statistics whose
   analytic standard errors are unavailable, and
   recognize the cases where the bootstrap fails.
-- Produce publication-quality graphics with `ggplot2`
-  and build an interactive exploratory tool with Shiny.
+- Produce publication-quality graphics with `ggplot2`.
+
+By the end of the [second half](intro-advanced.qmd), the
+reader should also be able to:
+
+- Recognize and repair numerically unstable computations,
+  and choose sparse or iterative linear algebra when the
+  problem calls for it.
+- Fit models by constrained, proximal, and EM-type
+  algorithms, with standard errors.
+- Fit and diagnose Bayesian models, from a hand-written
+  sampler to Stan, and compare them by cross-validation.
 - Scale a computation across cores with the `future`
-  framework.
+  framework, and beyond one machine when that is
+  warranted.
+- Fit and validate penalized regression and machine
+  learning models.
 - Package a set of analysis functions as an R package,
-  with unit tests and automated documentation.
+  with unit tests and automated documentation, in a
+  reproducible computational environment.
+- Build an interactive exploratory tool with Shiny or a
+  dashboard framework.
 
 And, across all of these:
 
@@ -298,6 +316,14 @@ labor explicit:
 10. **Practice test** (chapters with matching content in
     the course's exam bank), multiple-choice questions
     drawn from the course test bank.
+
+Chapters that came from the second-quarter course
+(@sec-numerical-stability through @sec-monte-carlo,
+@sec-mcmc-depth, @sec-modern-bayesian, @sec-hpc,
+@sec-high-dim, @sec-machine-learning,
+@sec-software-engineering, @sec-reproducible-environments,
+and @sec-interactive-viz) do not yet carry items 1, 9, and
+10.
 
 ## How to work through this book
 

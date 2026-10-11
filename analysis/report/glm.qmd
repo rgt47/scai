@@ -4,7 +4,7 @@
 
 Answer the following questions to see if you can bypass this
 chapter. You can find the answers at the end of the chapter in
-@sec-quiz-answers-11.
+@sec-quiz-answers-glm.
 
 1. What distinguishes Generalized Linear Models from ordinary
    linear models?
@@ -671,7 +671,7 @@ Three habits define defensible GLM practice:
 - [@uwmadison-glm], short GLM tutorial with R code.
 - [@pennstate-stat504], detailed free treatment.
 
-## Practice test {#sec-practice-test-11}
+## Practice test {#sec-practice-test-glm}
 
 The following multiple-choice questions exercise the
 chapter's content. Attempt each question before expanding
@@ -777,7 +777,7 @@ illustration of why OR alone is misleading without
 baseline risk context.
 :::
 
-## Prerequisites answers {#sec-quiz-answers-11}
+## Prerequisites answers {#sec-quiz-answers-glm}
 
 1. GLMs allow the response to follow any member of the
    exponential family (binomial, Poisson, gamma, inverse

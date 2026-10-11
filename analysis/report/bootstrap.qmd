@@ -4,7 +4,7 @@
 
 Answer the following questions to see if you can bypass this
 chapter. You can find the answers at the end of the chapter in
-@sec-quiz-answers-09.
+@sec-quiz-answers-bootstrap.
 
 1. What is the primary problem the bootstrap is designed to
    solve?
@@ -754,7 +754,7 @@ question the LLM will not ask for you.
 - [@efron1993bootstrap] Chapters 13-15, BCa and studentised intervals.
 - [@hesterberg2015bootstrap], pedagogical pitfalls that appear in student work.
 
-## Practice test {#sec-practice-test-09}
+## Practice test {#sec-practice-test-bootstrap}
 
 The following multiple-choice questions exercise the chapter's content. Attempt
 each question before expanding the answer.
@@ -858,7 +858,7 @@ $\hat\theta$ defined?
 $\bar\theta^*$ is the mean of bootstrap replicates.
 :::
 
-## Prerequisites answers {#sec-quiz-answers-09}
+## Prerequisites answers {#sec-quiz-answers-bootstrap}
 
 1. The bootstrap assesses the sampling distribution of a
    statistic (its standard error, bias, and confidence interval)

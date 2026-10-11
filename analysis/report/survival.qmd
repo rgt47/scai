@@ -4,7 +4,7 @@
 
 Answer the following questions to see if you can bypass this
 chapter. You can find the answers at the end of the chapter in
-@sec-quiz-answers-13.
+@sec-quiz-answers-survival.
 
 1. What is 'right censoring', and how does it differ from a
    missing outcome?
@@ -589,7 +589,7 @@ Three habits define defensible survival analyses:
   analysis', *Clinical Cancer Research*, a clear
   motivation for Fine-Gray.
 
-## Practice test {#sec-practice-test-13}
+## Practice test {#sec-practice-test-survival}
 
 The following multiple-choice questions exercise the
 chapter's content. Attempt each question before
@@ -698,7 +698,7 @@ this covariate is:
 representation. Options A--C all introduce bias.
 :::
 
-## Prerequisites answers {#sec-quiz-answers-13}
+## Prerequisites answers {#sec-quiz-answers-survival}
 
 1. Right censoring occurs when a participant's event
    time is known to exceed some observed time $C$ (for

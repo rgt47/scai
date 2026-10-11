@@ -25,7 +25,7 @@ By the end of this chapter you should be able to:
 
 ## Orientation
 
-The introductory volume's simulation chapter
+The simulation chapter in the first half of the book
 (@sec-simulation) treated Monte Carlo as a tool for
 estimating sampling distributions and method properties.
 That treatment used the simplest version: simulate from
@@ -304,8 +304,7 @@ When comparing two methods on the same simulated
 dataset, use *the same* simulated dataset for both.
 This induces positive correlation between the two
 methods' estimates, reducing the variance of their
-difference. We treated this in the introductory volume
-(@sec-simulation); it is the simplest variance-reduction
+difference. We treated this in @sec-simulation; it is the simplest variance-reduction
 technique and the highest-leverage in method comparison.
 
 ## Approximate Bayesian Computation
@@ -491,8 +490,8 @@ than the precision being claimed is dishonest.
 
 Consider a simulation comparing the power of the
 $t$-test and the Wilcoxon rank-sum test under
-log-normal data. The introductory volume covered this
-under simple Monte Carlo. Here we add common random
+log-normal data. @sec-simulation covered this under
+simple Monte Carlo. Here we add common random
 numbers (already covered) and then a control variate.
 
 ```r

@@ -44,7 +44,8 @@ that should be 0.999 returns 1.001; an MCMC chain produces
 NaN after a million iterations and the cause is not apparent
 from the output.
 
-The introductory volume taught the algorithms; this chapter
+@sec-matrix-algebra through @sec-optimization taught the
+algorithms; this chapter
 teaches when those algorithms break and how to tell. The
 material is foundational for every numerical chapter that
 follows. It is also the kind of material a working

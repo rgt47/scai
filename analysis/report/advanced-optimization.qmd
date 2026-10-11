@@ -30,7 +30,7 @@ By the end of this chapter you should be able to:
 
 ## Orientation
 
-The introductory volume covered Newton's method and
+@sec-optimization covered Newton's method and
 quasi-Newton methods (BFGS, L-BFGS) for unconstrained
 optimization. That treatment handles the vast majority of
 likelihood-based estimators: GLMs, mixed-effects models,
