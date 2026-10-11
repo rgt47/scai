@@ -1,0 +1,81 @@
+# Print Volume II: second quarter. Chapters 16 to 33, Parts VI to X.
+#
+# The counter offsets make the printed numbering continue from
+# Volume I so that 'Chapter 21' means the same thing in print and on
+# the website. Update both numbers if Volume I gains or loses a
+# numbered chapter or part.
+
+project:
+  output-dir: _book-vol2
+
+book:
+  title: 'Statistical Computing in the Age of AI'
+  subtitle: 'Volume II: Advanced Methods and Scientific Software'
+  cover-image: images/cover-vol2.png
+  output-file: scai-vol2
+
+  chapters:
+    - half-title.qmd
+    - copyright.qmd
+    - index.qmd
+    - conventions.qmd
+    - intro-advanced.qmd
+
+    - part: 'Numerical Computing in Depth'
+      chapters:
+        - numerical-stability.qmd
+        - numerical-linalg.qmd
+        - advanced-optimization.qmd
+        - em-extensions.qmd
+
+    - part: 'Monte Carlo and Bayesian Computation'
+      chapters:
+        - monte-carlo.qmd
+        - bayesian.qmd
+        - mcmc-depth.qmd
+        - modern-bayesian.qmd
+
+    - part: 'Scaling and Modern Modeling'
+      chapters:
+        - parallel.qmd
+        - hpc.qmd
+        - high-dim.qmd
+        - machine-learning.qmd
+
+    - part: 'Scientific Software'
+      chapters:
+        - packages.qmd
+        - testing.qmd
+        - software-engineering.qmd
+        - reproducible-environments.qmd
+
+    - part: 'Interactive Communication'
+      chapters:
+        - shiny.qmd
+        - interactive-viz.qmd
+
+    - references.qmd
+
+  appendices:
+    - credits.qmd
+    - colophon.qmd
+
+format:
+  pdf:
+    include-in-header:
+      text: |
+        \usepackage{fontspec}
+        \setmonofont{DejaVu Sans Mono}[Scale=0.9]
+    include-before-body:
+      text: |
+        \begin{titlepage}
+        \thispagestyle{empty}
+        \newgeometry{margin=0pt}
+        \noindent\makebox[\paperwidth]{%
+          \includegraphics[width=\paperwidth,height=\paperheight,keepaspectratio]{images/cover-vol2.png}%
+        }
+        \restoregeometry
+        \end{titlepage}
+        \cleardoublepage
+        \setcounter{part}{5}
+        \setcounter{chapter}{15}

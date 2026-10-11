@@ -1,0 +1,119 @@
+# Introduction to the Second Half {#sec-intro-advanced .unnumbered}
+
+## What this book is
+
+This is a graduate textbook in advanced statistical computing
+for biostatistics, intended as the second volume in a two-book
+sequence. The introductory volume,
+[*Statistical Computing in the Age of AI*](https://scai.rgtlab.org),
+covers programming, numerical linear algebra, optimization,
+simulation, the bootstrap, the standard statistical models,
+and reproducibility infrastructure at a one-quarter graduate
+pace. The present volume begins where that one leaves off.
+
+## What 'advanced' means here
+
+The word 'advanced' carries three meanings in this book, in
+increasing strength.
+
+The first is **a deeper treatment of foundational topics.**
+Chapters 1 and 2, on numerical stability and numerical linear
+algebra, revisit material the introductory volume touches but
+does not treat in depth. Floating-point arithmetic, condition
+numbers, sparse and iterative solvers, and BLAS-level
+performance are the load-bearing fundamentals for everything
+that follows. An advanced book that omits them is, we would
+argue, missing a layer.
+
+The second is **topics that exceed introductory scope.**
+Chapters 3 through 7 take up advanced optimization, the EM
+algorithm and its extensions, Monte Carlo in depth, MCMC in
+depth, and modern Bayesian computation. Each chapter extends
+the introductory treatment of its topic into the territory
+needed for current methodological research and for applied
+practice with modern tools.
+
+The third is **topics that did not appear in the introductory
+volume at all.** Chapters 8 through 13 take up high-performance
+computing, high-dimensional methods, machine learning,
+software engineering for statisticians, reproducible
+computational environments, and advanced interactive
+visualization. This is ground the introductory volume
+deliberately set aside. Each is the kind of topic a practicing
+biostatistician meets mid-career, and that graduate training
+ought to prepare them for.
+
+## What 'in the Age of AI' commits the book to
+
+The subtitle is a structural commitment and not decoration.
+Every chapter carries two named sections that exercise it.
+
+The first, **The statistician's contribution**, is placed
+early: it is an explicit articulation of the judgments at the
+center of the chapter that no large language model can make on
+the reader's behalf. Advanced material is exactly where the
+human-LLM division of labor matters most. A careless prompt in
+an introductory bootstrap chapter produces a bug that a re-run
+will catch. A careless prompt in a Hamiltonian Monte Carlo or a
+high-dimensional chapter produces results that look plausible
+and are wrong. The stakes rise further once the prompt is
+handed to a coding agent that edits the analysis code and
+reruns the pipeline unattended, rather than typed into a chat
+window. In that case nothing forces a human to see the
+intermediate step where the mistake was made.
+
+The second, **Collaborating with an LLM on the topic at
+hand**, comes at the end of the chapter: specific prompts,
+each paired with what to watch for and how to verify. Each
+prompt is structured as a triple, the prompt itself, the
+failure modes the model may exhibit, and a verification step
+the reader runs to catch them. We apply the framework
+uniformly across the thirteen chapters.
+
+## Reading order
+
+The chapters may be read in order or out of order, subject to
+the following dependencies.
+
+- Chapters 1 and 2, the numerical foundations, underpin all
+  the numerical work in chapters 3 through 7.
+- Chapter 3, advanced optimization, feeds chapter 4, the EM
+  algorithm and its extensions, and chapter 9, high-dimensional
+  methods.
+- Chapter 5, Monte Carlo, feeds chapter 6, MCMC, which in turn
+  feeds chapter 7, modern Bayesian computation.
+- Chapters 10 through 13, machine learning, software
+  engineering, reproducible computational environments, and
+  interactive visualization, are largely independent of one
+  another and of the numerical chapters, with two exceptions:
+  chapter 10 uses the optimization tools of chapter 3, and
+  chapter 12 follows naturally from chapter 11.
+
+A reader who follows the dependencies in order treats the book
+as a course; a reader who picks topics ad hoc treats it as a
+reference.
+
+## What this book does not cover
+
+We have set aside several topics that are usually taught in
+dedicated methods courses elsewhere in a biostatistics
+curriculum:
+
+- Causal inference computing.
+- Longitudinal data analysis beyond the introductory GLMM
+  material.
+- Missing-data computing in depth.
+- Meta-analysis.
+
+We point to the standard references for each as they arise,
+and the peer-syllabus survey in `docs/syllabi-survey.md`
+documents the rationale.
+
+## Software environment
+
+The book assumes a current R installation, a current Quarto,
+and the package set used in the introductory volume. New
+software introduced in this volume is named in the chapter
+that uses it. The companion *Biostatistics Practicum* volume
+documents the workflow, the infrastructure, and the deployment
+conventions assumed throughout.

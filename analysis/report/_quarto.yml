@@ -1,17 +1,27 @@
+# Base configuration shared by every build of the merged book.
+#
+# Chapter lists live only in the profile files, never here. Quarto
+# merges a profile into this base, and keeping the lists out of the
+# base means no build depends on how that merge treats arrays.
+#
+#   quarto render --profile html            # full book, website
+#   quarto render --profile vol1 --to pdf   # Volume I, first quarter
+#   quarto render --profile vol2 --to pdf   # Volume II, second quarter
+
 project:
   pre-render:
     - ../../tools/us-spelling
   type: book
-  output-dir: _book
+
+profile:
+  default: html
 
 book:
   title: 'Statistical Computing in the Age of AI'
-  subtitle: 'A graduate textbook in biostatistics'
   author: 'The rgtlab Curriculum Project'
   date: today
   date-format: 'YYYY-MM-DD'
 
-  cover-image: images/cover.png
   favicon: images/favicon.png
 
   site-url: https://scai.rgtlab.org
@@ -25,58 +35,6 @@ book:
   sidebar:
     style: docked
     collapse-level: 1
-
-  chapters:
-    - half-title.qmd
-    - copyright.qmd
-    - index.qmd
-    - preface.qmd
-    - conventions.qmd
-    - 00-intro.qmd
-
-    - part: 'Foundations'
-      chapters:
-        - 01-intro-r.qmd
-        - 02-git.qmd
-        - 03-r-internals.qmd
-        - 04-functional.qmd
-
-    - part: 'Numerical Methods'
-      chapters:
-        - 05-matrix-algebra.qmd
-        - 06-decompositions.qmd
-        - 07-optimization.qmd
-
-    - part: 'Computational Statistics'
-      chapters:
-        - 08-simulation.qmd
-        - 09-bootstrap.qmd
-
-    - part: 'Statistical Models'
-      chapters:
-        - 10-linear-models.qmd
-        - 11-glm.qmd
-        - 12-mixed-models.qmd
-        - 13-survival.qmd
-        - 14-bayesian.qmd
-
-    - part: 'Visualization and Communication'
-      chapters:
-        - 15-viz-grammar.qmd
-        - 16-ggplot2-advanced.qmd
-        - 17-shiny.qmd
-
-    - part: 'Scaling and Software Engineering'
-      chapters:
-        - 18-parallel.qmd
-        - 19-packages.qmd
-        - 20-testing.qmd
-
-    - references.qmd
-
-  appendices:
-    - credits.qmd
-    - colophon.qmd
 
 format:
   html:
@@ -103,9 +61,12 @@ format:
     smooth-scroll: true
 
   pdf:
+    pdf-engine: xelatex
     documentclass: scrbook
-    classoption: [11pt]
-    toc: false
+    classoption: [11pt, openany]
+    callout-appearance: simple
+    toc: true
+    toc-depth: 2
     code-annotations: below
     highlight-style: arrow
     geometry:
@@ -115,21 +76,6 @@ format:
       - bottom=0.9in
       - inner=0.9in
       - outer=0.7in
-    include-in-header:
-      text: |
-        \usepackage{fontspec}
-        \setmonofont{DejaVu Sans Mono}[Scale=0.9]
-    include-before-body:
-      text: |
-        \begin{titlepage}
-        \thispagestyle{empty}
-        \newgeometry{margin=0pt}
-        \noindent\makebox[\paperwidth]{%
-          \includegraphics[width=\paperwidth,height=\paperheight,keepaspectratio]{images/cover.png}%
-        }
-        \restoregeometry
-        \end{titlepage}
-        \cleardoublepage
 
 bibliography: references.bib
 csl: https://www.zotero.org/styles/apa

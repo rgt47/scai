@@ -1,0 +1,523 @@
+# High-Dimensional and Sparse Methods {#sec-high-dim}
+
+## Learning objectives
+
+By the end of this chapter you should be able to:
+
+- Distinguish the lasso, ridge, elastic net, group lasso, and
+  adaptive lasso, and choose between them based on the
+  scientific question and the structure of the predictors.
+- Use cross-validation in `glmnet` for tuning $\lambda$, and
+  recognize its weaknesses for selection-stable inference.
+- Apply screening rules (SAFE, strong, EDPP) to scale lasso
+  fits to $p$ in the millions, and use `biglasso` for
+  out-of-memory designs.
+- Use the knockoff filter [@candes2018panning] to control the
+  false-discovery rate among selected variables, and explain
+  what guarantees it provides and when those guarantees fail.
+- Reason about post-selection inference: why naive confidence
+  intervals after lasso are wrong, and what `selectiveInference`,
+  `hdi`, and debiased lasso offer instead.
+- Recognize when sparse methods are the right tool, and when
+  they are an overfit solution to a problem that calls for
+  hierarchical Bayesian shrinkage or principal components.
+
+## Orientation
+
+When the number of candidate predictors $p$ approaches or
+exceeds the sample size $n$, ordinary least squares no longer
+identifies a unique solution. Overfitting becomes the
+dominant statistical risk. Modern high-dimensional methods
+address this with two ideas. The first is **structural
+assumption**: the belief that the
+truth is sparse (few non-zero coefficients), or grouped, or
+low-rank. The second is **regularization**: a penalty that
+encodes that assumption into the optimization.
+
+The lasso [@tibshirani1996regression] launched this field by
+combining sparsity with computational tractability. The
+twenty years since have produced refinements (elastic net,
+group lasso, adaptive lasso), scalability advances
+(coordinate descent, screening rules, biglasso), and a
+post-selection inference apparatus (knockoffs, debiased
+lasso, selective inference) that gives back something
+resembling confidence intervals.
+
+This chapter covers all three. We start with the penalty
+zoo and tuning, work through scaling, and finish with
+selection inference and the knockoff filter. The framing
+throughout: **sparsity is an assumption, not a fact**. When
+the assumption holds, sparse methods are dramatically
+effective. When it does not, they produce confidently wrong
+answers.
+
+## The statistician's contribution {#sec-high-dim-human}
+
+LLMs can fit a `glmnet` model and call `cv.glmnet`. They
+cannot decide whether the lasso assumption, that few
+predictors are truly associated with the outcome, is
+appropriate for the problem at hand, nor whether the
+selected variables warrant the causal language a
+collaborator wants to attach to them.
+
+**(Judgment 1.) Sparsity is a modeling commitment.** The
+lasso assumes a sparse truth, most coefficients are
+exactly zero. In some applications this is a reasonable
+prior: a genome-wide association study where most SNPs are
+unrelated to the phenotype. In others it is implausible: a
+clinical risk model where many demographic and clinical
+factors plausibly contribute small, partially correlated
+effects. Forcing sparsity on a non-sparse truth produces a
+biased model that is over-confident about which variables
+matter. Ridge regression or hierarchical Bayesian shrinkage
+would be the better tool. The statistician decides whether
+sparsity matches the science.
+
+**(Judgment 2.) The selected set is not the active set.**
+The lasso selects predictors based on their conditional
+contribution given the others. Highly correlated predictors
+get arbitrarily assigned: lasso picks one and zeros the
+others, even when biologically the others are equally
+involved. The selected set is *one valid sparse
+representation* of the data, not the set of true causal
+contributors. Reporting the selected variables as 'the
+variables associated with the outcome' overstates the
+guarantee. The statistician explains what the selection
+does and does not show.
+
+**(Judgment 3.) Post-selection inference is not optional
+window-dressing.** Naive standard errors and $p$-values
+computed on the selected variables ignore the selection
+event and are anti-conservative. The fix, whether knockoffs, debiased lasso, sample
+splitting, or stability selection, is part of the analysis,
+not a refinement. An LLM that
+returns a `glmnet` fit and the selected variables without
+addressing inference has produced an exploration, not a
+result. The statistician owns this distinction.
+
+These judgments decide whether a high-dimensional analysis
+informs a scientific claim or merely produces a list of
+covariates.
+
+## The penalty zoo
+
+The lasso minimizes
+$$
+\frac{1}{2n}\|y - X\beta\|_2^2 + \lambda \|\beta\|_1
+$$
+for tuning parameter $\lambda \ge 0$. The $\ell_1$ penalty
+shrinks coefficients toward zero and sets some exactly to
+zero, performing simultaneous shrinkage and selection.
+
+**Ridge** uses $\|\beta\|_2^2$ instead. It shrinks but does
+not select, and it is the right choice when many small
+contributions are expected.
+
+**Elastic net** [@zou2005regularization] mixes the two:
+$\alpha \|\beta\|_1 + (1-\alpha)\|\beta\|_2^2$. The
+combination retains the lasso's selection while sharing
+information across correlated predictors, neither lasso's
+arbitrary single-pick nor ridge's no-selection.
+
+**Group lasso** [@yuan2006model] applies the penalty to
+groups of coefficients (e.g., all dummy levels of a
+categorical predictor), so a group is selected or zeroed as
+a unit. The right tool whenever predictors come in natural
+groups: dummy-coded factors, splines, gene pathways.
+
+**Adaptive lasso** [@zou2006adaptive] applies different
+weights to different coefficients, with the weights derived
+from a preliminary estimator. Under regularity conditions
+it has the **oracle property**, it consistently selects the
+true active set and gives asymptotically normal estimates
+on that set, properties the plain lasso lacks.
+
+**SCAD** [@fan2001variable] and **MCP**
+[@zhang2010nearly] are non-convex penalties that further
+reduce the bias toward zero on large coefficients. They are
+implemented in `ncvreg` and are standard in genetics
+applications. They lose the convex-optimization guarantees
+of the lasso but often perform better in practice on truly
+sparse problems.
+
+A practical default: **start with elastic net**. The lasso
+is a corner case ($\alpha = 1$); ridge is the other ($\alpha
+= 0$); the elastic net interpolates and is robust to the
+mis-specification of either extreme. Use the group lasso
+when groups are natural; use SCAD or MCP when the bias of
+the lasso is the binding constraint.
+
+## Tuning $\lambda$ via cross-validation
+
+`cv.glmnet` is the standard tool. Two choices of $\lambda$
+are returned: `lambda.min` (the value minimizing mean CV
+error) and `lambda.1se` (the largest $\lambda$ within one
+standard error of the minimum). The 1-SE rule produces
+sparser, more interpretable solutions at modest predictive
+cost; it is the conventional default for *selection*. For
+prediction-oriented work, `lambda.min` typically wins on
+out-of-sample loss.
+
+````{.r}
+library(glmnet)
+fit_cv <- cv.glmnet(
+  x = X, y = y,
+  family = "binomial", alpha = 0.5,
+  nfolds = 10
+)
+plot(fit_cv)
+coef(fit_cv, s = "lambda.1se")
+````
+
+Three points deserve emphasis.
+
+**Standardize predictors.** `glmnet` standardizes by default;
+this is correct and should not be turned off. The lasso
+penalty is not scale-invariant, so unstandardized predictors
+on different scales receive different effective penalties.
+
+**The CV loss is not the inferential target.** CV measures
+predictive accuracy. If your question is which variables
+matter, CV optimization is a means to an end. If your
+question is which variables are stable across resamples,
+**stability selection** [@meinshausen2010stability] is a
+better tool: refit on many subsamples, retain variables
+that are selected with high probability.
+
+**Repeated CV reduces variance.** Single 10-fold CV gives
+noisy $\lambda$ estimates. Repeating CV with different fold
+assignments and averaging is standard. `glmnet`'s
+`cv.glmnet` does not do this directly; wrap it in a loop or
+use `caret`/`tidymodels` for repeated CV.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: when ridge beats lasso
+
+**Question.** A clinical risk model has 50 candidate
+predictors, all expected to contribute small but non-zero
+effects (demographics, comorbidities, lab values). The
+investigator asks whether to use lasso or ridge. The dataset
+has $n = 5000$. Which is appropriate?
+
+**Answer.**
+
+Ridge (or elastic net with low $\alpha$). The scientific
+prior is that most predictors contribute small effects,
+which is the ridge regime. Lasso would zero many true (small)
+effects, biasing the resulting model. With $n = 5000$ and
+$p = 50$, OLS would also work but variance can still be
+reduced by mild shrinkage. Elastic net with $\alpha \le 0.2$
+is a defensible default; pure ridge ($\alpha = 0$) is the
+appropriate choice if no selection is desired.
+
+:::
+
+## Scaling: screening rules and `biglasso`
+
+When $p$ is in the millions, typical for genome-wide
+analyses, even coordinate descent on the full design is too
+slow. Two ideas extend the lasso's reach.
+
+**Screening rules** identify predictors that are guaranteed
+or almost-guaranteed to have zero coefficient at the target
+$\lambda$, and exclude them from the active-set computation.
+
+- **SAFE** [@elghaoui2012safe] gives a provably safe
+  exclusion: predictors that fail the SAFE bound have zero
+  coefficient at $\lambda$, exactly.
+- **Strong rules** [@tibshirani2012strong] are a
+  near-safe heuristic: provably correct at the first
+  $\lambda$ on the path, then progressively heuristic. In
+  practice they exclude almost all truly inactive
+  predictors and require only an active-set check after
+  fitting to confirm correctness.
+- **EDPP** [@wang2015lasso] (Enhanced Dual Polytope
+  Projection) is a more aggressive safe rule that often
+  excludes 99% or more of predictors at the first
+  $\lambda$.
+
+`glmnet` uses strong rules internally. For very large
+problems where even strong rules are insufficient,
+`biglasso` [@zeng2017biglasso] adds out-of-memory support
+via memory-mapped files, parallelism, and a more aggressive
+EDPP-derived screening, achieving order-of-magnitude
+speedups over `glmnet` on $p$ in the millions.
+
+````{.r}
+library(biglasso)
+X.bm <- as.big.matrix(X)
+fit <- biglasso(X.bm, y, family = "binomial",
+                ncores = 4)
+plot(fit)
+````
+
+The `bigmemory` design avoids loading the full matrix into
+R's heap, allowing fits on designs that exceed RAM.
+
+## Selection inference: knockoffs and beyond
+
+Once you have a selected variable set, the natural next
+question, 'are these variables really associated, or is
+some of the selection a chance artifact?', is the question
+naive lasso output cannot answer.
+
+**The knockoff filter** [@candes2018panning] constructs
+artificial 'knockoff' variables that mimic the joint
+distribution of the original predictors but are conditionally
+independent of the outcome given the originals. Running the
+lasso on the augmented design (originals plus knockoffs) and
+comparing the order of entry of originals versus knockoffs
+gives a finite-sample false discovery rate (FDR)
+guarantee.
+
+The pseudocode is straightforward:
+
+````{.r}
+library(knockoff)
+result <- knockoff.filter(
+  X, y, fdr = 0.10,
+  knockoffs = create.gaussian,
+  statistic = stat.glmnet_coefdiff
+)
+result$selected
+````
+
+The result is a set of variables for which the FDR, the
+expected proportion of false discoveries among the selected:
+is at most 0.10. This is a rigorous guarantee, finite-sample,
+under one assumption: the knockoff construction satisfies
+the exchangeability condition. For Gaussian designs with
+known covariance the construction is exact; for unknown
+covariance it is approximate (`create.gaussian` estimates).
+For non-Gaussian designs, the **model-X knockoff** version
+[@candes2018panning] requires only that the joint
+distribution of $X$ is known or estimable.
+
+The framework's strengths and limits:
+
+- **Strength.** A finite-sample FDR guarantee is rare in
+  high-dimensional inference. The knockoff filter is the
+  cleanest available answer for genome-wide selection.
+- **Limit.** Power can be modest, especially when
+  predictors are highly correlated. The knockoffs and the
+  originals are by construction similar, so the lasso may
+  enter them in similar order.
+- **Limit.** The construction depends on knowing the
+  joint distribution of $X$. For a designed experiment or
+  GWAS where $X$ has known structure, this is fine. For
+  observational data with arbitrary correlations and
+  missing data, the assumptions become heavier.
+
+**Other approaches.** **Debiased lasso** [@vandeGeer2014;
+@zhang2014confidence] removes the bias from the lasso
+estimate by an explicit correction, producing
+asymptotically normal estimators amenable to confidence
+intervals. **Selective inference** [@lee2016exact;
+@taylor2018post] conditions on the selection event and
+produces $p$-values valid given that selection. **Sample
+splitting** [@meinshausen2009p] uses one half of the data
+to select and the other to compute classical inference on
+the selected set. **Stability selection**
+[@meinshausen2010stability] runs many lasso fits on
+subsamples and retains variables selected with high
+probability.
+
+For a typical analysis the recommendation is: **use
+knockoffs for FDR-controlled selection in
+high-dimensional discovery; use sample splitting or
+debiased lasso when classical confidence intervals on the
+selected set are required; use stability selection as a
+sanity check on any selected set.**
+
+## Worked example: a genome-wide-style analysis
+
+We illustrate on a simulated design with $n = 1000$, $p =
+20{,}000$, and 30 truly active predictors.
+
+````{.r}
+library(glmnet)
+library(knockoff)
+set.seed(228)
+
+n <- 1000; p <- 20000
+X <- matrix(rnorm(n * p), n, p)
+beta <- numeric(p)
+active <- sample(p, 30)
+beta[active] <- rnorm(30, 0, 1.5)
+y <- X %*% beta + rnorm(n)
+
+fit_cv <- cv.glmnet(X, y, alpha = 0.5)
+selected_glmnet <- which(coef(fit_cv,
+                              s = "lambda.1se")[-1] != 0)
+length(selected_glmnet)
+length(intersect(selected_glmnet, active))
+````
+
+The elastic net at `lambda.1se` selects roughly 60–80
+variables; about 22 of the 30 truly active are recovered;
+the rest are false discoveries, a false-discovery rate
+near 60%. This is what naive selection looks like in this
+regime.
+
+````{.r}
+result <- knockoff.filter(
+  X, y, fdr = 0.10,
+  knockoffs = create.second_order,
+  statistic = stat.glmnet_coefdiff
+)
+length(result$selected)
+length(intersect(result$selected, active))
+````
+
+The knockoff filter at FDR 0.10 selects about 18 variables;
+about 17 are truly active. The realized FDR is roughly 0.06,
+well within the 0.10 target. The price is reduced power:
+the knockoff selection misses 13 of the 30 active predictors
+while the naive lasso would have caught more, but the
+false-discovery rate is now controlled.
+
+For a genome-wide study where the cost of follow-up
+experiments on false discoveries is high, the knockoff
+filter's controlled FDR is usually the better trade.
+
+## Collaborating with an LLM on high-dimensional methods
+
+Three patterns dominate. LLMs are reliable on the syntax of
+`glmnet`, `biglasso`, `knockoff`, and `ncvreg`, and on
+explaining the lasso–ridge–elastic net distinction. They
+are unreliable on the choice of method for a given
+scientific question and on selection inference.
+
+**Prompt 1: 'Fit a lasso to this binary outcome and report
+the selected variables.'** Provide the data and the formula.
+
+*What to watch for.* The LLM will return a `cv.glmnet` fit
+and a list of selected variables, often without warning
+about the absence of selection inference. It will not flag
+that the selected variables are not the same as 'the
+variables associated with the outcome' and that classical
+intervals on those variables are invalid. It will not
+mention stability selection or knockoffs.
+
+*Verification.* Always supplement a lasso selection with at
+least one of (a) stability selection, (b) knockoffs for
+FDR control, or (c) sample splitting for classical
+inference. The LLM-default 'fit and report selected' is
+the start of an analysis, not its end.
+
+**Prompt 2: 'Should I use lasso, ridge, or elastic net for
+this problem?'** Provide the scientific question, the
+expected sparsity, and the predictor structure.
+
+*What to watch for.* The LLM will often default to the lasso
+on the basis of interpretability and sparsity arguments
+without checking whether sparsity is a defensible
+assumption for the problem. It may not raise the
+correlated-predictor issue (lasso picks arbitrarily among
+correlated predictors).
+
+*Verification.* Ask explicitly: is a sparse truth
+plausible? Are predictors correlated? If the answer to
+sparsity is 'no' or unclear, ridge or elastic net with
+small $\alpha$ is the safer default. If the answer to
+correlation is 'yes,' the elastic net's sharing of
+correlated predictors is a feature.
+
+**Prompt 3: 'Implement a knockoff filter for this design
+and report the selected variables at FDR 0.05.'** Provide
+the design and outcome.
+
+*What to watch for.* The LLM will produce a working
+`knockoff::knockoff.filter` call. It will not always
+discuss the assumption that the joint distribution of $X$
+is appropriately captured, and it may default to
+`create.gaussian` even when the design is non-Gaussian. It
+will rarely run a power-loss diagnostic comparing knockoff
+selection to plain lasso selection.
+
+*Verification.* Check that the knockoff construction is
+appropriate for the design (Gaussian, second-order, model-X
+with conditional density estimation). Compare the knockoff
+selection size and overlap with the plain lasso selection;
+a knockoff filter that selects far fewer variables than
+the lasso may be reasonable (FDR control trades power) or
+may signal a knockoff construction problem.
+
+The meta-pattern: LLMs handle the *fitting* of
+high-dimensional methods well and the *adjudication*:
+which method matches the science, what selection inference
+is required, poorly. Frame the scientific question
+before asking for a fit, and never accept a selected-variable
+list without an inference plan attached.
+
+## Principle in use
+
+Three habits define defensible high-dimensional work:
+
+1. **State the sparsity assumption.** Before fitting a
+   lasso, write down why you expect the truth to be sparse
+   and what proportion of predictors you expect to be
+   active. If the answer is 'I have no reason to expect
+   sparsity,' use ridge or elastic net with small $\alpha$
+   instead.
+
+2. **Pair selection with inference.** Every selected-variable
+   list should be reported with one of: stability
+   selection probabilities, knockoff FDR-controlled
+   selection, debiased lasso intervals, or sample-split
+   classical intervals. Naked selection lists invite
+   over-interpretation.
+
+3. **Stress-test correlated predictors.** When variables
+   are highly correlated, lasso selection is unstable;
+   small changes in the data can swap which correlated
+   variable is retained. Run the analysis on bootstrap
+   resamples and report the proportion of resamples on
+   which each variable is selected. Variables selected on
+   $<60\%$ of resamples should be reported as candidate
+   rather than confirmed.
+
+## Exercises
+
+1. Simulate a regression with $n = 500$, $p = 5000$, 50
+   truly active predictors with effects $N(0, 1)$, and
+   correlation $\rho = 0.7$ within blocks of 5 predictors.
+   Fit lasso, ridge, and elastic net at $\alpha = 0.5$.
+   Compare predictive MSE and the count of true positives
+   among selected. Which method dominates?
+
+2. Repeat exercise 1 but with effects $N(0, 0.2)$ on *all*
+   predictors (no truly zero coefficients). Which method
+   dominates now? Explain why.
+
+3. Apply the knockoff filter to the design from
+   exercise 1 at FDR 0.10. Report the realized FDR and
+   the power. Is the realized FDR within the target?
+
+4. Use stability selection on the design from exercise 1.
+   Plot the selection probability as a function of
+   $\lambda$ for the truly active variables and for a
+   random sample of inactive ones.
+
+5. Compare the running time of `glmnet` and `biglasso`
+   on a design with $n = 5000$, $p = 100{,}000$. Document
+   the speedup and identify under what conditions
+   `biglasso` becomes worth the additional setup cost.
+
+## Further reading
+
+- @hastie2015statistical, *Statistical Learning with
+  Sparsity*. The textbook treatment of the lasso and its
+  extensions, by the authors of `glmnet`.
+- @tibshirani1996regression, *Regression Shrinkage and
+  Selection via the Lasso*. The original paper.
+- @candes2018panning, *Panning for Gold: Model-X Knockoffs
+  for High-Dimensional Controlled Variable Selection*. The
+  knockoff filter reference.
+- @meinshausen2010stability, *Stability Selection*. The
+  reference for resampling-based selection.
+- The `glmnet` vignette
+  (<https://glmnet.stanford.edu/>) is exemplary; the
+  `knockoff` package documentation
+  (<https://web.stanford.edu/group/candes/knockoffs/>)
+  is the practical entry point.

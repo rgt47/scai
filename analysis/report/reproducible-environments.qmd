@@ -1,0 +1,568 @@
+# Reproducible Computational Environments {#sec-reproducible-environments}
+
+## Learning objectives
+
+By the end of this chapter you should be able to:
+
+- Enumerate the determinants of computational reproducibility
+  and explain why pinning package versions alone is not
+  sufficient.
+- Distinguish the five-artifact view of a reproducible project
+  from the full determinant space, and identify which
+  determinants a given setup fails to pin: the random-number
+  generator, the locale, fonts, the document toolchain, the
+  numerical libraries, and data integrity.
+- Pin a containerized R environment for durable
+  reproducibility: the base image by digest, a dated
+  package-manager snapshot, a bootstrapped lockfile, and the
+  document toolchain.
+- Audit a reproducibility setup and calibrate each claim by
+  status: verified, inspected, or inferred.
+- Harden a research software supply chain: pin continuous-
+  integration actions to commit digests, apply least-privilege
+  tokens, and gate merges on a security scan of the real
+  artifact.
+- Write a test that proves the core reproducibility promise, a
+  deterministic environment, and recognize when a test suite
+  is reporting false assurance.
+- Convert a system audit into a sequenced,
+  acceptance-criteria-driven remediation plan.
+
+## Orientation
+
+The previous chapter treated software engineering as a craft:
+profiling, the C++ escape hatch, package authorship, and
+tests. Here we take up the matter from the other side, as
+*infrastructure*: the environment a computation runs in, the
+dependencies it pulls, the pipeline that builds it, and the
+supply chain that all of this quietly trusts. The distinction
+matters because a statistician can write a flawless,
+well-tested function and still ship an analysis that no one,
+the original author included, can reproduce a year later. The
+function was sound; the environment around it was never
+pinned.
+
+The motivating evidence is the reproducibility record of the
+field. The Open Science Collaboration reproduced 39 percent
+of a psychology sample, and @trisovic2022 found that fewer
+than one in four R scripts deposited with published articles
+in the Harvard Dataverse ran without error when rerun. A
+non-trivial share of these failures are not statistical but
+computational: code that once produced a result no longer
+does, because the software beneath it moved. The R 4.0.0
+change to the `stringsAsFactors` default in 2020, and the R
+3.6.0 change to the default `sample.kind` of the random-number
+generator in 2019, are the canonical cases. In each a default
+flipped between releases, and an analysis silently produced
+different output from identical source and identical data.
+
+The thesis we shall develop is this: **reproducibility is not
+a property of any single artifact. It is a property of the
+relationships among many components held fixed together. The
+difficult part is not pinning one of them but keeping all of
+them fixed over time.** We begin in
+@sec-determinant-model with the full set of determinants and
+the smaller subset a tool can place under version control. We
+then turn to the judgments the statistician owns
+(@sec-reproducibility-human), to the containerized environment
+and where it leaks, to the determinants most often missed, and
+finally to a worked audit of a real framework that we use to
+teach the method itself.
+
+## The determinant model {#sec-determinant-model}
+
+Before reaching for any tool, it is worth fixing the concepts.
+We arrange the determinants of a computational result as a
+layered stack, in which each layer can, in principle, change
+the result while every other layer is held fixed.
+
+1. **Hardware and architecture.** The processor, its
+   instruction-set extensions, and whether the container runs
+   natively or under emulation.
+2. **Numerical libraries.** The BLAS and LAPACK
+   implementations and their threading, which reorder
+   floating-point reductions and change the low-order bits of
+   a result.
+3. **Operating system and system libraries.** The kernel, the
+   C library, the locale data, the installed fonts, and the
+   document toolchain (`pandoc`, a LaTeX distribution, and
+   `quarto`).
+4. **Language runtime.** The R version itself, including the
+   defaults of its random-number generator.
+5. **Packages.** The exact versions and sources of every R
+   package, together with the build flags of any compiled
+   code.
+6. **Session configuration.** `options()`, `RNGkind()`, the
+   locale and timezone, and the thread-count environment
+   variables.
+7. **Source code and execution order.**
+8. **Input data:** its content, and not merely its location,
+   together with its integrity.
+9. **Intrinsic non-determinism:** use of the wall clock, and
+   race conditions in parallel code.
+
+The familiar five-artifact view (the environment, the
+lockfile, the session profile, the source, and the data),
+sometimes promoted as the `pillars` of a reproducible
+project, is best understood as the version-controllable
+subset of this stack: the five things a tool can place under
+version control and diff. That is a useful and entirely actionable subset. It
+is not the whole stack. Layers 1 and 2 are pinned only if the
+container is made to pin them explicitly; layer 6 is capturable
+in a session profile but is routinely left to the default; and
+layers 8 and 9 are barely addressed by package tooling at all.
+
+@tbl-determinants maps each determinant to the artifact that
+would capture it, marking each as *named* (the artifact
+captures it by design), *capturable* (the artifact could
+capture it but usually does not), or *unpinned* (no artifact
+captures it).
+
+| Determinant | Captured by | Status |
+|---|---|---|
+| OS, R version, system libraries | environment image | named |
+| Numerical libraries (BLAS/LAPACK) | environment image | capturable |
+| Fonts, document toolchain | environment image | capturable |
+| Package versions and sources | lockfile | named |
+| `options()`, repositories | session profile | named |
+| RNG kind, locale, timezone | session profile | capturable |
+| Source code, execution order | version control | named |
+| Data content | data store | named |
+| Data integrity (checksums, DOIs) | data store | unpinned |
+| Cross-architecture numerics | none | unpinned |
+
+: Determinants of reproducibility and the artifact that
+captures each. {#tbl-determinants}
+
+The lesson of the table is worth stating plainly. The visible
+artifact, the lockfile, is the one most practitioners equate
+with reproducibility. It is also, unfortunately, the one that
+captures the fewest of the silent-drift determinants. Clearly, then, a
+project that has pinned its packages and stopped there has done
+the easy part. The work of this chapter is to pin the rest.
+
+## The statistician's contribution {#sec-reproducibility-human}
+
+As in @sec-software-engineering, the tooling assembles the
+layers, but the statistician owns the judgments that decide
+whether the result is in fact reproducible.
+
+**(Judgment 1.) Pin the moving parts, not merely the obvious
+one.** A lockfile pins packages and feels like the whole job.
+The environment, the document toolchain, the random-number
+generator, and the locale drift silently around it. The
+statistician's role is to know which inputs move and to pin the
+ones that matter, preferring *content addresses* (image
+digests, dated repository snapshots, file checksums) to
+*mutable names* (image tags, `latest`, bare URLs). A content
+address cannot be repointed beneath you; a mutable name can,
+and in the supply-chain section we shall see what follows when
+one is.
+
+**(Judgment 2.) Reproducibility is a claim that must be
+tested, not asserted.** That a thing ran on one machine today
+is not that it will produce the same result on another machine
+later. The discipline is the same one @sec-software-engineering
+applied to numerical equivalence: a speedup that is not
+verified against a reference is a claim and not a fact, and an
+environment that is not tested for determinism is a hope and
+not a guarantee. We write a test that proves determinism, and
+we treat an untested reproducibility claim with the suspicion
+it deserves.
+
+**(Judgment 3.) Calibrate status.** When auditing a
+setup, it is necessary to distinguish what was *verified* by
+running it, *inspected* by reading it, and *inferred* from how
+it is assembled. To report an inferred problem as verified, or
+to treat a structural check (a file exists, a function is
+defined) as a correctness test, is the auditing equivalent of
+shipping an unverified optimization. The audit is only as
+trustworthy as the honesty of its confidence labels, a point we
+shall see has teeth in the worked example.
+
+These judgments decide whether an analysis is a durable
+research asset or a result that quietly ceases to reproduce.
+
+## Containerizing an R environment
+
+The mainstream baseline for a reproducible R environment is a
+Docker image built on the `rocker` project [@boettiger2015],
+which pins the operating system and the R version, combined
+with `renv` [@ushey2020], which records exact package versions
+in a lockfile. The composition is sound, and it is the right
+place to begin. It is also, unfortunately, where most setups
+leak, because the convenient form of each component is the
+non-reproducible one.
+
+To illustrate, consider a typical generated Dockerfile.
+
+````{.dockerfile}
+# Leaky: a mutable tag, a moving snapshot, an unpinned
+# bootstrap, and a library the runtime will shadow.
+FROM rocker/tidyverse:4.4.2
+ENV RENV_CONFIG_REPOS_OVERRIDE=".../noble/latest"
+RUN R -e "install.packages('renv')"
+COPY renv.lock renv.lock
+RUN R -e "renv::restore()"
+````
+
+Four lines, and four leaks. The base is pinned by a *tag*
+(`4.4.2`), which `rocker` rebuilds over time with security and
+system-library updates, so that the tag today and the tag in a
+year are not the same bytes. The package-manager URL ends in
+`latest`, a rolling snapshot, so that once a pinned version's
+pre-built binary ages out, resolution silently changes or falls
+back to compiling from source. `renv` itself is installed
+unpinned, so the resolver that reads the lockfile is whatever
+version happens to be current at build time. And if `renv`
+restores into the default project-local library, a later bind
+mount of the working tree over that directory will shadow it,
+with the consequence that the carefully built library is not
+even the one that runs.
+
+The durable form pins each of these.
+
+````{.dockerfile}
+# Durable: a digest, a dated snapshot, the project's pinned
+# renv bootstrap, and a library outside the runtime mount.
+FROM rocker/tidyverse:4.4.2@sha256:<digest>
+ENV RENV_CONFIG_REPOS_OVERRIDE=".../noble/2026-05-31" \
+    RENV_PATHS_LIBRARY=/opt/renv/library
+COPY renv/activate.R renv/activate.R
+COPY renv.lock renv.lock
+RUN R -e "source('renv/activate.R'); renv::restore()"
+````
+
+The base is now pinned by `@sha256` digest, which is immutable.
+The snapshot is dated, so it freezes the package index at a
+known day. `renv` is bootstrapped from the project's own
+`activate.R`, which records an exact `renv` version and commit.
+The library lives at `/opt/renv/library`, outside any path the
+runtime will bind-mount, so the baked environment is the one
+that executes. Each of these four pins prevents a specific,
+observed failure, and we shall meet each again as a finding in
+the worked audit.
+
+## The dependency triad and lockfile discipline
+
+A lockfile is necessary but not self-maintaining. Three
+descriptions of a project's dependencies must agree: the
+packages actually used in the code, the packages declared in
+the package `DESCRIPTION`, and the packages recorded in the
+lockfile. In a correct project these satisfy an inclusion
+relation. In symbols,
+
+$$
+\mathrm{Code} \subseteq \mathrm{DESCRIPTION} \subseteq
+\mathrm{lockfile},
+$$
+
+that is, every package the code calls is declared, and every
+declared package is installed and recorded. The relation drifts
+in practice the moment a collaborator installs a package for an
+exploratory notebook and neglects to snapshot it: the code now
+uses a package the lockfile does not record, and the next clean
+rebuild fails. A mechanical check that scans the code, parses
+the `DESCRIPTION`, reads the lockfile, and repairs the gaps is
+the least expensive guard available, and it is the kind of
+invariant a framework ought to enforce rather than leave to
+discipline.
+
+## Session-level determinants that are routinely missed
+
+The session profile, in R the project `.Rprofile`, is where
+several silent determinants are either pinned or, more often,
+left to the default. But which of these actually bite in
+practice? Four are worth demonstrating concretely, because each
+produces a result that differs with no change whatever to the
+source.
+
+The first is the random-number generator. The seed alone is not
+enough; the generator *kind* matters too. The R 3.6.0 change to
+the default `sample.kind` means that an identical `set.seed()`
+produces different draws under different R versions, so that any
+bootstrap, cross-validation split, permutation test, or
+simulation is exposed. The remedy is to set `RNGkind()`
+explicitly and to record the seed, so that the draw sequence
+becomes a property of the project rather than of the R build.
+
+The second is the locale. `sort()` and `order()` on a character
+vector depend on `LC_COLLATE`, so that a project sorted under
+one locale and rerun under another can reorder its rows, which
+silently changes any downstream computation that depends on
+order; date parsing and decimal separators depend in turn on
+`LC_NUMERIC` and `LANG`. The third is the numerical libraries:
+a different BLAS, or merely a different thread count under the
+same BLAS, reorders the additions in a matrix reduction and
+changes the result in its low-order bits, which is enough to
+move a convergence test or a tie-break. The fourth is fonts and
+the document toolchain. A figure's text depends on the
+installed fonts and the graphics device, and a rendered PDF
+depends on the `pandoc`, LaTeX, and `quarto` versions. None of
+these is an R package, so none is captured by the lockfile. A
+project that renders a manuscript inside its container must pin
+the toolchain and the fonts in the image, or the document is
+not reproducible even when the numbers are.
+
+## Data: provenance versus integrity
+
+A resolvable identifier, a URL or a repository path, records
+*where* the data came from. It does not, however, detect that
+the content has *changed*. Provenance is necessary; integrity
+is the missing half. The remedy is a content check: a checksum
+(`md5`, `sha256`) stored alongside the analysis and verified
+before use, or, better, a reference to an immutable,
+content-addressed snapshot with a digital object identifier
+(Zenodo, Dataverse). The distinction is the data analog of
+Judgment 1, in that a name may be repointed where a content
+address may not.
+
+## The research software supply chain
+
+A reproducible project depends not only on the code it ships
+but on the code it *trusts*: the third-party actions its
+continuous-integration pipeline runs, each with a token and
+write access to the repository. Pinning an action to a mutable
+tag (`@v4`), or worse to a branch (`@master`), is the exposure
+exploited in the `tj-actions/changed-files` incident
+(CVE-2025-30066, 2025), in which a repointed reference
+exfiltrated secrets from thousands of repositories. The
+defenses carry the digest-over-mutable-name lesson from the
+environment across to the pipeline. Pin every third-party
+action to a full commit digest. Scope the pipeline token to
+least privilege: default-deny, then grant only what each job
+needs. Gate merges on a security scan of the *real* image
+rather than a convenient stub. A dependency bot then keeps the
+pinned digests current without reintroducing floating
+references.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: does a lockfile make a build reproducible?
+
+**Question.** A colleague pins every package version in their
+`renv.lock` and concludes that their containerized analysis is
+now fully reproducible: anyone who rebuilds the image will
+obtain an identical environment. Is the colleague right?
+
+**Answer.**
+
+Unfortunately not, on three counts. First, the base image is
+almost always pinned by a mutable *tag* (for example
+`rocker/tidyverse:4.4.2`), which is rebuilt over time; only an
+`@sha256` digest is immutable. Second, the lockfile pins
+package *versions*, but the package manager is typically
+pointed at a moving `latest` snapshot, so that once a pinned
+version's binary ages out, resolution changes or falls back to
+source. Third, and most subtly, if packages are restored into a
+project-local library that a runtime bind mount then shadows,
+the carefully built library is not even the one that runs. The
+lockfile is necessary and far from sufficient. Reproducibility
+is a property of the whole stack of @sec-determinant-model and
+not of its most visible layer.
+
+:::
+
+## Worked example: auditing a real framework
+
+The running example for the remainder of the chapter is a full
+audit of a real reproducible-research framework, `zzcollab`, a
+Docker-first tool that assembles `rocker`, `renv`, and a
+research-compendium layout into a turnkey workflow. The audit
+itself is documented in a companion system review; here we use
+it to teach the method.
+
+We walk the determinant model over the actual code. To its
+credit, the framework pins package versions in a lockfile and
+sets the locale and timezone in the image, which is already
+more than many setups manage. Unfortunately it also exhibits
+the full chain of moving inputs from the section above: the
+base is pinned by a mutable tag, the package-manager URL is the
+rolling `latest`, and both the `renv` bootstrap and an external
+validation tool are installed unpinned from moving sources.
+More subtly, the image restores packages into a project-local
+library that the runtime bind mount then shadows, so that the
+environment is resolved live at first run rather than baked into
+the image, which is to say that layer 5 of
+@sec-determinant-model does not in fact govern execution. The
+document toolchain, in turn, is absent, so that the framework's
+own manuscript render fails inside the container for want of a
+single LaTeX package.
+
+The audit also illustrates Judgment 3, and this is the part
+worth dwelling on. Two further findings came from *running* the
+system rather than reading it: a shell test harness that
+reported failing tests as passing, and a security scan that
+examined a hand-written stub image rather than the artifact
+users actually run. Both of these are *verified*. The
+library-masking finding, by contrast, was derived from reading
+the build and the mount logic, and it remains *inferred* until
+an experiment confirms it, which is the matter of Exercise 3.
+The distinction is not pedantry. It tells the maintainer which
+findings to act upon at once and which to confirm first.
+
+The pedagogical point is that even a thoughtfully designed
+tool, built by someone who understands the problem, fails
+several determinants. That is the normal condition of research
+software and not an indictment. The skill we are after is to
+find the failures systematically, to classify them honestly,
+and to prioritize their repair, rather than to expect a system
+that has none.
+
+## Collaborating with an LLM on reproducibility engineering
+
+As elsewhere in this book, the coding assistant is productive
+on the boilerplate of this domain and unreliable on the
+judgments that matter. The boilerplate is real: an assistant
+will produce a plausible Dockerfile, a CI workflow, and pinning
+syntax far faster than one can type them. The judgment is
+which inputs move, and that is exactly what the assistant tends
+to miss, because the common patterns in its training data are
+the convenient, non-reproducible ones.
+
+**Prompt 1: `Write me a reproducible Dockerfile for an R
+project.`** *What to watch for.* The output will frequently use
+`FROM rocker/...:latest` or a bare tag, `install.packages`
+rather than a pinned bootstrap, and a package-manager URL
+ending in `latest`, which are precisely the leaks of the
+section above. *Verification.* Check every line against the
+four pins (digest, dated snapshot, pinned bootstrap, library
+outside the mount); build the image twice and diff the
+resulting digest.
+
+**Prompt 2: `Is this project reproducible?`** *What to watch
+for.* The assistant inspects the lockfile, sees pinned
+versions, and answers yes, over-weighting the visible artifact
+and missing the base tag, the snapshot, the toolchain, and the
+runtime library. *Verification.* Work through the determinant
+table of @tbl-determinants yourself; the lockfile is the layer
+the assistant trusts most and the one that proves least.
+
+**Prompt 3: `Write a test that the build is reproducible.`**
+*What to watch for.* The assistant tends to write a test that
+the image *builds*, not one that it is *deterministic*.
+*Verification.* The test must generate the artifacts twice from
+identical inputs and assert byte-identity and a stable content
+hash, and then change an input and assert that the hash
+changes. A test that only checks that the build succeeds cannot
+detect non-determinism.
+
+The meta-pattern of @sec-software-engineering holds here too:
+the assistant accelerates the keystrokes of configuration; it
+does not supply the judgment about which inputs move. Treat it
+as a fast typist of YAML and Dockerfiles whose defaults lean
+toward the non-reproducible, and supply the pinning discipline
+yourself.
+
+## Turning an audit into a plan
+
+Auditing produces findings; shipping requires a plan, and the
+ordering of the plan is itself an engineering decision. Three
+sequencing principles, drawn from the companion remediation
+plan, generalize beyond the case at hand.
+
+First, we make the test suite able to fail before we fix
+anything else. A harness that reports failures as passes, the
+verified finding noted above, protects nothing, and until it is
+repaired no new test can guard a fix. The first change is
+therefore the one that restores the ability to fail. Second, we
+confirm an inferred critical finding empirically before
+redesigning around it. The library-masking finding is the
+highest-impact item but is inferred, and a short experiment,
+Exercise 3, confirms or refutes it, so that the redesign rests
+on observation rather than speculation. Third, we write the
+failing test and then make it pass. The determinism test of
+Exercise 4 is added before the toolchain pins; it fails against
+the current build, documenting the broken state, and turns
+green as the pins land. Every fix in the plan carries an
+explicit acceptance criterion that proves it, and the
+sequencing is by dependency rather than by severity.
+
+## Principle in use
+
+Three habits define defensible work on reproducible
+environments.
+
+1. **Prefer content addresses to mutable names.** A digest, a
+   dated snapshot, and a checksum are reproducible; a tag,
+   `latest`, and a bare URL are promises the upstream can
+   break. Wherever an immutable form of a reference exists, it
+   is the one to pin.
+
+2. **Make reproducibility testable.** A reproducibility claim
+   one cannot run is a hope. The minimal test generates the
+   environment twice and asserts that the results are
+   identical; the strongest runs the analysis twice and asserts
+   that the outputs match.
+
+3. **Match pinning effort to the required lifespan.** A one-off
+   exploratory notebook needs little; an archival compendium
+   that must rebuild in a decade needs digests, dated
+   snapshots, the toolchain, and data integrity. To under-pin
+   the durable artifact and to over-pin the disposable one are
+   equally wasteful.
+
+## Exercises
+
+1. Take a `rocker` and `renv` Dockerfile, your own or the leaky
+   example above. Convert the base `FROM` from a tag to an
+   `@sha256` digest and the package-manager URL from `latest`
+   to a dated snapshot. Document, in one sentence each, what
+   each pin fixes and what failure it prevents.
+
+2. *The RNG experiment.* Run the same bootstrap under
+   `RNGkind(sample.kind = "Rounding")` and
+   `RNGkind(sample.kind = "Rejection")` with an identical seed.
+   Show that the estimates differ. Then pin `RNGkind()` and the
+   seed in a project `.Rprofile` and show that they stabilize.
+
+3. *The masking experiment.* Build an image that restores
+   packages into a project-local library, then run it with the
+   working tree bind-mounted over that directory. Show, by
+   inspecting `.libPaths()`, that the baked library is
+   shadowed. Relocate the library outside the mount target and
+   show that it is now the one that runs.
+
+4. *The determinism test.* Write a test that generates a
+   Dockerfile and a lockfile twice from identical inputs and
+   asserts that the outputs are byte-identical and the content
+   hash is stable. Mutate the lockfile and assert that the hash
+   changes. Explain why a test that only checks that the image
+   builds is insufficient.
+
+5. *Supply-chain hardening.* Take a GitHub Actions workflow.
+   Pin every third-party action to a commit digest, add a
+   top-level least-privilege `permissions:` block, add a
+   security scan that gates on the real image, and add a
+   dependency-bot configuration to keep the pins current.
+   Explain why a floating `@v4` or `@master` is a supply-chain
+   risk.
+
+6. *Audit method.* Choose a published research compendium, or
+   your own. Classify each determinant from
+   @sec-determinant-model as pinned, capturable, or unpinned,
+   and write a one-page review in which every finding carries a
+   verified, inspected, or inferred label.
+
+7. *From audit to plan.* From the audit in Exercise 6, write a
+   sequenced remediation plan for the top three findings, with
+   an explicit acceptance criterion for each and a one-line
+   justification of the ordering.
+
+## Further reading
+
+- @marwick2018, *Packaging Data Analytical Work Reproducibly
+  Using R (and Friends)*, the research-compendium model and its
+  `rrtools` implementation.
+- @boettiger2015, *An Introduction to Docker for Reproducible
+  Research*, on containers as a substrate for reproducibility.
+- @ushey2020, the `renv` package for project-local libraries.
+- @sandve2013, *Ten Simple Rules for Reproducible Computational
+  Research*, whose rule on recording random-number seeds
+  anticipates @sec-determinant-model.
+- @wilson2017, *Good Enough Practices in Scientific Computing*,
+  on data provenance and integrity.
+- @trisovic2022, *A Large-scale Study on Research Code Quality
+  and Execution*, for the motivating empirical evidence.
+- *The Turing Way* handbook
+  (<https://the-turing-way.netlify.app/>), the broad community
+  reference on reproducible research computing.

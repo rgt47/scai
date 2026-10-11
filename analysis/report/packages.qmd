@@ -465,8 +465,8 @@ most of them reasonably and stumble on a few specific
 ones.
 
 **Prompt 1: drafting a roxygen header.** Paste the
-function and ask: 'write a roxygen2 header with @param,
-@return, @export, and @examples. The example should be a
+function and ask: 'write a roxygen2 header with `@param`,
+`@return`, `@export`, and `@examples`. The example should be a
 realistic, runnable use of the function.'
 
 *What to watch for.* The example needs to actually run. A

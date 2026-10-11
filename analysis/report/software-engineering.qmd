@@ -1,0 +1,597 @@
+# Software Engineering for Statisticians {#sec-software-engineering}
+
+## Learning objectives
+
+By the end of this chapter you should be able to:
+
+- Profile R code with `profvis` and `bench` and identify the
+  small set of bottlenecks worth optimizing.
+- Write performance-critical inner loops in C++ via `Rcpp`
+  and integrate them into an R package.
+- Build a defensible R package with `usethis` and `devtools`,
+  including documentation, tests, continuous integration,
+  and `pkgdown` documentation.
+- Design a `testthat` test suite that covers correctness,
+  numerical stability, and regression, and explain why
+  each layer is needed.
+- Use AI-assisted coding tools (LLM in IDE, Claude Code, GH
+  Copilot) productively without ceding the engineering
+  judgment that distinguishes maintainable code from
+  syntactically correct code.
+- Recognize the warning signs of unmaintainable
+  research code and apply the small set of practices that
+  prevent them.
+
+## Orientation
+
+Statisticians produce code as a research artifact. Most of
+that code is throwaway: a one-off analysis, a simulation
+study, a figure script. Some of it becomes a library that
+collaborators use, a package on CRAN, or the computational
+core of a clinical decision tool. The skills that produce
+maintainable, performant, defensible software are not the
+same as the skills that produce a clean Quarto report, and
+they are routinely under-taught in statistics curricula.
+
+This chapter is a practical foundation in those skills.
+We cover profiling and performance, the C++/R interface
+through Rcpp, R-package authorship, testing strategy, and
+the working pattern of using AI assistance well. The
+running thread is that **the discipline of statistical
+software engineering is the same discipline as the rest of
+software engineering, with one difference: numerical
+correctness is harder to verify, and easier to compromise
+silently, than typical software correctness.**
+
+## The statistician's contribution {#sec-software-engineering-human}
+
+LLMs are competent at writing R code, structuring tests,
+and refactoring functions. They do not understand which
+parts of a numerical algorithm are correctness-critical,
+which optimizations preserve numerical equivalence, or
+when an apparent speedup hides a regression. The
+statistician owns these.
+
+**(Judgment 1.) Profile, then optimize.** The most
+common engineering error in research code is optimizing
+the wrong thing. A one-line change to the algorithm can
+recover 50× speedups; rewriting an irrelevant inner loop
+in C++ can buy 1.05× and three days of debugging. The
+statistician's role is to insist on profiling before
+optimizing and to keep the engineering effort proportional
+to the bottleneck. LLMs are happy to rewrite anything in
+Rcpp; that does not mean they should.
+
+**(Judgment 2.) Numerical equivalence is not optional.**
+A 'speedup' that changes outputs by $10^{-12}$ might be
+fine; one that changes outputs by $10^{-4}$ might be a
+broken algorithm. The statistician verifies that an
+optimized version produces *identical* results to the
+reference implementation on a battery of test cases:
+identical up to machine precision, with explicit
+tolerances. Skipping this check has produced silently
+wrong published results in the literature.
+
+**(Judgment 3.) Tests are the documentation that runs.**
+Code without tests rots. Code with comprehensive tests
+can be refactored aggressively, ported to new platforms,
+and trusted by collaborators. The work of writing tests
+is also the work of figuring out the boundaries of the
+algorithm, what inputs are valid, what edge cases must
+be handled, what numerical regime is supported. The
+statistician treats this as part of the work, not as
+overhead added at the end.
+
+These judgments decide whether software is a research
+asset or a slowly accumulating liability.
+
+## Profiling: `profvis` and `bench`
+
+R is famously slow at loops; it is also famously fast at
+vectorized operations on the right primitives. The
+question is rarely 'is R slow' but 'where is *my* code
+slow.' Profiling answers that.
+
+**`profvis`** [@chang2024profvis] wraps R's sampling
+profiler in an interactive flame graph. The workflow:
+
+````{.r}
+library(profvis)
+profvis({
+  result <- run_my_analysis(data)
+})
+````
+
+The output identifies which functions consume the most
+time and how much of that time is in their own bodies
+versus delegated to children. The pattern that recurs:
+80% of the time is in 20% of the code. Within that 20%,
+a single line typically accounts for most of the budget,
+a `for` loop over rows of a data frame, an unnecessary
+`rbind()` in a loop, or a poorly configured `lm.fit()`.
+
+**`bench`** [@hester2024bench] is the right tool for
+microbenchmarks. Comparing two implementations:
+
+````{.r}
+library(bench)
+mark(
+  base = sapply(x, sqrt),
+  vec = sqrt(x),
+  iterations = 100,
+  check = TRUE
+)
+````
+
+`check = TRUE` confirms the implementations produce equal
+results. This is not optional. Many proposed 'faster'
+implementations turn out to be both faster and wrong; the
+check catches them.
+
+**`bench::press()`** sweeps a parameter and produces a
+performance-by-size table, the right tool when the
+question is 'how does runtime scale with $n$' rather than
+'which is faster on this fixed problem.'
+
+The two practical patterns that recover most R speedups:
+
+1. **Vectorize.** Replace explicit `for` loops with
+   element-wise operations on whole vectors or matrices.
+2. **Avoid copy-on-modify in tight loops.** Pre-allocate
+   output containers; use `data.table`'s in-place
+   modification or `dplyr`'s reference semantics where
+   helpful; never grow a vector with `c(x, new_value)`
+   in a loop.
+
+When neither applies, a genuinely sequential algorithm
+with state that depends on earlier iterations, the next
+move is C++.
+
+## Rcpp: the C++ escape hatch
+
+`Rcpp` [@eddelbuettel2011rcpp] provides a clean interface
+between R and C++. The modal workflow:
+
+````{.cpp}
+#include <Rcpp.h>
+using namespace Rcpp;
+
+// [[Rcpp::export]]
+NumericVector cumsum_cpp(NumericVector x) {
+  int n = x.size();
+  if (n == 0) return NumericVector(0);
+  NumericVector out(n);
+  out[0] = x[0];
+  for (int i = 1; i < n; i++) {
+    out[i] = out[i-1] + x[i];
+  }
+  return out;
+}
+````
+
+`Rcpp::sourceCpp("cumsum.cpp")` compiles and exposes the
+function. For C++ code that lives inside an R package,
+`devtools::document()` regenerates the `RcppExports.cpp`
+shim and the C++ functions become callable from R like
+any other package function.
+
+Rcpp is the right tool when:
+
+- The algorithm is genuinely sequential (cannot be
+  vectorized).
+- The R version is order-of-magnitude slower than needed.
+- The C++ version will be reused, justifying the
+  engineering investment.
+
+Rcpp is the wrong tool when the speedup is small, when an
+existing R-side primitive does the job, or when the
+correctness of the C++ version cannot be verified
+against a reference.
+
+**RcppArmadillo** [@eddelbuettel2014rcpparmadillo] adds
+linear-algebra primitives via Armadillo; it is the
+standard for moving matrix-shaped algorithms into C++.
+**RcppEigen** does the same with Eigen and is preferred
+when interoperability with C++ libraries that use Eigen
+is needed.
+
+::: {.callout-note icon=false collapse=true}
+## Check your understanding: when not to use Rcpp
+
+**Question.** A colleague has a function that loops over
+1000 rows of a data frame, fits a small regression model
+to each, and stores the coefficient. The loop takes 30
+seconds. They propose rewriting it in Rcpp. Is that the
+right next step?
+
+**Answer.**
+
+No. Rcpp would not help here: the bottleneck is the cost
+of fitting 1000 regression models, which lives in
+already-compiled C code (`lm.fit` or whichever solver).
+Rewriting the wrapping loop in Rcpp would buy nothing.
+The right next step is either to parallelize (chapter 8)
+or to consolidate the 1000 small fits into a single large
+fit using a per-row factor, a one-line `lm` call with a
+group factor produces the 1000 coefficients in
+milliseconds.
+
+:::
+
+## R-package authorship
+
+A function that grows beyond a single script wants to be
+a package. The mechanics, with `usethis` and `devtools`,
+are mature enough that the engineering overhead is small.
+
+````{.r}
+usethis::create_package("~/projects/mypkg")
+usethis::use_mit_license("Glenn Thomas")
+usethis::use_testthat()
+usethis::use_github_action_check_standard()
+usethis::use_roxygen_md()
+usethis::use_pkgdown()
+````
+
+A defensible package has, at minimum:
+
+- **`DESCRIPTION`** declaring dependencies, license,
+  and version.
+- **`R/` source files** with `roxygen2` documentation on
+  every exported function.
+- **`tests/testthat/`** with tests for every exported
+  function.
+- **A `NEWS.md`** logging changes.
+- **A `README.md`** with a minimal worked example.
+- **CI configured** so every push runs `R CMD check` on
+  multiple platforms.
+
+The `usethis` calls above set all of this up. The remaining
+work is writing the code and the tests.
+
+For packages that will be released widely:
+
+- **CRAN release** through `devtools::release()`. The CRAN
+  policies are strict; submission is iterative; allow time.
+- **`pkgdown` site** built from `roxygen2` + vignettes,
+  hosted on GitHub Pages. The de-facto standard for R
+  package documentation; users expect it.
+- **Versioning** follows semantic versioning conventions
+  (`MAJOR.MINOR.PATCH`). Breaking changes increment
+  `MAJOR`; new features increment `MINOR`; bug fixes
+  increment `PATCH`.
+
+## Testing strategy
+
+A typical research package needs three layers of tests.
+
+**Correctness tests** verify the function returns the
+right answer on inputs with a known answer.
+
+````{.r}
+test_that("ols_fit recovers known coefficients", {
+  set.seed(228)
+  X <- cbind(1, rnorm(100))
+  beta_true <- c(0.5, 1.2)
+  y <- X %*% beta_true + rnorm(100, 0, 0.1)
+  fit <- ols_fit(y, X)
+  expect_equal(fit$coef, beta_true, tolerance = 0.05)
+})
+````
+
+**Numerical stability tests** verify the function behaves
+correctly on inputs that stress the algorithm.
+
+````{.r}
+test_that("ols_fit handles near-collinear design", {
+  X <- cbind(1, runif(100), runif(100) + 1e-8)
+  expect_warning(ols_fit(rnorm(100), X), "collinear")
+})
+````
+
+**Regression tests** verify that a known input produces a
+specific known output, byte-for-byte. They catch silent
+behavior changes from refactors.
+
+````{.r}
+test_that("ols_fit output has not changed", {
+  expect_snapshot_value(
+    ols_fit(testdata$y, testdata$X)$coef,
+    style = "deparse"
+  )
+})
+````
+
+`testthat::expect_snapshot()` and `expect_snapshot_value()`
+[@wickham2024testthat] make regression tests inexpensive:
+the first run records the output; subsequent runs compare.
+
+For packages that wrap numerical algorithms, a fourth
+layer is **reference-implementation tests**: the package
+output is compared to a slower but trusted reference
+(e.g., the closed-form solution, or the output from a
+well-established package). These are the tests that catch
+subtle algorithmic errors that pass the correctness and
+numerical-stability tests but produce wrong answers in
+specific regimes.
+
+## Working with AI assistants
+
+Coding assistants, Copilot, Cursor, Claude Code, or
+similar, are now standard tools. Used well, they speed up
+boilerplate, accelerate refactors, and surface
+documentation. Used badly, they produce subtly wrong code
+that passes the eye test and fails in production.
+
+Three patterns of productive use:
+
+**Boilerplate.** Roxygen documentation skeletons, package
+file templates, ggplot themes, recipe steps in
+`tidymodels`. The LLM is producing code that any
+sufficiently experienced developer would write the same
+way; the verification cost is low because the code is
+boilerplate.
+
+**Refactor proposals.** 'Rewrite this function to avoid the
+nested loop' is a request the LLM does well, *if* you
+verify equivalence. The verification cost is moderate
+(usually a `bench::mark()` with `check = TRUE` and a
+testthat run); the time saved is substantial.
+
+**Documentation explanations.** 'What does this `dplyr`
+expression do' or 'why does my Stan model produce this
+warning' often gets a useful answer the LLM can produce
+from internalized documentation. Lower stakes; the
+verification is reading the result and confirming it
+matches your understanding.
+
+Three patterns to avoid:
+
+**Numerical-algorithm authorship without verification.**
+Asking the LLM to 'implement the L-BFGS update' or 'write
+a sparse Cholesky' is asking for code that is plausibly
+correct but very likely wrong in the corners. Use existing
+libraries (`optim`, `Matrix`, `RcppEigen`); reach for an
+LLM-authored numerical kernel only when no library exists,
+and verify exhaustively against a reference.
+
+**Test-skipping.** LLMs will gladly remove tests that fail
+to pass after a refactor. The right move is the opposite:
+if a test fails, the test is your friend; investigate the
+behavior change. An LLM that suggests removing a test is
+solving the wrong problem.
+
+**Wholesale generation of unfamiliar code.** Asking the
+LLM for 800 lines of code in a domain you have never
+worked in is asking to deploy code you cannot review. The
+defense is to break the work into small enough pieces that
+you can review each.
+
+Practitioners in 2026 name this distinction directly.
+'Vibe coding' is prompting a model, accepting the result,
+and running it without review; it is acceptable for a
+disposable script but not for anything you intend to
+keep. 'Agentic coding' or 'agentic engineering' is the
+disciplined alternative: an agent plans, writes, and runs
+code in a loop, and a human still reviews the diff against
+real acceptance criteria before trusting it. The three
+patterns to avoid above are, in effect, vibe coding by
+another name. The three patterns of productive use above
+are agentic engineering done well.
+
+The framing that has emerged: **the LLM is a fast,
+fluent, tireless junior collaborator.** It will type
+faster than you and produce more lines of code per hour.
+It will not catch the numerical edge cases, judge the
+right level of abstraction, or know what to test. Those
+remain yours.
+
+## Worked example: optimizing a sequential algorithm
+
+We illustrate the profile → optimize → verify cycle on a
+sequential filter, a one-step Kalman filter for a
+state-space model, that starts as a slow R loop.
+
+````{.r}
+kalman_r <- function(y, x0, P0, A, H, Q, R) {
+  n <- length(y)
+  x_hat <- numeric(n)
+  P <- numeric(n)
+  x_pred <- x0; P_pred <- P0
+  for (t in seq_len(n)) {
+    K <- P_pred * H / (H * P_pred * H + R)
+    x_hat[t] <- x_pred + K * (y[t] - H * x_pred)
+    P[t] <- (1 - K * H) * P_pred
+    x_pred <- A * x_hat[t]
+    P_pred <- A * P[t] * A + Q
+  }
+  list(x = x_hat, P = P)
+}
+````
+
+Profile on a 100,000-step series:
+
+````{.r}
+library(profvis)
+y <- rnorm(1e5)
+profvis({
+  out <- kalman_r(y, 0, 1, 1, 1, 0.1, 0.5)
+})
+# 1.4 seconds; 95% in the for loop body
+````
+
+Vectorization is not available, each iteration depends on
+the previous. The remaining options are Rcpp or accepting
+the runtime. The Rcpp version:
+
+````{.cpp}
+#include <Rcpp.h>
+using namespace Rcpp;
+
+// [[Rcpp::export]]
+List kalman_cpp(NumericVector y, double x0, double P0,
+                double A, double H, double Q, double R) {
+  int n = y.size();
+  NumericVector x_hat(n), P(n);
+  double x_pred = x0, P_pred = P0;
+  for (int t = 0; t < n; t++) {
+    double K = P_pred * H / (H * P_pred * H + R);
+    x_hat[t] = x_pred + K * (y[t] - H * x_pred);
+    P[t] = (1.0 - K * H) * P_pred;
+    x_pred = A * x_hat[t];
+    P_pred = A * P[t] * A + Q;
+  }
+  return List::create(_["x"] = x_hat, _["P"] = P);
+}
+````
+
+Benchmark with verification:
+
+````{.r}
+library(bench)
+mark(
+  R = kalman_r(y, 0, 1, 1, 1, 0.1, 0.5),
+  cpp = kalman_cpp(y, 0, 1, 1, 1, 0.1, 0.5),
+  iterations = 50, check = TRUE
+)
+# R    1.4 s
+# cpp  3.2 ms
+# check passed: outputs identical
+````
+
+The C++ version is about 400× faster and exactly identical
+in output (the implementations use the same algorithm with
+the same arithmetic order). The `check = TRUE` is the
+non-negotiable part: an Rcpp implementation that is fast
+but produces different output is a regression that must be
+caught at compile time, not in production.
+
+The rule of thumb that emerges: **when the loop is
+genuinely sequential and dominates runtime, Rcpp is worth
+it; verify equivalence with `bench::mark(check = TRUE)`
+or a snapshot test.**
+
+## Collaborating with an LLM on software engineering
+
+Three patterns dominate. LLMs are productive on
+boilerplate, refactors, and documentation. They are
+unreliable on performance reasoning, on numerical
+correctness in custom algorithms, and on test design.
+
+**Prompt 1: 'Refactor this 200-line function for
+clarity.'** Provide the function and any test cases.
+
+*What to watch for.* The LLM will produce a refactored
+version with smaller helpers and clearer naming. It may
+quietly change behavior, a default argument, a sort
+order, an edge-case branch. It rarely confirms by running
+the test suite.
+
+*Verification.* Run the test suite before and after.
+Diff the output of the function on a representative input
+before and after. Either a passing test suite or a
+byte-identical output diff is acceptable evidence; both
+are better.
+
+**Prompt 2: 'Write tests for this exported function.'**
+Provide the function.
+
+*What to watch for.* The LLM will produce a small set of
+correctness tests on happy-path inputs. It will rarely
+generate edge-case tests (empty inputs, NA values,
+boundary values) without prompting. It will not write
+regression tests against the current behavior because
+it does not know what the current behavior produces.
+
+*Verification.* Use the LLM-generated tests as a starting
+point. Add edge-case tests yourself: empty input, NA
+input, single-element input, very large input. Add a
+snapshot regression test on a representative case. Then
+mutation-test: deliberately break the function and check
+that at least one test fails.
+
+**Prompt 3: 'Optimize this slow function.'** Provide the
+function and the profiling output.
+
+*What to watch for.* The LLM will propose vectorization,
+preallocation, or Rcpp. It will sometimes propose all
+three at once. It will rarely run a benchmark to confirm
+the proposed optimization actually helps; it is happy to
+ship a 'faster' version that is the same speed or slower.
+
+*Verification.* `bench::mark(check = TRUE)` against the
+original. If the optimized version is no faster, revert.
+If it is faster but `check = FALSE`, you have a
+correctness regression masquerading as a speedup; revert
+and investigate.
+
+The meta-pattern: LLMs accelerate the keystrokes; they do
+not accelerate the engineering. Treat the LLM as a fast
+typist with no judgment; supply the judgment yourself.
+
+## Principle in use
+
+Three habits define defensible software engineering work:
+
+1. **Profile before optimizing; verify after.**
+   Optimization work without a profile is guesswork.
+   Optimization results without a verification of
+   numerical equivalence are claims, not facts. Both
+   habits are inexpensive; both are routinely skipped.
+
+2. **Treat the test suite as the spec.** Write tests as
+   you write the function, not after. The tests are how
+   you discover the boundary cases the function must
+   handle; they are also how you prove the function works.
+   A function without tests is undocumented and
+   un-refactorable.
+
+3. **Match engineering effort to artifact lifespan.** A
+   one-off analysis script does not need a package
+   structure or CI. A library that collaborators will
+   use does. Apply the right level of engineering to the
+   right artifact; under-engineering one and
+   over-engineering the other are equally costly.
+
+## Exercises
+
+1. Take a research script of your own and profile it with
+   `profvis`. Identify the slowest function. Re-profile
+   after vectorizing it. Document the speedup.
+
+2. Implement a sequential algorithm of your choice (e.g.,
+   the Viterbi algorithm for HMMs) in pure R and in Rcpp.
+   Benchmark with `check = TRUE`. Document the speedup
+   and the threshold problem size at which the Rcpp
+   version becomes worth using.
+
+3. Convert a research script into a package using
+   `usethis::create_package()`. Add at least one exported
+   function with `roxygen2` documentation, three
+   testthat tests (correctness, edge case, snapshot), and
+   a CI workflow with
+   `usethis::use_github_action_check_standard()`.
+
+4. Write a regression test against a non-trivial function
+   in your codebase using `expect_snapshot_value()`.
+   Modify the function to produce a different output;
+   confirm the test fails. Restore the function; confirm
+   the test passes.
+
+5. Pick a function written entirely by an LLM. Write a
+   property-based test (e.g., 'the function is monotone in
+   its first argument') without consulting the LLM. Did
+   the LLM-authored function pass?
+
+## Further reading
+
+- @wickham2023r, *R Packages*, 2nd edition
+  (<https://r-pkgs.org/>). The canonical reference for
+  R-package authorship.
+- @eddelbuettel2013seamless, *Seamless R and C++
+  Integration with Rcpp*. The book-length treatment of the
+  C++/R interface.
+- @wickham2024testthat, the `testthat` documentation and
+  the chapter in *R Packages*.
+- The `profvis` and `bench` package vignettes are
+  exemplary applied references.

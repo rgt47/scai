@@ -1,0 +1,91 @@
+# Full book for the website: both quarters, continuous numbering.
+
+project:
+  output-dir: _book
+
+book:
+  subtitle: 'A graduate textbook in biostatistics'
+  cover-image: images/cover.png
+
+  chapters:
+    - half-title.qmd
+    - copyright.qmd
+    - index.qmd
+    - preface.qmd
+    - conventions.qmd
+    - intro.qmd
+
+    # ---- First quarter (Volume I) --------------------------------
+
+    - part: 'Foundations'
+      chapters:
+        - intro-r.qmd
+        - git.qmd
+        - r-internals.qmd
+        - functional.qmd
+
+    - part: 'Numerical Methods'
+      chapters:
+        - matrix-algebra.qmd
+        - decompositions.qmd
+        - optimization.qmd
+
+    - part: 'Computational Statistics'
+      chapters:
+        - simulation.qmd
+        - bootstrap.qmd
+
+    - part: 'Statistical Models'
+      chapters:
+        - linear-models.qmd
+        - glm.qmd
+        - mixed-models.qmd
+        - survival.qmd
+
+    - part: 'Visualization'
+      chapters:
+        - viz-grammar.qmd
+        - ggplot2-advanced.qmd
+
+    # ---- Second quarter (Volume II) ------------------------------
+
+    - intro-advanced.qmd
+
+    - part: 'Numerical Computing in Depth'
+      chapters:
+        - numerical-stability.qmd
+        - numerical-linalg.qmd
+        - advanced-optimization.qmd
+        - em-extensions.qmd
+
+    - part: 'Monte Carlo and Bayesian Computation'
+      chapters:
+        - monte-carlo.qmd
+        - bayesian.qmd
+        - mcmc-depth.qmd
+        - modern-bayesian.qmd
+
+    - part: 'Scaling and Modern Modeling'
+      chapters:
+        - parallel.qmd
+        - hpc.qmd
+        - high-dim.qmd
+        - machine-learning.qmd
+
+    - part: 'Scientific Software'
+      chapters:
+        - packages.qmd
+        - testing.qmd
+        - software-engineering.qmd
+        - reproducible-environments.qmd
+
+    - part: 'Interactive Communication'
+      chapters:
+        - shiny.qmd
+        - interactive-viz.qmd
+
+    - references.qmd
+
+  appendices:
+    - credits.qmd
+    - colophon.qmd
