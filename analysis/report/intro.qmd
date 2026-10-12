@@ -317,13 +317,11 @@ labor explicit:
     the course's exam bank), multiple-choice questions
     drawn from the course test bank.
 
-Chapters that came from the second-quarter course
-(@sec-numerical-stability through @sec-monte-carlo,
-@sec-mcmc-depth, @sec-modern-bayesian, @sec-hpc,
-@sec-high-dim, @sec-machine-learning,
-@sec-software-engineering, @sec-reproducible-environments,
-and @sec-interactive-viz) do not yet carry items 1, 9, and
-10.
+Most chapters of the second half were written for the
+second-quarter course and do not yet carry items 1, 9, and
+10; the exceptions are the five chapters that moved there
+from the first quarter (Bayesian computation, parallel
+computing, package development, testing, and Shiny).
 
 ## How to work through this book
 

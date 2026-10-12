@@ -14,8 +14,19 @@ kept), `sec-intro` collision fixed, 04's notation section added to
 **Status (2026-10-11, step 2 done).** Text edits 1 to 3 below are
 complete; preface, index, and introduction describe one book in two
 halves; 04's credits and acknowledgments folded in; the Volume II
-cover regenerated with the merged title. Remaining: redirects and
-deploy, the cross-volume filter, then content harmonization.
+cover regenerated with the merged title.
+
+**Status (2026-10-11, steps 3 and 4 done).** Merged site deployed to
+scai.rgtlab.org; old scai URLs and, after the domain alias,
+scai-advanced.rgtlab.org URLs redirect (verified with curl, 15 of
+16; the `00-intro.html` collision is fixed by rule order in PR #2,
+not yet deployed at this writing). Cross-volume
+filter in place; both volumes render from the real text with no
+warnings: Volume I 319 pages, Volume II 313 pages (6.5 x 9 in).
+Remaining: archive rgt47/scai-advanced, then content harmonization
+(prerequisites quizzes and practice tests for the former 04
+chapters, consolidation of overlapping chapters) and the sibling
+books' series descriptions.
 
 ## Files
 
@@ -111,8 +122,13 @@ current text: `@sec-simulation` (twice), `@sec-mixed-models`,
 `@sec-matrix-algebra`, plus `credits.qmd` (`@sec-mixed-models`),
 which is printed in both volumes. In the reverse direction,
 `preface.qmd:131` cites `@sec-bayesian`, which now sits in Volume II.
-A small Lua filter that maps those labels to
-'Volume I, Chapter N' is still needed before the volumes print.
+`_filters/cross-volume.lua`, enabled only in the two print
+profiles, rewrites any reference into the other volume as plain text,
+'Volume I, Chapter 8'. It derives chapter numbers from
+`_quarto-html.yml` and volume membership from `_quarto-vol1.yml`, so
+it needs no maintenance when chapters move. A label below chapter
+level is reported by its chapter only. The filter is pure Lua because
+CI renders without R.
 
 The five references in 04 to 03 labels (the three chapter files
 above plus `@sec-bayesian` in `06-mcmc-depth.qmd:32`) cannot resolve

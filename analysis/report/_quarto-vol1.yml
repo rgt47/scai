@@ -7,6 +7,12 @@
 project:
   output-dir: _book-vol1
 
+volume: 1
+
+filters:
+  - at: pre-ast
+    path: _filters/cross-volume.lua
+
 book:
   title: 'Statistical Computing in the Age of AI'
   subtitle: 'Volume I: Foundations and Core Models'
