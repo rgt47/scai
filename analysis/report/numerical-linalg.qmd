@@ -28,7 +28,8 @@ By the end of this chapter you should be able to:
 
 ## Orientation
 
-@sec-matrix-algebra and @sec-decompositions covered
+The linear algebra chapters of the first half, beginning with
+@sec-matrix-algebra, covered
 dense matrix operations: `%*%`, `solve`, `crossprod`, the
 basic decompositions, the OLS normal equations done
 correctly. That treatment assumed the matrices fit in RAM
