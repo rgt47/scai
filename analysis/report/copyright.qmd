@@ -8,7 +8,7 @@
 **Statistical Computing in the Age of AI**\
 A graduate textbook in biostatistics.
 
-Copyright &copy; 2026 Ronald "Ryy" G. Thomas.
+Copyright &copy; 2026 rgtlab curriculum team.
 
 This work is licensed under a Creative Commons
 Attribution-NonCommercial-NoDerivatives 4.0 International
@@ -18,7 +18,7 @@ License. To view a copy of this license, visit
 No ISBN has been assigned; this is an open-access teaching
 text. Citations should use the form:
 
-> Thomas, R. G. (2026). *Statistical Computing in the Age of
+> rgtlab curriculum team (2026). *Statistical Computing in the Age of
 > AI*. La Jolla, California. Retrieved from
 > <https://rgtlab.org/scai>.
 

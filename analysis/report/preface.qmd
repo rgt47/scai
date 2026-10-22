@@ -217,6 +217,6 @@ questions and through their willingness to debate the
 appropriate role of large language models in a statistics
 curriculum.
 
-Ronald "Ryy" G. Thomas\
+rgtlab curriculum team\
 La Jolla, California\
 Spring 2026

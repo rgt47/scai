@@ -280,7 +280,7 @@ Package: phb228utils
 Title: Helper Functions for Statistical Computing
 Version: 0.1.0
 Authors@R:
-    person("Ronald", "Thomas", email = "rgthomas47@gmail.com",
+    person(family = "rgtlab curriculum team", email = "rgthomas47@gmail.com",
            role = c("aut", "cre"))
 Description: Reusable helpers for the PHB 228 statistical
     computing course textbook.

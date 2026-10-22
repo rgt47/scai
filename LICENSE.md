@@ -21,7 +21,7 @@ The full legal code of the license is available at
 
 ## How to cite
 
-Thomas, R. G. (2026). *Statistical Computing in the Age of AI*.
+rgtlab curriculum team (2026). *Statistical Computing in the Age of AI*.
 <https://rgtlab.org/scai>
 
 ## Code snippets
