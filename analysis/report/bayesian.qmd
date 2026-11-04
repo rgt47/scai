@@ -42,8 +42,9 @@ By the end of this chapter you should be able to:
 Bayesian inference answers: *given this data and what I
 believed before I saw it, what should I believe now?*
 Frequentist inference answers: *under repeated sampling,
-how often would my procedure produce the observed result if
-the null were true?* Neither is universally correct; both
+how would my procedure behave, for instance how often
+would its intervals cover the truth or its tests reject a
+true null?* Neither is universally correct; both
 are useful, and a biostatistician encounters both.
 
 The computational tools to fit Bayesian models became
@@ -345,10 +346,11 @@ the data; (2) small sample sizes, where prior weight
 relative to likelihood weight is large; (3) hierarchical
 structure, where the Bayesian model imposes shrinkage of
 group-level parameters toward the population mean while a
-frequentist mixed-model does the same but typically less
-strongly. With a weakly informative or uniform prior, a
-moderate sample size, and a non-hierarchical model, the
-two approaches will agree to about three significant
+frequentist mixed model does the same through its BLUPs
+but plugs in the estimated variance components rather
+than averaging over their uncertainty. With a weakly
+informative or uniform prior, a moderate sample size, and
+a non-hierarchical model, the two approaches will agree to about three significant
 digits, and reporting the Bayesian fit produces no
 substantive change to the conclusions.
 
@@ -401,8 +403,8 @@ shrinkage.
 `cmdstanr` is the recommended interface to Stan for
 advanced users. It talks directly to the cmdstan
 executable, supports the latest Stan features fastest, and
-is the basis on which `brms` builds. Use
-`cmdstanr::cmdstan_install()` once; subsequent
+is one of the two backends `brms` can use. Use
+`cmdstanr::install_cmdstan()` once; subsequent
 `brms::brm(... backend = "cmdstanr")` calls will use it.
 For most users, `brms` with the default `rstan` backend is
 fine; switch to `cmdstanr` when you need a Stan feature

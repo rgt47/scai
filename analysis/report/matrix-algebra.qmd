@@ -539,14 +539,15 @@ why is the second form numerically worse?
 
 **Answer.**
 
-Roughly 2× faster. `solve(A, b)` performs one LU
+Roughly 2× faster in wall-clock time, with an even larger
+gap in arithmetic. `solve(A, b)` performs one LU
 factorization and a back-substitution, totaling about
 $\frac{2}{3} n^3$ floating-point operations. `solve(A) %*% b`
-performs the same LU, then completes the inverse (another
-$\frac{n^3}{3}$ FLOPs to invert a triangular matrix), then
-multiplies by $b$ ($n^2$ FLOPs more). About 50% more work
-than the direct solve, plus one materialized dense matrix
-that the direct path avoids.
+performs the same LU, then builds the inverse from the
+factors (at least another $\frac{4}{3} n^3$ FLOPs), then
+multiplies by $b$ ($n^2$ FLOPs more). That is at least three
+times the arithmetic of the direct solve, plus one
+materialized dense matrix that the direct path avoids.
 
 The numerical harm is more important than the speed. The
 explicit inverse materializes a matrix whose entries can be

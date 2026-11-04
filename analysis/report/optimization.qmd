@@ -57,8 +57,9 @@ Optimization algorithms are mechanical: BFGS is BFGS, and
 Newton-Raphson is Newton-Raphson. No optimizer can automate
 the judgment that surrounds the optimization.
 
-**Is this problem convex?** Convex problems have a unique
-global optimum; any descent method converges to it regardless
+**Is this problem convex?** In a convex problem every local
+minimum is global, and strict convexity makes the minimizer
+unique; any descent method converges to it regardless
 of starting point. Non-convex problems have multiple local
 optima; the answer you get depends on where you started, and
 the 'answer' with the best objective value is not guaranteed
@@ -302,8 +303,8 @@ Fisher scoring is often more stable.
 
 The BFGS method (Broyden-Fletcher-Goldfarb-Shanno)
 approximates the inverse Hessian from successive gradient
-differences. It is the default for `optim()` and is the
-workhorse for moderate-sized MLE problems.
+differences. It is not the default for `optim()` (that is
+Nelder-Mead), but it is the workhorse for moderate-sized MLE problems.
 
 The update maintains an approximation $B_k$ to the inverse
 Hessian, updated at each step using the change in parameters
@@ -395,8 +396,6 @@ The output:
 - `"L-BFGS-B"`, BFGS with box constraints
   (`lower = ..., upper = ...` in the call). Use when
   parameters have natural bounds.
-- `"Nelder-Mead"`, simplex method; no gradients needed;
-  robust to non-smooth or noisy objectives; slow.
 - `"CG"`, conjugate gradient; low memory, can be slow.
 - `"SANN"`, simulated annealing; for rough non-convex
   problems where you suspect local optima. Slow and
@@ -873,15 +872,15 @@ Which type of optimization problem is characterized by
 having a unique global optimum?
 
 - A) Non-smooth optimization problems
-- B) Convex optimization problems
+- B) Strictly convex optimization problems
 - C) Non-convex optimization problems
 - D) Constrained optimization problems
 
 ::: {.callout-note collapse='true'}
 ## Answer
 
-**B.** Convexity implies any local minimum is also the
-unique global minimum.
+**B.** Convexity implies any local minimum is also a
+global minimum; strict convexity makes it unique.
 :::
 
 ### Question 7
@@ -924,7 +923,8 @@ output.
    gradient differences, avoiding the $O(n^3)$ cost of
    forming and inverting a Hessian each iteration, and
    guaranteeing a descent direction (because the
-   approximation is positive definite). A *convex*
-   optimization problem has a unique global optimum, so
+   approximation is positive definite). A *strictly
+   convex* optimization problem has a unique global
+   optimum, so
    any descent method converges to the same point
    regardless of starting value.

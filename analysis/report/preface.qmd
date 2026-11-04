@@ -204,7 +204,7 @@ bootstrap, Bates and colleagues [@bates2015lme4] on
 `lme4`, Golub and Van Loan [@golub2013matrix] on matrix
 computations, and Nocedal and Wright
 [@nocedal2006numerical] on optimization. Remaining errors
-are the author's.
+are the authors'.
 
 The graduate students who engaged with early drafts of
 this material contributed materially, through their

@@ -86,7 +86,7 @@ natural; for a methods paper, a z-score may read more
 cleanly. The transformation on the *outcome*, log, square
 root, Box-Cox, is a more consequential decision: it
 changes the estimand from 'additive effect on $y$' to
-'multiplicative effect on $e^y$'.
+'multiplicative effect on $y$' in the case of the log.
 
 **Whether the model's claims are defensible.** A linear
 model's p-values and confidence intervals are valid under
@@ -649,7 +649,7 @@ par(mfrow = c(1, 1))
 
 The Treatment effect (Treated vs. Placebo, adjusting for age
 and sex) appears in the coefficient table. Interpretation
-must be cautious: the outcome is ordinal and the 0-1-2
+must be cautious: the outcome is ordinal and the 1-2-3
 coding imposes equal spacing that may not be clinically
 valid. The next chapter's proportional-odds model is a
 better fit; this example demonstrates the workflow only, and

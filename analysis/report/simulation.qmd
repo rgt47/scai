@@ -640,7 +640,8 @@ Three habits define a defensible simulation study:
    Present results as a `ggplot2` faceted plot.
 3. Use `set.seed()` to produce a simulation whose output
    is bit-reproducible. Change your R version (or run on a
-   different OS) and confirm that results remain identical.
+   different OS) and check whether results remain
+   identical; explain any differences you find.
 4. Run the t-test vs. Wilcoxon simulation from this chapter
    with and without common random numbers. Compare the
    Monte Carlo SE of the difference in power. How large is

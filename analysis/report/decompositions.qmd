@@ -56,7 +56,8 @@ at all.
 
 Decompositions are an area where the *mathematics* is fully
 determined, a Cholesky decomposition of a given SPD matrix
-is unique up to sign, but the *engineering* judgment is
+is unique once its diagonal is required to be positive, but
+the *engineering* judgment is
 not. That judgment is where the statistician contributes.
 
 **Pick the decomposition that matches the problem's
@@ -102,8 +103,8 @@ substantive interpretation), not picked arbitrarily because
 
 | Name        | Factors          | Requires                   | Cost         | Typical use                                 |
 |-------------|------------------|----------------------------|--------------|---------------------------------------------|
-| LU          | $PA = LU$        | square, nonsingular        | $\sim n^3/3$ | `solve(A, b)`; the default direct solver    |
-| Cholesky    | $A = L L^T$      | symmetric positive definite | $\sim n^3/6$ | Covariance matrices; MVN simulation         |
+| LU          | $PA = LU$        | square, nonsingular        | $\sim 2n^3/3$ | `solve(A, b)`; the default direct solver    |
+| Cholesky    | $A = L L^T$      | symmetric positive definite | $\sim n^3/3$ | Covariance matrices; MVN simulation         |
 | QR          | $A = QR$         | $n \geq p$                 | $\sim 2np^2$ | Least squares; `lm()` internals             |
 | Eigen       | $A = V \Lambda V^{-1}$ | square                   | $\sim n^3$   | Symmetric matrices → PCA, spectral methods  |
 | SVD         | $A = U \Sigma V^T$ | any                      | $\sim mn^2$  | Rank, pseudoinverse, low-rank approximation |
@@ -227,14 +228,16 @@ correct to 8.
 $np^2 + p^3/3$. For $n \gg p$ (the usual statistical case),
 the costs are similar; QR's stability advantage comes free.
 
-**Column pivoting.** R's default `qr(X)` uses LINPACK
-(`LAPACK = FALSE`) for backward compatibility. Pass
-`LAPACK = TRUE` to use the modern LAPACK routines, which
-provide column pivoting. The
+**Column pivoting.** R's default `qr(X)` uses a modified
+LINPACK routine, `dqrdc2` (`LAPACK = FALSE`), with a limited
+pivoting strategy: a column whose remaining norm falls below
+`tol` is moved to the right-hand edge. Pass `LAPACK = TRUE`
+to use LAPACK's `dgeqp3`, which applies full column pivoting
+but does not attempt to detect rank deficiency. The
 permutation is returned in `qrX$pivot`, and the decomposition
-satisfies $A P = QR$. This is how R detects rank deficiency:
-the diagonal of $R$ after pivoting has small values for
-redundant columns.
+satisfies $A P = QR$. The default routine is how R detects
+rank deficiency: redundant columns are pivoted to the end
+and excluded from `qrX$rank`.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: why not the normal equations?
@@ -329,7 +332,7 @@ and the orthogonality of $V$ has a clean statistical meaning
 (principal components are uncorrelated).
 
 For non-symmetric matrices, eigendecomposition may not exist
-(deficient matrices) or may have complex eigenvalues. In
+(defective matrices) or may have complex eigenvalues. In
 statistical practice, non-symmetric eigenproblems are rare;
 when they arise, the SVD is usually a better tool.
 
@@ -373,8 +376,9 @@ all.equal(A, s$u %*% diag(s$d) %*% t(s$v))
 2. Singular values are non-negative real numbers, unlike
    eigenvalues of general matrices which can be complex.
 3. The largest singular value is the matrix's 2-norm; the
-   smallest nonzero singular value is the reciprocal of the
-   condition number. Both quantities drop out of the SVD
+   ratio of the largest to the smallest singular value is
+   the 2-norm condition number. Both quantities drop out of
+   the SVD
    directly.
 4. SVD gives the rank: the number of nonzero singular
    values. In practice, 'nonzero' is interpreted relative to
@@ -424,9 +428,9 @@ A_k = \sum_{i=1}^k \sigma_i u_i v_i^T = U_k \Sigma_k V_k^T
 $$
 
 obtained by truncating the SVD to the top $k$ singular
-triples. The approximation error equals $\sigma_{k+1}^2 +
-\cdots + \sigma_{\min(m,n)}^2$ (Frobenius) or $\sigma_{k+1}$
-(2-norm).
+triples. The squared approximation error equals
+$\sigma_{k+1}^2 + \cdots + \sigma_{\min(m,n)}^2$ (Frobenius);
+the error itself is $\sigma_{k+1}$ (2-norm).
 
 ```r
 svd_A <- svd(A)

@@ -192,13 +192,13 @@ Inputs are widgets the user controls:
 
 Outputs are placeholders for content the server fills in:
 
-- `plotOutput`, `tableOutput`, `dataTableOutput`,
+- `plotOutput`, `tableOutput`, `DT::DTOutput`,
   `verbatimTextOutput`, `textOutput`, `htmlOutput`,
   `uiOutput`.
 
 `render*` functions on the server side populate them:
 
-- `renderPlot`, `renderTable`, `renderDT`,
+- `renderPlot`, `renderTable`, `DT::renderDT`,
   `renderPrint`, `renderText`, `renderUI`.
 
 Reactives are intermediate computations:
@@ -252,8 +252,8 @@ clicked) but do not need a return value.
 
 `observe()` (without `Event`) runs whenever any of its
 dependencies changes. `observeEvent(trigger, expr)` runs
-only when `trigger` changes; `expr` cannot reference
-reactives directly without isolation.
+only when `trigger` changes; `expr` runs inside
+`isolate()`, so reactives it reads do not retrigger it.
 
 ## Controlling expensive recomputation
 
@@ -416,13 +416,12 @@ The three common destinations:
 
 **`shinyapps.io`** is Posit's hosted service. Free tier
 allows a few apps with limited active hours per month.
-`rsconnect::deployApp()` deploys with a few clicks. Public
+`rsconnect::deployApp()` deploys with a single call. Public
 URLs; basic authentication available on paid plans.
 
 **Posit Connect** is the enterprise self-hosted
 platform. Integrates with internal authentication, scales
 across multiple servers, supports private deployments.
-Used by most large organizations running R in production.
 
 **Self-hosted Shiny Server (open source).** Free, but you
 manage the infrastructure: server provisioning, scaling,

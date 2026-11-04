@@ -255,10 +255,13 @@ Applications:
 ### Antithetic variates
 
 For a symmetric distribution, sample $X$ and use $-X$
-together. The pair has correlation $-1$ for $h$ that is
-antisymmetric, halving the variance. For $h$ that is
-neither symmetric nor antisymmetric, the variance
-reduction is partial.
+together. For monotone $h$, $h(X)$ and $h(-X)$ are
+negatively correlated, so the pair average has smaller
+variance than two independent draws. For antisymmetric
+$h$ the correlation is $-1$ and the variance is zero,
+though then $E[h(X)] = 0$ is known without simulation.
+For symmetric $h$ the correlation is $+1$ and the pairing
+doubles the variance relative to independent draws.
 
 ### Stratified sampling
 
@@ -268,11 +271,11 @@ within-stratum variance is smaller than the overall
 variance, so the combined estimator has smaller variance
 than crude Monte Carlo with the same total sample size.
 
-For a one-dimensional uniform variable, stratification
-into $K$ equal strata reduces variance by a factor of
-$1 - O(1/K)$; for $K \to \infty$ (one sample per
-infinitesimal stratum), the reduction is the full
-variance. In higher dimensions, **Latin hypercube
+For a one-dimensional uniform variable and a smooth $h$,
+stratification into $K$ equal strata with one draw each
+multiplies the crude Monte Carlo variance by a factor of
+order $1/K^2$, so the residual variance vanishes as
+$K \to \infty$. In higher dimensions, **Latin hypercube
 sampling** is the analog.
 
 ### Rao-Blackwellization
@@ -565,7 +568,7 @@ variance-reduction techniques for this setting.'
 *What to watch for.* The LLM should match technique to
 structure: control variate when a related quantity has
 known expectation; antithetic when the integrand is
-antisymmetric; stratified when the input distribution
+monotone; stratified when the input distribution
 admits natural strata; common random numbers when
 comparing methods. If the LLM recommends every
 technique without discrimination, push back.
@@ -604,23 +607,24 @@ Three habits define defensible Monte Carlo:
 
 1. **Always compute and report MCSE.** A Monte Carlo
    estimate without an SE is incomplete. Differences
-   smaller than the MCSE are not real.
+   smaller than about $2 \cdot \text{MCSE}$ are within
+   Monte Carlo noise.
 2. **Diagnose importance-sampling weights.** ESS, max
    weight, weight histogram. Without these, importance
    sampling can fail invisibly.
 3. **Use variance reduction when structure permits.**
    Common random numbers, control variates, stratified
-   sampling: each is a free precision gain when the
+   sampling: each is a cheap precision gain when the
    structure supports it, and competent Monte Carlo
    uses them.
 
 ## Exercises
 
-1. Implement importance sampling to estimate the mean of
-   a Cauchy distribution from a Gaussian proposal. The
-   weights are heavy-tailed (the Gaussian has lighter
-   tails); the estimator is unstable. Increase the
-   proposal scale; report when ESS exceeds $0.5 M$.
+1. Implement importance sampling to estimate $P(X > 3)$
+   for a standard Cauchy $X$ from a Gaussian proposal.
+   The weights are heavy-tailed (the Gaussian has
+   lighter tails); the estimator is unstable. Increase the
+   proposal scale; report how the ESS changes.
 2. Estimate $E[X^2]$ for $X \sim N(0, 1)$ via crude
    Monte Carlo, antithetic variates ($X$ and $-X$
    together), and Rao-Blackwellization (use

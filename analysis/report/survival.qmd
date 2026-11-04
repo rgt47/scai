@@ -228,7 +228,7 @@ survdiff(Surv(time, status == 2) ~ sex, data = lung)
 
 It tests the null hypothesis of equal hazard at every time
 point, against the (unspecified) alternative that they
-differ. Like all rank tests, it is most powerful when the
+differ. It is most powerful when the
 true hazard ratio is roughly constant over time, the
 same setting in which the Cox model is the right tool.
 
@@ -468,7 +468,7 @@ sf <- survfit(fit, newdata = new_data)
 plot(sf)
 ```
 
-The fixed effects table shows that being female and having
+The coefficient table shows that being female and having
 a lower ECOG score are associated with longer survival, while
 age has a weaker effect. We would always inspect the PH check
 before reporting any hazard ratio.
@@ -718,7 +718,7 @@ representation. Options A to C all introduce bias.
    the number of events. Censored participants
    contribute to the risk set until the moment of their
    censoring and are dropped afterward. The estimator is
-   nonparametric and unbiased under independent
+   nonparametric and consistent under independent
    censoring.
 3. The proportional-hazards assumption is that the
    hazard ratio $\exp(x' \beta)$ is *constant over

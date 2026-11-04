@@ -71,8 +71,8 @@ applied ML in medicine. The statistician's job is to keep
 this distinction visible in the analysis, the report, and
 the conversation with collaborators.
 
-**(Judgment 2.) The held-out set is the deployment
-distribution, not the design distribution.** Models trained
+**(Judgment 2.) The held-out set should represent the
+deployment distribution, not the design distribution.** Models trained
 on data from one hospital and evaluated on held-out cases
 from the same hospital are evaluated on the *training*
 distribution. Models that will be deployed to a different
@@ -168,7 +168,7 @@ For tabular biomedical data, four model families do most
 of the work:
 
 **Regularized generalized linear models (`glmnet`).** The
-elastic net from chapter 9 fits cleanly into `tidymodels`
+elastic net from @sec-high-dim fits cleanly into `tidymodels`
 via `parsnip::logistic_reg(penalty = tune(), mixture =
 tune())`. It is interpretable, well-calibrated by
 construction (with appropriate penalty), and the right
@@ -186,8 +186,8 @@ default for high-performance prediction on tabular data.
 `lightgbm` is faster on very large datasets and handles
 categorical predictors more naturally. Both require careful
 tuning of `learn_rate`, `tree_depth`, `min_n`, and the
-number of trees; under-tuned, they overfit; over-tuned, they
-generalize poorly.
+number of trees; with too little capacity they underfit,
+and with too much they overfit.
 
 **Neural networks (`torch`, `keras`).** For tabular
 biomedical data with $n$ in the thousands, neural networks
@@ -204,7 +204,7 @@ A practical decision rule:
 |--------|---------------|
 | $p < n$, interpretability matters | Regularized GLM |
 | $p < n$, raw prediction matters | Gradient boosting |
-| $p \approx n$ or $p > n$, sparse | Lasso (chapter 9) |
+| $p \approx n$ or $p > n$, sparse | Lasso (@sec-high-dim) |
 | Tabular with non-linear interactions | Gradient boosting |
 | Imaging, text, sequence | Deep learning |
 
@@ -339,7 +339,7 @@ shap.plot.dependence(shap_long, x = "age")
 ````
 
 SHAP values have two strong properties: they sum to the
-prediction (consistency), and they distribute credit
+prediction (local accuracy), and they distribute credit
 fairly across features. They have one persistent
 limitation: they describe the *model's* dependence on a
 feature, not the world's. If the model has learned a
@@ -360,7 +360,8 @@ that question.
 
 ## Worked example: 30-day readmission risk model
 
-We extend the readmission example from chapter 7 to a
+We extend the readmission example from
+@sec-modern-bayesian to a
 machine-learning workflow with proper validation and
 calibration.
 

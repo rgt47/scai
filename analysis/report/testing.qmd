@@ -28,7 +28,7 @@ By the end of this chapter you should be able to:
   document.
 - Run `R CMD check` and interpret its output.
 - Set up continuous integration via GitHub Actions with
-  `usethis::use_github_action_check_standard()`.
+  `usethis::use_github_action('check-standard')`.
 
 ## Orientation
 
@@ -252,8 +252,9 @@ are written as decimals). `my_function(1:10)`'s output
 type depends on the implementation. If your function
 returns `c(1, 4, 9, ..., 100)` (doubles), the
 `expect_identical` test passes. If it returns
-`(1:10)^2` (integers, since integer^integer is integer
-in R), `expect_identical` fails because integer ≠
+`(1:10) * (1:10)` (integers, since integer times integer
+is integer in R; `^` always returns double),
+`expect_identical` fails because integer ≠
 double, even though the values match. `expect_equal`
 ignores this distinction. Use `expect_identical` only
 when you care about the type as well as the value.
@@ -359,7 +360,7 @@ help pages serve that purpose.
 
 ## Continuous integration with GitHub Actions
 
-`usethis::use_github_action_check_standard()` sets up a
+`usethis::use_github_action('check-standard')` sets up a
 GitHub Actions workflow that runs `R CMD check` on every
 push and pull request, on multiple OS/R-version
 combinations:
@@ -370,7 +371,8 @@ usethis::use_github_action("check-standard")
 
 This adds `.github/workflows/R-CMD-check.yaml`. On every
 push, GitHub runs `check()` on three platforms (macOS,
-Windows, Ubuntu) with the latest stable R. If anything
+Windows, Ubuntu) with the released R, plus R-devel and the
+previous release on Ubuntu. If anything
 fails, the commit is marked failed.
 
 For test coverage:
@@ -505,14 +507,14 @@ Three habits define defensible testing practice:
 ## Exercises
 
 1. Add a `tests/testthat/test-summarise_numeric.R` file to
-   the package from chapter 19 with at least three tests:
+   the package from @sec-packages with at least three tests:
    happy path, empty input, and all-NA input. Run
    `devtools::test()` and make them pass.
 2. Run `covr::package_coverage()` on your package.
    Identify the uncovered lines and write tests until
    coverage is above 90%.
 3. Set up GitHub Actions via
-   `usethis::use_github_action_check_standard()` and
+   `usethis::use_github_action('check-standard')` and
    push. Verify that the workflow runs green on GitHub.
 4. Introduce a bug into `summarise_numeric()` (e.g.,
    compute SD without `na.rm = TRUE`). Run the test

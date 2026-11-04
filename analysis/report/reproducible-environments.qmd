@@ -281,8 +281,8 @@ The second is the locale. `sort()` and `order()` on a character
 vector depend on `LC_COLLATE`, so that a project sorted under
 one locale and rerun under another can reorder its rows, which
 silently changes any downstream computation that depends on
-order; date parsing and decimal separators depend in turn on
-`LC_NUMERIC` and `LANG`. The third is the numerical libraries:
+order; parsing and printing month and weekday names depend in
+turn on `LC_TIME`. The third is the numerical libraries:
 a different BLAS, or merely a different thread count under the
 same BLAS, reorders the additions in a matrix reduction and
 changes the result in its low-order bits, which is enough to

@@ -111,10 +111,11 @@ $$
 $$
 
 For convex $f$ and convex $g_i$ and affine $h_j$, the
-problem is a **convex program** with strong duality:
-the global minimum is unique (or, for non-strictly-convex
-$f$, on a unique convex set), and the duality gap is
-zero.
+problem is a **convex program**: every local minimum is
+global, the set of minimizers is convex (a single point
+when $f$ is strictly convex), and under a constraint
+qualification such as Slater's condition the duality gap
+is zero.
 
 ### Karush-Kuhn-Tucker (KKT) conditions
 
@@ -215,8 +216,9 @@ Either works; CVXR is more transparent. The
 reparameterization route would set $\beta_{\text{age}} = 0.1 \tanh(z)$
 and optimize unconstrained over $z$. This is fine but
 hides the constraint inside the parameterization, and
-the gradient at the boundary becomes infinite (a barrier
-in disguise). The CVXR route writes the constraint
+the gradient in $z$ vanishes near the boundary, so an
+optimum on the bound is reached only as $z \to \pm\infty$.
+The CVXR route writes the constraint
 explicitly: `constraints <- list(beta[age_index] >= -0.1, beta[age_index] <= 0.1)`.
 The reported solution either lies strictly inside the
 constraint (the constraint is inactive) or on the
@@ -385,7 +387,10 @@ where $i(k)$ is sampled uniformly from $\{1, \ldots, n\}$.
 The trade-off: each iteration is $O(1)$ rather than
 $O(n)$, but the iterations are noisy. With a decreasing
 step size $\eta_k = O(1/k)$, SGD converges in expectation
-at the optimal rate for non-strongly-convex problems.
+at the optimal $O(1/k)$ rate for strongly convex problems;
+for convex problems that are not strongly convex,
+$\eta_k = O(1/\sqrt{k})$ gives the optimal
+$O(1/\sqrt{k})$ rate.
 
 Modern variants:
 
@@ -423,10 +428,11 @@ parameter and gradient differences (typically $m = 5$
 to $20$).
 
 The cost per iteration is $O(mn)$, where $n$ is the
-parameter dimension. For $n$ in the thousands, this is
-tractable; for $n$ in the millions (deep neural
-networks), even L-BFGS is too expensive and SGD is the
-only option.
+parameter dimension. This is linear in $n$ and stays
+tractable even for $n$ in the millions. For deep neural
+networks the bottleneck is the full-data gradient and
+line search that each L-BFGS iteration needs, and SGD is
+the usual choice.
 
 L-BFGS is sensitive to the initial step size and to the
 line-search routine. Convergence problems often resolve

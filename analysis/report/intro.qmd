@@ -153,8 +153,8 @@ the LLM will not add it unless the reader knows to ask.
 **Apply a mixed-effects model to a small dataset with
 three clusters (@sec-mixed-models).** The LLM will fit
 `lmer()`. The REML variance-component estimate for the
-cluster effect will be almost entirely driven by the
-finite-sample prior implicit in REML; the user will read
+cluster effect will rest on only three cluster-level
+values and is often zero (a singular fit); the user will read
 the coefficient as an estimate of a population quantity
 it does not meaningfully estimate. The LLM will not
 distinguish a well-posed LMM from a poorly-posed

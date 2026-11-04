@@ -411,8 +411,8 @@ count, the per-iteration work, and the data size.
 *What to watch for.* The LLM will often suggest 'increase
 workers' or 'switch backends' without diagnosing the
 underlying issue. The common causes (too-fine-grained
-parallelism, large per-task data serialization, GIL-style
-bottlenecks in BLAS-using code) require the LLM to ask
+parallelism, large per-task data serialization, thread
+oversubscription in BLAS-using code) require the LLM to ask
 clarifying questions about per-task work size and data
 movement. If the LLM does not ask, push back.
 

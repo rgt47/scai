@@ -168,7 +168,7 @@ operations depends on operand magnitudes.
 #> [1] 0     # the 1 is lost
 ```
 
-The lost `1` is catastrophic cancellation: a small number
+The lost `1` is absorption (swamping): a small number
 added to a much larger number is invisible at double
 precision because the large number's rounding swallows it.
 
@@ -200,10 +200,11 @@ $$
 \widehat{\sigma}^2 = \frac{1}{n-1} \sum_{i=1}^n (x_i - \bar x)^2
 $$
 
-This is mathematically correct. It is also the most numerically
-stable form when $\bar x$ is small. But for $x_i$ near a
-large mean (a vector of HbA1c values around 6.5 mmol/L,
-say), an algebraically equivalent rearrangement is
+This is mathematically correct. Computed in two passes, it
+is also numerically stable whatever the size of $\bar x$.
+But for $x_i$ near a large mean (a vector of HbA1c values
+around 6.5%, say), an algebraically equivalent
+rearrangement is
 
 $$
 \widehat{\sigma}^2 = \frac{1}{n-1} \left( \sum x_i^2 - n \bar x^2 \right)

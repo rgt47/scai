@@ -84,7 +84,7 @@ including the edge cases the function does or does not
 handle, saves time over the package's life.
 
 **Dependencies are a tax.** Each package listed under
-`Import` becomes something users must install. Each version
+`Imports` becomes something users must install. Each version
 restriction (`dplyr (>= 1.0.0)`) constrains the environments
 the package will work in. The minimum-viable dependency
 list saves friction; the maximalist 'use whatever is
@@ -655,8 +655,8 @@ and the namespace from roxygen comments. Hand-editing
    directory (source code). Everything else (`NAMESPACE`,
    `man/`, `tests/`, `data/`, vignettes) is either
    auto-generated or optional. The minimum viable package
-   is one function in `R/foo.R` plus a one-line
-   `DESCRIPTION`.
+   is one function in `R/foo.R` plus a short
+   `DESCRIPTION` holding the required fields.
 2. `DESCRIPTION` stores package metadata: name, version,
    title, description, author, license, and the package's
    dependencies (`Imports`, `Suggests`, `Depends`). It is

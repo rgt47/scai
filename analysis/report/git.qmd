@@ -144,8 +144,8 @@ backup copies of your files (`analysis_v1.R`,
 
 **Answer.**
 
-Three things. First, Git tracks *changes* (the diff between
-versions) rather than storing whole-file copies, so the
+Three things. First, Git stores each commit as a snapshot
+but reuses unchanged content and compresses the rest, so the
 history is compact and readable: you can ask 'what
 changed between these two versions?' and get a precise
 answer. Second, every change carries context: an author, a
@@ -686,7 +686,7 @@ CSVs.'
 *What to watch for.* LLM-generated `.gitignore` files tend to
 be thorough and sometimes over-broad. Read every line. In
 particular, watch for patterns that would exclude files you
-need: `*.yaml` will exclude `_quarto.yml`, for example.
+need: `*.yml` will exclude `_quarto.yml`, for example.
 Also watch for missing entries: LLMs sometimes forget
 `.Rproj.user/`, `renv/library/`, or OS-specific files.
 
@@ -839,8 +839,8 @@ the appropriate compliance channel.
 1. Version control tracks changes to files over time,
    enabling you to review history, revert to earlier
    states, and collaborate without overwriting each other's
-   work. Unlike dated backup copies, Git stores *differences*
-   between versions (not full copies), records metadata for
+   work. Unlike dated backup copies, Git stores snapshots
+   that share unchanged content, records metadata for
    each change (author, time, message), and supports
    workflows (branching, merging, review) that file
    backups cannot.

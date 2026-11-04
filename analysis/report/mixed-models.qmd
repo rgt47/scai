@@ -118,7 +118,7 @@ independent.
 Two problems result:
 
 1. **Standard errors too small.** Effective sample size is
-   roughly $n / (1 + (K-1) \rho)$, not $nK$, where $\rho$
+   roughly $nK / (1 + (K-1) \rho)$, not $nK$, where $\rho$
    is the ICC. For $K = 10$, $\rho = 0.5$, the effective
    sample size is $n \cdot 10 / 5.5 \approx 1.8 n$, not
    $10 n$. Ignoring this inflates Type-I error from the
@@ -247,10 +247,11 @@ m2 <- lmer(y ~ x1 + x2 + (1 | g), data = d, REML = FALSE)
 anova(m1, m2)
 ```
 
-`anova()` automatically refits with ML when comparing
-fixed-effect structures. For comparing models that differ
-in *random* effects, REML is correct (and is what
-`anova()` uses if both models are REML-fitted).
+`anova()` automatically refits REML fits with ML before
+comparing them (its default is `refit = TRUE`). For
+comparing models that differ only in *random* effects,
+REML is correct; pass `refit = FALSE` to keep the REML
+fits.
 
 ## p-values and degrees of freedom
 
@@ -328,7 +329,7 @@ icc
 ```
 
 Or use `performance::icc(fit)` for a tidier interface. The
-ICC quantifies how much of the residual variance is
+ICC quantifies how much of the total variance is
 between-cluster vs. within-cluster:
 
 - ICC = 0: clusters do not differ; ordinary regression

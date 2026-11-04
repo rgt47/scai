@@ -22,19 +22,11 @@ text. Citations should use the form:
 > AI*. La Jolla, California. Retrieved from
 > <https://rgtlab.org/scai>.
 
-Typeset in Source Serif 4 and JetBrains Mono using Quarto
-and `xelatex`. Source available at
+Typeset with DejaVu Sans Mono for code using Quarto and
+`xelatex`. Source available at
 <https://github.com/rgt47/scai>.
 
 First draft: Spring 2026.
-
-::: {.content-visible when-format='pdf'}
-```{=latex}
-\clearpage
-\tableofcontents
-\clearpage
-```
-:::
 
 ::: {.content-visible when-format='pdf'}
 ```{=latex}

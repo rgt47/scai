@@ -44,7 +44,7 @@ decisions still require the statistician's judgment.
 
 **1. Type discipline.** R coerces silently between types in
 ways that can hide errors. `c(1, '2')` becomes
-`c('1', '2')` (character); `TRUE + 1` becomes `2` (integer).
+`c('1', '2')` (character); `TRUE + 1` becomes `2` (double).
 An LLM will happily accept whatever types flow through its
 generated code. You must decide, before any computation runs,
 which types the data *should* carry, and assert them with
@@ -381,7 +381,8 @@ strings and the literal string `'NA'`.
 the missing sentinel by default, but `readr::read_csv()` has
 different defaults depending on version. A `dose` column with
 mixed content can silently come in as `character`, and
-`mean()` on a character vector errors. An LLM may wrap the
+`mean()` on a character vector returns `NA` with a warning.
+An LLM may wrap the
 read in `as.numeric()` without warning you that values that
 fail to parse become `NA`.
 

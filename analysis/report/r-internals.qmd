@@ -237,7 +237,7 @@ On a laptop, `n = 50000` takes several seconds. On `n =
 R is slow; it is because the algorithm is accidentally
 quadratic.
 
-Three rewrites, in increasing order of goodness:
+Two rewrites, in increasing order of goodness:
 
 ```r
 # OK: pre-allocated, O(n)
@@ -687,8 +687,8 @@ scalar `2`. `x["b"]` would return a list of length 1.
 What is the primary difference between a data frame and a
 matrix in R?
 
-- A) Matrices can only contain numbers, while data frames
-  can contain different types in each column
+- A) Matrices hold a single type throughout, while data
+  frames can contain different types in each column
 - B) Data frames can only have row names, while matrices can
   have both row and column names
 - C) Matrices can have any number of dimensions, while data

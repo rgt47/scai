@@ -654,6 +654,8 @@ down and making labels illegible.
 3. Maintain consistent axis scales and panel layout so
    that apparent differences across panels reflect real
    differences in the data, not differences in the
-   display. Shared scales (`facet_*` or
-   `patchwork::plot_layout(axis_titles = "collect")`)
-   are the standard mechanism.
+   display. Shared scales (`facet_*` with its default
+   fixed scales, or common limits set on every
+   `patchwork` panel) are the standard mechanism;
+   `plot_layout(axis_titles = 'collect')` only merges
+   duplicate axis titles.

@@ -607,7 +607,7 @@ subtle bugs, just at a higher level of abstraction than a
   functionals and `purrr`.
 - [@wickham2023r4ds] iteration chapter, applied
   introduction paired with data-analysis examples.
-- [Jenny Bryan, *Iteration for data science*](https://speakerdeck.com/jennybc/row-oriented-workflows-in-r-with-the-tidyverse),
+- [Jenny Bryan, *Row-oriented workflows in R with the tidyverse*](https://speakerdeck.com/jennybc/row-oriented-workflows-in-r-with-the-tidyverse),
   a particularly clear treatment of the
   row-oriented/column-oriented distinction.
 

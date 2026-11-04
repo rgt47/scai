@@ -286,9 +286,7 @@ in the iteration count) and typically restarted every $m$
 iterations to bound the memory.
 
 R packages: `Rlinsolve` provides CG, GMRES, BiCGSTAB, and
-others. Stan and similar use these internally for the
-preconditioner setup but expose them via different
-interfaces.
+others.
 
 ### BiCGSTAB and other variants
 

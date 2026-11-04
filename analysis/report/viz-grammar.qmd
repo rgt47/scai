@@ -63,9 +63,10 @@ choose what plot to make.
 
 **Pick the right encoding.** Continuous values map well to
 position (x, y, length). Categorical values map well to
-color, shape, or facets. Mapping a continuous variable to
-shape (10 different shapes for 10 levels) creates an
-unreadable plot. Mapping a categorical variable to a
+color, shape, or facets. Mapping a many-level categorical
+variable to shape (10 different shapes for 10 levels)
+creates an unreadable plot, and `ggplot2` refuses to map a
+continuous variable to shape at all. Mapping a categorical variable to a
 sequential color scale implies an ordering that may not
 exist. The grammar makes these mistakes structurally
 visible because each aesthetic has a natural variable type.
@@ -482,8 +483,8 @@ A few legacy patterns no longer work in current
 `ggplot2`. `aes_string()` is soft-deprecated in
 `ggplot2` 3.5+; use the `.data` and `.env` pronouns from
 `rlang` for programmatic aesthetics, e.g.,
-`aes(x = .data[[varname]])`. `qplot()` has been fully
-removed; use `ggplot()` directly. When older code or LLM
+`aes(x = .data[[varname]])`. `qplot()` has been deprecated
+since `ggplot2` 3.4.0; use `ggplot()` directly. When older code or LLM
 output uses these constructs, translate to the current
 forms before relying on the result.
 
@@ -536,7 +537,7 @@ a plot?
 - A) Data
 - B) Aesthetics
 - C) Colors
-- D) Layers
+- D) Facets
 
 ::: {.callout-note collapse='true'}
 ## Answer

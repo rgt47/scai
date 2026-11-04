@@ -14,7 +14,7 @@ By the end of this chapter you should be able to:
 - Build dashboards with `flexdashboard`, Quarto dashboards,
   and `shinydashboard`/`bslib::page_navbar()`, and choose
   between them based on the audience and update cadence.
-- Use Observable JS and `ojs-define` blocks in Quarto to
+- Use Observable JS cells and `ojs_define()` in Quarto to
   embed reactive analytics in static documents.
 - Apply principles of effective dashboard design (hierarchy
   of information, calibrated color, semantic
@@ -186,10 +186,10 @@ should start with `bslib`.
 ### Reactive-graph discipline
 
 The most common cause of slow `shiny` applications is
-unintended re-execution. A `reactive({ ... })` runs once
-per change to its inputs and caches the result; a
-`renderPlot({ ... })` runs once per change to *any*
-reactive it reads. Without discipline, a single input
+unintended re-execution. A `reactive({ ... })` re-runs when
+any input it reads changes and caches the result for all
+its readers; a `renderPlot({ ... })` likewise re-runs when
+*any* reactive it reads changes. Without discipline, a single input
 change can trigger a cascade of re-renders.
 
 Three rules:
@@ -523,7 +523,7 @@ work:
 
 ## Further reading
 
-- @wickham2021mastering, *Mastering Shiny*
+- @wickham2021shiny, *Mastering Shiny*
   (<https://mastering-shiny.org/>). The canonical applied
   reference for `shiny`.
 - @munzner2014visualization, *Visualization Analysis &

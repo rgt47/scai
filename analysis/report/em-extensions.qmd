@@ -8,9 +8,10 @@ By the end of this chapter you should be able to:
   for a generic latent-variable model, and identify the
   E-step and M-step as the two halves of a coordinate
   ascent on the evidence lower bound.
-- Implement EM for two canonical biostatistical cases:
-  Gaussian mixture models and the multinomial-logit
-  formulation of mixed-effects models.
+- Implement EM for a canonical biostatistical case, the
+  Gaussian mixture model, and identify the latent
+  structure that makes EM applicable to mixed-effects
+  models.
 - Recognize when ECM (Expectation-Conditional-
   Maximization), MCEM (Monte Carlo EM), or variational
   EM is more appropriate than ordinary EM.
@@ -36,8 +37,9 @@ algorithm is the standard tool for that maximization.
 
 @sec-mixed-models treated
 mixed-effects models via `lme4`, which uses penalized
-quasi-likelihood plus a deterministic Laplace
-approximation rather than EM. EM is needed when the
+least squares for linear models and a Laplace
+approximation or adaptive Gauss-Hermite quadrature for
+generalized linear models, rather than EM. EM is needed when the
 likelihood has missing or latent components that admit a
 closed-form expectation given the observed data.
 Variational EM and MCEM extend the framework to cases
@@ -307,9 +309,10 @@ The trade-offs:
 - Total cost is the inner sampling cost times the outer
   iteration count, which can be substantial.
 
-MCEM is the standard for generalized linear mixed models
-in some packages (e.g., `glmmADMB`, parts of `lme4`'s
-internals for non-Gaussian outcomes).
+MCEM is an established approach for generalized linear
+mixed models (Booth and Hobert, 1999), although `lme4`
+and `glmmADMB` use a Laplace approximation or quadrature
+instead.
 
 ### Variational EM
 

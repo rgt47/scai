@@ -36,7 +36,7 @@ encodes that assumption into the optimization.
 
 The lasso [@tibshirani1996regression] launched this field by
 combining sparsity with computational tractability. The
-twenty years since have produced refinements (elastic net,
+thirty years since have produced refinements (elastic net,
 group lasso, adaptive lasso), scalability advances
 (coordinate descent, screening rules, biglasso), and a
 post-selection inference apparatus (knockoffs, debiased

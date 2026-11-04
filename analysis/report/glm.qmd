@@ -555,12 +555,12 @@ residuals or the dispersion statistic and ask: 'is this
 overdispersed, and what should I do?'
 
 *What to watch for.* A correct diagnosis uses a threshold of
-roughly $\phi > 1.5$. Common wrong suggestions include 'use
-robust standard errors' (this does not address
-overdispersion per se) or 'add more covariates' (this may
-help if overdispersion is due to omitted variables, but
-often does not). The standard answers are quasi-Poisson or
-negative binomial.
+roughly $\phi > 1.5$. A common weak suggestion is 'add more
+covariates' (this may help if overdispersion is due to
+omitted variables, but often does not). The standard answers
+are quasi-Poisson, negative binomial, or sandwich (robust)
+standard errors, which remain valid for the mean
+parameters under overdispersion.
 
 *Verification.* Fit both Poisson and negative binomial. If
 the coefficients are similar and the NB's dispersion

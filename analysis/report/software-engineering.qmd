@@ -136,8 +136,7 @@ The two practical patterns that recover most R speedups:
    element-wise operations on whole vectors or matrices.
 2. **Avoid copy-on-modify in tight loops.** Pre-allocate
    output containers; use `data.table`'s in-place
-   modification or `dplyr`'s reference semantics where
-   helpful; never grow a vector with `c(x, new_value)`
+   modification where helpful; never grow a vector with `c(x, new_value)`
    in a loop.
 
 When neither applies (a genuinely sequential algorithm
@@ -207,7 +206,7 @@ No. Rcpp would not help here: the bottleneck is the cost
 of fitting 1000 regression models, which lives in
 already-compiled C code (`lm.fit` or whichever solver).
 Rewriting the wrapping loop in Rcpp would buy nothing.
-The right next step is either to parallelize (chapter 8)
+The right next step is either to parallelize (@sec-parallel)
 or to consolidate the 1000 small fits into a single large
 fit using a per-row factor: a one-line `lm` call with a
 group factor produces the 1000 coefficients in
@@ -458,7 +457,7 @@ in output (the implementations use the same algorithm with
 the same arithmetic order). The `check = TRUE` is the
 non-negotiable part: an Rcpp implementation that is fast
 but produces different output is a regression that must be
-caught at compile time, not in production.
+caught at benchmark time, not in production.
 
 As a rule of thumb, when the loop is genuinely sequential
 and dominates runtime, Rcpp is worth it; verify
@@ -514,7 +513,7 @@ ship a 'faster' version that is the same speed or slower.
 
 *Verification.* `bench::mark(check = TRUE)` against the
 original. If the optimized version is no faster, revert.
-If it is faster but `check = FALSE`, you have a
+If it is faster but fails the check, you have a
 correctness regression masquerading as a speedup; revert
 and investigate.
 
@@ -578,7 +577,7 @@ Three habits define defensible software engineering work:
 
 ## Further reading
 
-- @wickham2023r, *R Packages*, 2nd edition
+- @wickham2023rpkgs, *R Packages*, 2nd edition
   (<https://r-pkgs.org/>). The canonical reference for
   R-package authorship.
 - @eddelbuettel2013seamless, *Seamless R and C++

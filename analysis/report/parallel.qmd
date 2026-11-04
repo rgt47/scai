@@ -310,7 +310,7 @@ workers consumes 40 GB. Three remedies:
 3. Reduce the data: workers operate on a summary or a
    subset.
 
-**Stack overflows from over-parallelization.** Spawning
+**Oversubscription from over-parallelization.** Spawning
 more processes than cores is rarely useful and often
 counter-productive. `parallelly::availableCores()` reports
 the canonical 'how many cores can I use' value, respecting

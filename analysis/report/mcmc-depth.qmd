@@ -138,8 +138,9 @@ as the Metropolis candidate; accept with probability
 $\min(1, \exp(H_{\text{old}} - H_{\text{new}}))$. The
 discretization error in the leapfrog integrator is
 small but nonzero, so the acceptance probability is
-slightly below 1; the deviation from 1 is what makes the
-sampler proper.
+slightly below 1; the Metropolis accept/reject step
+corrects for that error, so the sampler still targets
+the exact posterior.
 
 The two tuning knobs are:
 
@@ -448,9 +449,10 @@ The four chains' worth of samples are pooled for
 inference; their consistency provides the $\hat R$
 diagnostic.
 
-For long-running models, `cmdstanr` and `rstan` parallelize
-across chains automatically. To extract maximum
-parallelism, set `cores = 4` (or as many as you have).
+For long-running models, `cmdstanr` and `rstan` can run
+chains in parallel. Set `parallel_chains = 4` in
+`cmdstanr` or `cores = 4` in `rstan` (or as many as you
+have).
 
 ```r
 library(cmdstanr)

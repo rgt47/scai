@@ -184,10 +184,12 @@ not the same thing; they differ in three ways.
 
 First, **centering**. The sampling distribution is centered
 at the true parameter $\theta$. The bootstrap distribution
-is centered at the observed estimate $\hat\theta$. For this
-reason the bootstrap cannot correct a biased estimator: a
-biased $\hat\theta$ produces a bootstrap distribution biased
-by the same amount in the same direction.
+is centered near the observed estimate $\hat\theta$. For this
+reason the bootstrap cannot recover the location of $\theta$
+itself. It can only mimic the offset: for a biased
+$\hat\theta$, the mean of the replicates sits roughly the
+bias away from $\hat\theta$, which is what the bootstrap
+bias estimate $\bar\theta^* - \hat\theta$ measures.
 
 Second, **support**. The sampling distribution can in
 principle produce any value the true distribution can. The
@@ -399,16 +401,18 @@ population modified to satisfy the null.
 
 The theoretical bootstrap enumerates all $n^n$ possible
 resamples with replacement, and for even modest $n$ this is
-astronomical: $n = 20$ produces more resamples than there
-are atoms in the observable universe. In practice we sample
+astronomical: $n = 20$ already produces $20^{20} \approx
+10^{26}$ ordered resamples. In practice we sample
 a manageable number $B$ of resamples uniformly at random.
 This introduces a Monte Carlo error distinct from the
 statistical error of using a finite original sample.
 
 The Monte Carlo error of a percentile confidence-interval
-endpoint is approximately $\sqrt{\alpha(1 - \alpha)/B} \cdot
-\widehat{\mathrm{SE}}_B$. For a 95% interval with $B =
-1000$, this is about $0.005 \cdot \widehat{\mathrm{SE}}_B$,
+endpoint is approximately $\sqrt{\alpha(1 - \alpha)/B} /
+f(q_\alpha)$, where $f$ is the density of the bootstrap
+distribution at the endpoint $q_\alpha$. For a roughly
+normal bootstrap distribution and a 95% interval with $B =
+1000$, this is about $0.08 \cdot \widehat{\mathrm{SE}}_B$,
 an order of magnitude smaller than the statistical error for
 typical $n$.
 
@@ -665,8 +669,10 @@ correlation between `waiting` and `eruptions` in the
 **What to watch for.** A correlation is bounded in
 $[-1, 1]$, so its sampling distribution is asymmetric near
 the boundaries. A default nonparametric percentile
-bootstrap on the raw correlation is inefficient and can
-produce endpoints that fall outside $[-1, 1]$. The
+bootstrap on the raw correlation stays inside $[-1, 1]$ but
+can be poorly calibrated there, and a normal-approximation
+bootstrap interval ($\hat r \pm 1.96\,\widehat{\mathrm{SE}}$)
+can produce endpoints that fall outside $[-1, 1]$. The
 textbook remedy is to bootstrap on the Fisher-z
 transformation $\tfrac{1}{2}\log\tfrac{1+r}{1-r}$ and then
 back-transform.
@@ -676,8 +682,8 @@ correlation in `atanh()` before computing quantiles and
 `tanh()` after? If not, compare interval widths against
 `cor.test()`. A noticeable discrepancy indicates the LLM
 skipped the transformation; ask it a follow-up on whether
-the percentile endpoints are guaranteed to stay in the
-valid range.
+a normal-approximation interval is guaranteed to stay in
+the valid range.
 
 ### The bootstrap maximum
 
