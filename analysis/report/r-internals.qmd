@@ -45,24 +45,23 @@ needed to reason about performance without leaving R.
 
 This chapter is also the bridge between 'R works' and 'R
 works efficiently'. Every practicing R user has written code
-that felt inexplicably slow. Most of those incidents, it
-appears, trace back to a small number of misunderstandings
-about R's memory model. The payoff for internalizing these
-ideas is disproportionate. Speedups of 100x on real analyses
-are common.
+that felt inexplicably slow. Most of those incidents trace
+back to a small number of misunderstandings about R's memory
+model, and correcting them pays off well out of proportion to
+the effort: speedups of 100x on real analyses are common.
 
 ## The statistician's contribution {#sec-r-internals-human}
 
 Memory semantics are objective facts about R. An LLM can
-summarize them in a paragraph. What an LLM cannot do is make
-the judgment calls that separate working code from defensible
-analysis code.
+summarize them in a paragraph. It cannot make the judgment
+calls that separate working code from defensible analysis
+code.
 
 **When to optimize, and when not to.** The dominant cost in
 most statistical analyses is not R's execution time; it is the
 analyst's time to reason about the model, check results, and
-communicate findings. Premature optimization, rewriting
-clear code into obscure code to save milliseconds, is a
+communicate findings. Premature optimization (rewriting
+clear code into obscure code to save milliseconds) is a
 common self-inflicted wound. The statistician's judgment is
 to optimize only the parts of a pipeline that are actually a
 bottleneck, and to preserve readability everywhere else. This
@@ -83,9 +82,9 @@ of times, probably yes.
 call that runs once can mislead you by 2× either direction for
 reasons that have nothing to do with your code. Treat a single
 timing as a rough signal; treat `bench::mark()` output as a
-measurement. When the stakes are high, a paper's central
+measurement. When the stakes are high (a paper's central
 claim about computational feasibility, or a regulatory
-submission's runtime, run benchmarks on a quiet machine,
+submission's runtime), run benchmarks on a quiet machine,
 repeat them, and report variability.
 
 **Which data structure for which job.** Matrices and data
@@ -94,12 +93,12 @@ that produces a million numeric values per iteration should
 return a matrix, not a tibble. A downstream analysis that
 merges, filters, and groups should use a data frame or
 tibble, not a matrix. The choice is a judgment about what
-dominates: numeric throughput or ergonomics. Getting it right
-is worth more than any micro-optimization.
+dominates: numeric throughput or ergonomics, and it matters
+more than any micro-optimization.
 
-These decisions shape whether an analysis is fast enough to
-be practical, readable enough to be reviewed, and correct
-enough to be trusted. None of them can be automated.
+These decisions bear on the speed, readability, and
+correctness of an analysis, and none of them can be
+automated.
 
 ## R's memory model: names and values
 
@@ -155,24 +154,23 @@ for statistical programming?
 
 **Answer.**
 
-Memory knowledge is what separates code that feels fast from
-code that feels sluggish for reasons you cannot explain. The
-copy-on-modify rule is the direct cause of the classic
+The memory model explains why some code is sluggish for no
+apparent reason. The copy-on-modify rule is the direct cause of the classic
 growing-vector-in-a-loop trap (O(n²) behavior). The
 modify-in-place exception for single-binding objects
 explains why pre-allocation rescues that same loop.
 Understanding when R copies and when it does not lets you
 write functions that run dozens of times faster on identical
-inputs. Ignorance of these rules costs 10--100× speedups on
-routine analysis code, silently.
+inputs. Without them, you silently forgo 10 to 100× speedups
+on routine analysis code.
 
 :::
 
 ## Modify-in-place: the single-binding exception
 
-When an object has only one binding, R modifies it in place.
-No copy is made. This is a crucial exception that underlies
-most R performance advice.
+When an object has only one binding, R modifies it in place
+without making a copy. Most R performance advice rests on
+this exception.
 
 ```r
 x <- c(1, 2, 3, 4, 5)
@@ -264,9 +262,8 @@ Concretely, on typical hardware:
 - Pre-allocated: ~0.05 seconds (160× faster).
 - Vectorized: ~0.0005 seconds (10,000× faster than grown).
 
-This is not a pathological example. It is exactly the shape
-of code many people write when first learning R. The
-diagnosis is easy once you know what to look for: if a loop
+Many people write code of exactly this shape when first
+learning R. The diagnosis is easy once you know what to look for: if a loop
 ends with `x <- c(x, new_value)` or `x <- rbind(x, new_row)`,
 you have the quadratic trap.
 
@@ -289,13 +286,12 @@ my_list <- list(
 This is the recursive part: a list can contain a list can
 contain a list. Almost every composite object in R is
 ultimately built on lists: data frames, model outputs,
-S3/S4/R6 objects, function environments. Learning to think
-about lists fluently pays enormous dividends.
+S3/S4/R6 objects, function environments.
 
 ### `[` vs `[[` vs `$`
 
-This is the most frequently confused piece of R syntax. The
-distinction is simple once stated plainly:
+These three operators are the most frequently confused piece
+of R syntax, although the distinction is simple:
 
 - `[` returns a subset *of the container type*. For a list,
   it returns a list. For a vector, it returns a vector. This
@@ -334,8 +330,7 @@ first element of `my_list` wrapped in a length-1 list.
 a vector, a scalar, a nested list, whatever was stored
 there. If downstream code expects a vector and you pass
 `my_list[1]`, it will fail or silently coerce. The `$`
-operator is a shorthand for `[[` by name. Mastery of this
-distinction prevents a lot of hours of debugging.
+operator is a shorthand for `[[` by name.
 
 :::
 
@@ -349,7 +344,7 @@ those vectors.
 This has three important consequences.
 
 **Column-wise operations are fast.** `df$x` is just retrieving
-a vector from the list, constant-time, no copying.
+a vector from the list, in constant time and without copying.
 Arithmetic on a column is a plain vector operation.
 
 **Row-wise operations are slow.** To take row 3, R must pull
@@ -387,8 +382,8 @@ matrix for analysis?
 **Answer.**
 
 Convert when: (1) every column is numeric, (2) you are
-about to do linear algebra, `%*%`, `solve()`, `qr()`,
-`svd()`, or pass the data to a function that expects a
+about to do linear algebra (`%*%`, `solve()`, `qr()`,
+`svd()`) or pass the data to a function that expects a
 matrix, and (3) the dataset is large enough that the
 memory-contiguity advantage matters. The conversion itself
 is cheap. Keep it as a data frame when types are mixed,
@@ -426,14 +421,12 @@ not the original numeric values (if the labels were
 numeric-looking). For `factor(c("10", "20", "30"))`,
 `as.numeric(f)` gives `1 2 3`, not `10 20 30`. The correct
 idiom is `as.numeric(as.character(f))` or `as.numeric(levels(f))[f]`.
-This trap catches working statisticians frequently enough
-that it deserves naming.
 
 ## Benchmarking: `bench::mark()`
 
 `system.time()` measures elapsed time for a single evaluation.
-It is a useful rough gauge, 'does this take 0.1 seconds or
-10 seconds?', but noisy. For comparing implementations,
+It is a useful rough gauge ('does this take 0.1 seconds or
+10 seconds?') but noisy. For comparing implementations,
 `bench::mark()` is the standard.
 
 ```r
@@ -511,9 +504,9 @@ and line-by-line timing. It is usually the fastest way to
 find the bottleneck in a function you are unfamiliar with.
 
 The Pareto rule applies strongly to performance: typically
-20% of the code accounts for 80% of the runtime. Optimizing
-outside the bottleneck wastes time. Profiling turns that
-principle into action.
+20% of the code accounts for 80% of the runtime, so
+optimizing outside the bottleneck wastes time, and profiling
+is how you find the bottleneck.
 
 ## Reference material: environments
 
@@ -558,7 +551,7 @@ invent plausible-sounding intermediate details (e.g.,
 specific R internal function names that don't exist). Treat
 the high-level explanation as a starting point; verify the
 low-level claims against `?lobstr::obj_addr` and Wickham's
-*Advanced R*, chapters 2--5.
+*Advanced R*, chapters 2 to 5.
 
 *Verification.* Reproduce the behavior in an R session. If
 the LLM predicts 'this operation triggers a copy', check with
@@ -602,10 +595,10 @@ precision). Only trust the Rcpp version after it matches R
 on every test case and the speedup is confirmed on realistic
 input sizes.
 
-The meta-pattern: for R internals work, an LLM is a good
-research assistant and a poor authority. It can generate a
-candidate answer quickly; you are responsible for turning
-that candidate into a trustworthy one.
+For R internals work, then, treat the LLM as a research
+assistant rather than an authority. It can generate a
+candidate answer quickly; you are responsible for verifying
+it.
 
 ## Principle in use
 
@@ -623,8 +616,8 @@ Three habits define effective use of R's memory semantics:
    column-oriented analysis. Convert between them as the
    analysis moves between phases.
 
-Internalize these three habits and most R performance
-problems become non-problems. The deeper memory model
+With these three habits in place, most R performance
+problems never arise. The deeper memory model
 (copy-on-modify, reference counting, environments) is the
 explanation for *why* the habits work, and the material you
 reach for when the habits are not enough.
@@ -653,12 +646,13 @@ reach for when the habits are not enough.
 
 ## Further reading
 
-- [@wickham2019advr] Chapters 2--5, names, values, copy-on-modify,
-  and function environments. The canonical reference.
+- [@wickham2019advr] Chapters 2 to 5 (names, values,
+  copy-on-modify, and function environments). The canonical
+  reference.
 - [@dowle2021datatable], `data.table`'s design illustrates
   the performance implications of opting out of copy-on-modify.
-- `?bench::mark` and `?profvis::profvis`, the tool
-  documentation is excellent, short, and includes runnable
+- `?bench::mark` and `?profvis::profvis`. The tool
+  documentation is short and clear and includes runnable
   examples.
 
 ## Practice test {#sec-practice-test-r-internals}

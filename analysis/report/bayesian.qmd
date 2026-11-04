@@ -73,10 +73,10 @@ this chapter's coverage, the default `rstan` backend is fine.
 
 ## The statistician's contribution {#sec-bayesian-human}
 
-Bayesian computation is well-supported by software. The
-judgments that matter, which prior, which model,
-whether the chain converged, what the posterior actually
-says, are not.
+Software supports Bayesian computation well. It does not
+make the judgments that matter: which prior, which model,
+whether the chain converged, and what the posterior
+actually says.
 
 **Priors are not nuisance parameters.** A weakly informative
 default prior (`rstanarm`'s default for regression
@@ -92,7 +92,7 @@ deliberately, usually weakly informative, occasionally
 genuinely informative, and to do a sensitivity analysis
 when priors might matter.
 
-**Convergence is a diagnostic, not a default.** $\hat R$
+**Establish convergence; do not assume it.** $\hat R$
 near 1.00 and adequate ESS are necessary, not sufficient.
 Trace plots, divergences (HMC), E-BFMI, and posterior
 predictive checks together build the case that the chain
@@ -119,9 +119,6 @@ observed data on simulated draws from the posterior
 predictive distribution; failures here are model-
 misspecification flags that no diagnostic of the
 parameters alone will catch.
-
-These judgments are what distinguishes Bayesian analysis
-from running `stan_glm()` and reporting the result.
 
 ## Bayes' theorem
 
@@ -391,8 +388,8 @@ posterior means of the subject-specific deviations from
 `brm` should also agree, with `brm` producing slightly
 more shrinkage when the data are sparse for a subject.
 
-The Bayesian view of random effects is straightforward:
-they are parameters with a hierarchical prior. The prior's
+In a Bayesian model, random effects are parameters with
+a hierarchical prior. The prior's
 variance (the random-effects SD) is itself estimated. There
 is no philosophical distinction between fixed and random
 effects in a Bayesian model; both are parameters, and the
@@ -414,8 +411,8 @@ matters.
 
 ## Posterior summaries
 
-Once the chain has converged, the posterior is a sample.
-Use it.
+Once the chain has converged, the draws are a sample from
+the posterior, and every summary is computed from them.
 
 ```r
 library(posterior)
@@ -457,14 +454,13 @@ pp_check(fit, ndraws = 100)
 The default plot shows the observed outcome density vs.
 posterior predictive draws. A model whose posterior
 predictive draws differ systematically from the observed
-data, different mode, different variance, different
-range, different proportion of zeros, is misspecified
-on something the data are sensitive to.
+data (in mode, variance, range, or proportion of zeros)
+is misspecified on something the data are sensitive to.
 
-PP checks are essential and routinely overlooked. A
-posterior with $\hat R = 1.000$ and tight credible
-intervals can still come from a model that does not
-describe the data; PP checks are how you find out.
+PP checks are routinely overlooked. A posterior with
+$\hat R = 1.000$ and tight credible intervals can still
+come from a model that does not describe the data, and
+the parameter diagnostics will not reveal it.
 
 ## Convergence diagnostics
 
@@ -612,13 +608,13 @@ your understanding of the data.
 Three habits define defensible Bayesian computation:
 
 1. **Always check convergence.** $\hat R$, ESS,
-   divergences, E-BFMI. A non-converged chain is not a
-   fit.
+   divergences, E-BFMI. Do not report results from a
+   chain that has not converged.
 2. **Always do a posterior predictive check.** A
    converged chain on a misspecified model produces a
-   precise wrong answer. PP checks are how you find out.
+   precise wrong answer.
 3. **Be deliberate about priors.** Defaults are fine for
-   many applications; they are not fine for all.
+   many applications but not for all.
    Sensitivity analysis disclosing prior dependence is
    the polite minimum.
 
@@ -655,8 +651,8 @@ Three habits define defensible Bayesian computation:
 
 - Gelman et al. (2013), *Bayesian Data Analysis*, 3rd
   ed., Chapman and Hall/CRC, the canonical reference.
-- McElreath (2020), *Statistical Rethinking*, 2nd ed.
- , accessible introduction paired with `brms` code.
+- McElreath (2020), *Statistical Rethinking*, 2nd ed.,
+  accessible introduction paired with `brms` code.
 - Stan Development Team documentation at
   `mc-stan.org/docs`, the ecosystem reference.
 - Vehtari et al. (2021), 'Rank-normalization, folding,

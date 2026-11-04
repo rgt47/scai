@@ -91,9 +91,6 @@ list saves friction; the maximalist 'use whatever is
 convenient' approach produces packages that are hard to
 install five years later.
 
-These judgments are what distinguishes packages people use
-from packages that exist. Software craft does the rest.
-
 ## Why package code?
 
 Concrete benefits:
@@ -113,7 +110,7 @@ Concrete benefits:
   others. CRAN, GitHub, and internal package servers all
   use this format.
 
-The cost: more files, more conventions, more tooling. The
+Packaging adds files, conventions, and tooling. The
 threshold for going from script to package is roughly
 'this code will be reused by me or someone else more than
 once'.
@@ -323,7 +320,7 @@ use_package("testthat", "Suggests")
 
 Version requirements: use minimum versions for features you
 need, not exact pins. `dplyr (>= 1.0.0)` means 'any version
-1.0 or later'. Avoid `dplyr (== 1.0.5)`, this constrains
+1.0 or later'. Avoid `dplyr (== 1.0.5)`: this constrains
 users to one specific version, which usually breaks within
 a year.
 
@@ -367,14 +364,14 @@ collaborator, your future self):
 devtools::check()
 ```
 
-This runs `R CMD check`, the gold standard for package
-quality. It tests:
+This runs `R CMD check`, the standard test of package
+quality. It checks that:
 
 - Documentation is complete and consistent.
 - Examples run without errors.
 - Tests pass.
 - Dependencies are declared correctly.
-- No undocumented functions.
+- Exported functions are all documented.
 - The package builds and loads on a clean R session.
 
 A clean `check()` (no errors, warnings, or notes) is the
@@ -402,9 +399,6 @@ not exist. Re-run `devtools::document()`.
 
 **'examples lines wider than 100 characters'** when an
 example line is too long. Break it up.
-
-The fixes are straightforward; the work is doing the
-fixes consistently.
 
 ## Vignettes
 
@@ -664,7 +658,7 @@ and the namespace from roxygen comments. Hand-editing
    is one function in `R/foo.R` plus a one-line
    `DESCRIPTION`.
 2. `DESCRIPTION` stores package metadata: name, version,
-   title, description, author, license, and, crucially,
+   title, description, author, license, and the package's
    dependencies (`Imports`, `Suggests`, `Depends`). It is
    the file that distinguishes a package from a directory
    of R scripts.

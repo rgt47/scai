@@ -14,25 +14,23 @@ be correct. Unfortunately, it will sometimes be subtly,
 dangerously wrong in ways the student is not equipped to
 detect.
 
-This is the premise of the book.
-
-The premise is *not* that large language models are bad.
-They are remarkable tools, and ignoring them in a
-statistics curriculum would be a pedagogical failure.
-Nor is the premise that statisticians should refuse to use
-them. We assume, and we encourage, daily use of LLMs and
-coding agents in statistical computing work. Rather, an
-LLM's usefulness to a biostatistician is limited by the
+That last possibility is the premise of the book. It
+does not hold that large language models are bad. They
+are remarkable tools, and ignoring them in a statistics
+curriculum would be a pedagogical failure. Nor does it
+hold that statisticians should refuse to use them. We
+assume, and we encourage, daily use of LLMs and coding
+agents in statistical computing work. An LLM's usefulness to a
+biostatistician is limited by the
 statistician's own ability to **verify, critique, and
 extend** what the LLM produces. That ability must be
 built through training that does not treat the LLM as a
 substitute for learning.
 
-Put differently, the student who learns the material in
-this book will use LLMs more effectively than the student
-who does not. This is not because the book teaches prompt
-engineering, though it teaches a little of that at the end
-of each chapter. It is because the book teaches the
+The student who learns the material in this book will
+use LLMs more effectively than the student who does not.
+The book teaches a little prompt engineering at the end
+of each chapter, but the advantage comes from the
 statistical and computational judgment that LLM output
 *requires* from a human reviewer.
 
@@ -49,7 +47,7 @@ This book is not:
   models are other subjects, covered better elsewhere.
 - An argument that students should skip the hard parts of
   statistical computing because the LLM will handle them.
-  The opposite is true. The arrival of LLMs *raised* the
+  The arrival of LLMs *raised* the
   bar for what human statisticians must know, because
   deciding whether the LLM is right is now the
   statistician's core contribution.
@@ -74,8 +72,7 @@ framing.
    input. Is this method appropriate? What is the data
    structure? Which variant of the procedure applies?
    These sections are short, roughly one printed page
-   each, but they are the intellectual scaffolding of the
-   whole book.
+   each, and the rest of each chapter builds on them.
 
 2. **Adversarial LLM practice.** Each chapter closes with
    a section titled *Collaborating with an LLM on
@@ -83,8 +80,7 @@ framing.
    constructed to expose common failure modes. Each
    prompt is paired with a **Verification** step that
    tells the reader what to check and how. The prompts
-   are not there to show off what LLMs can do. They are
-   there to train the reader to catch what LLMs cannot.
+   train the reader to catch what LLMs cannot.
 
 3. **Verification-first pedagogy throughout.** Every
    non-trivial code example is paired with a concrete way
@@ -128,13 +124,12 @@ opened in the past three years.
   replacing them.
 - *Statistical Rethinking* [@mcelreath2020rethinking] is
   the best current introduction to Bayesian computation.
-  This book's Bayesian chapter (@sec-bayesian) is a
-  gateway, not a substitute.
+  This book's Bayesian chapter (@sec-bayesian) is an
+  entry point to it.
 
 What this book adds is a unifying pedagogical framework
 for statistical computing *in the presence of competent
-LLMs*. That framework is what the subtitle commits to, and
-it is what Parts I through X of the book deliver.
+LLMs*, carried through Parts I to X.
 
 ## Prerequisites
 

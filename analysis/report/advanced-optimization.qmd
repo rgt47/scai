@@ -55,31 +55,28 @@ with mature backends (`CVXR`, `glmnet`, `optimx`, `Rsolnp`).
 
 ## The statistician's contribution {#sec-advanced-optimization-human}
 
-Modern optimization is a deep and rapidly-evolving field.
-A statistician does not need to become a numerical
-optimization researcher; they need to identify which
-problem they have, choose the matching tool, and verify
-that the tool worked.
+Modern optimization is a deep and rapidly evolving field,
+but the statistician's part of it is narrower: identify
+which problem you have, choose the matching tool, and
+verify that the tool worked.
 
 **Recognize non-smoothness early.** A non-smooth objective
 (an absolute value, a max, an indicator function) cannot
 be minimized by methods that assume the gradient exists
 everywhere. The classic mistake is to feed a lasso
 objective to `optim(method = 'BFGS')` and accept the
-warning-laden output. The right tools are proximal
-methods or coordinate descent; using them is non-optional
-for the result to be correct.
+warning-laden output. Use proximal methods or coordinate
+descent instead; the result is not reliable otherwise.
 
-**Constraints are statistical, not just numerical.** A
+**Constraints usually carry statistical meaning.** A
 constraint that the parameter lies in $[0, 1]$ is usually
 a constraint that the parameter is a probability. A
 constraint that two parameters sum to a constant is
 usually an identifiability constraint imposed by the
 model. Treating constraints as numerical inconveniences
 to be reparameterized away can hide problematic model
-structure. The constraint exists because the science
-demands it; the optimizer should respect it explicitly,
-not work around it.
+structure. Because the constraint comes from the science,
+the optimizer should enforce it explicitly.
 
 **Regularization is a modeling choice, not a stability
 trick.** The ridge penalty $\lambda \|\boldsymbol\beta\|_2^2$
@@ -89,9 +86,8 @@ $\lambda \|\boldsymbol\beta\|_1$ shrinks them toward zero
 unpenalized, ridge, lasso, or elastic net is a choice
 about what bias is acceptable in exchange for what
 variance reduction. Choosing $\lambda$ is a choice about
-how much bias. These are statistical choices; the
-optimizer executes the choice, but the choice does not
-emerge from the optimizer.
+how much bias. These are statistical choices that the
+optimizer executes but does not make.
 
 **Verify with KKT residuals.** A converged optimizer
 returns a candidate optimum. The verification is the KKT
@@ -101,9 +97,6 @@ problems this reduces to $\|\nabla f\| < \epsilon$; for
 constrained problems it is more elaborate and easier to
 check than to derive. Most modern solvers report KKT
 residuals; reading them is the analyst's job.
-
-These judgments determine whether the converged result
-solves the right problem.
 
 ## Constrained optimization
 
@@ -260,15 +253,13 @@ The constrained form makes the geometry visible: the
 feasible region is the $\ell_1$ ball, whose corners on
 the axes are where the unconstrained-quadratic
 loss-minimizer usually contacts it. At those corners,
-some coordinates are exactly zero. This is why the lasso
-produces sparse solutions: the geometry of the $\ell_1$
-ball forces zeros at the corners.
+some coordinates are exactly zero, which is why the lasso
+produces sparse solutions.
 
 The same geometry argument distinguishes lasso ($\ell_1$,
 sparse solutions, corners on axes) from ridge ($\ell_2$,
 shrunk solutions, no corners) and from group lasso (block
-$\ell_2$, sparse at the group level). Each penalty's ball
-shape determines what kind of sparsity the solution has.
+$\ell_2$, sparse at the group level).
 
 For implementation, `glmnet` is the production-grade
 solver for lasso, ridge, and elastic net. It uses
@@ -609,8 +600,7 @@ problem where the closed-form answer is known. For
 ADMM, verify primal and dual feasibility at
 convergence.
 
-The meta-pattern: advanced optimization is a deep
-subject. LLMs are reliable for the standard cases
+LLMs are reliable for the standard cases
 (lasso, ridge, basic ADMM); for novel splittings or
 custom proximal operators, treat the output as a draft
 and verify carefully.

@@ -16,9 +16,9 @@ By the end of this chapter you should be able to:
   between them based on the audience and update cadence.
 - Use Observable JS and `ojs-define` blocks in Quarto to
   embed reactive analytics in static documents.
-- Apply principles of effective dashboard design, hierarchy
+- Apply principles of effective dashboard design (hierarchy
   of information, calibrated color, semantic
-  accessibility, to an analytics dashboard for a clinical
+  accessibility) to an analytics dashboard for a clinical
   audience.
 
 ## Orientation
@@ -29,20 +29,19 @@ designer anticipated, the dashboard responds, and the user
 asks the follow-up. This shift from artifact to
 conversation changes both the engineering and the design.
 
-This chapter is about the engineering. The design half:
-how to compose a dashboard that supports decision-making
-rather than confusing the user, gets a section here but
+This chapter is about the engineering. The design half
+(how to compose a dashboard that supports decision-making
+rather than confusing the user) gets a section here but
 is the subject of book-length treatments [@few2013data;
 @munzner2014visualization]. We focus on the toolkit:
 `plotly` for interactive graphics, `shiny` for reactive
 applications, dashboard frameworks for at-a-glance
 displays, and Observable JS for in-document reactivity.
 
-The framing throughout: **interactivity is a tool, not a
-goal.** Most analytic questions are better answered by a
-well-designed static figure than by a dashboard. The case
-for interactivity should be made, and the case for static
-should be the default, every time.
+Most analytic questions are better answered by a
+well-designed static figure than by a dashboard. Static
+output is therefore the default throughout this chapter,
+and interactivity has to justify itself case by case.
 
 ## The statistician's contribution {#sec-interactive-viz-human}
 
@@ -83,9 +82,6 @@ responsible for the accuracy of every quantity the
 dashboard shows, including the ones the user did not ask
 about.
 
-These judgments decide whether a dashboard is a useful
-tool or an attractive façade.
-
 ## Interactive plots: `plotly` and `htmlwidgets`
 
 The shortest path from a `ggplot2` figure to an interactive
@@ -107,8 +103,8 @@ preserving most aesthetics and adding hover tooltips, zoom,
 pan, and a legend toggle. For most exploratory work this
 is enough.
 
-For dashboard or report contexts that need more control:
-custom hover content, click events, animation, Plotly's
+For dashboard or report contexts that need more control
+(custom hover content, click events, animation), Plotly's
 native syntax via `plot_ly()` is preferable. The native
 syntax is also faster and produces smaller HTML output for
 large data.
@@ -213,11 +209,11 @@ Three rules:
    `NULL`. This prevents unnecessary computation during
    initial render.
 
-For applications with many users, the question is not just
-'does it work' but 'does it scale.' `shinyloadtest`
+For applications with many users, the application also has
+to scale. `shinyloadtest`
 [@dipert2024shinyloadtest] simulates concurrent sessions
 and measures response times. The results often reveal that
-a single-server application supports 10–20 concurrent users
+a single-server application supports 10 to 20 concurrent users
 before degrading. Scaling beyond that requires either
 horizontal scaling (multiple R processes behind a load
 balancer, via `shinyapps.io`, Posit Connect, or
@@ -236,7 +232,7 @@ plots. Should this be a `shiny` application?
 **Answer.**
 
 No. The use case is a static report, not a reactive
-application. A Quarto document parameterised by week,
+application. A Quarto document parameterized by week,
 rendered to HTML and republished weekly via cron or
 GitHub Actions, is the right tool. It is simpler, cheaper
 to host, faster to load, and accessible without server
@@ -317,8 +313,8 @@ OJS is the right tool when:
 
 - The data is small enough to embed (typically under
   a few MB).
-- The reactivity is genuinely client-side, filter,
-  sort, summarize, plot, and does not require server
+- The reactivity is genuinely client-side (filter,
+  sort, summarize, plot) and does not require server
   computation.
 - The deliverable is a self-contained HTML file that
   works without a server.
@@ -407,9 +403,9 @@ the way clinicians scan first. The line chart provides
 trend context. The data table at the right provides drill
 detail. The conditional color on the readmission valuebox
 (red above 12%, green below) is a deliberate decision: the
-dashboard is communicating not only the value but a
-judgment about it. That judgment should be reviewed by
-clinical stakeholders, not invented by the analyst.
+dashboard communicates a judgment about the value along
+with the value itself. That judgment should be reviewed
+by clinical stakeholders, not invented by the analyst.
 
 The dashboard renders to a self-contained HTML file. A
 GitHub Actions workflow runs `quarto render` against fresh
@@ -419,7 +415,7 @@ output is fast to load and trivially shareable.
 
 ## Collaborating with an LLM on interactive visualization
 
-Three patterns dominate. LLMs handle `shiny` and Quarto
+LLMs handle `shiny` and Quarto
 dashboard syntax fluently. They are weaker on dashboard
 design judgment and on performance reasoning.
 
@@ -482,7 +478,7 @@ Three habits define defensible interactive-visualization
 work:
 
 1. **Default to static.** A static figure or a static
-   parameterised report should be the working assumption.
+   parameterized report should be the working assumption.
    Interactivity is a feature you add when you can name
    the decision it informs, not a default.
 

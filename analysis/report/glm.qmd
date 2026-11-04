@@ -62,10 +62,10 @@ mistakes we see in applied research.
 ## The statistician's contribution {#sec-glm-human}
 
 GLMs turn categorical and count outcomes into regression
-problems. What the GLM does *not* do is turn them into
-normal-distribution problems. That is both the opportunity
-(new modeling territory) and the risk, since coefficients
-mean new things and assumptions must be checked differently.
+problems, but they do *not* turn them into
+normal-distribution problems. This opens new modeling
+territory, and it also means that coefficients mean new
+things and assumptions must be checked differently.
 
 **Which family, which link.** Binary outcome, logit link.
 Count outcome with variance near the mean, Poisson with a
@@ -73,8 +73,8 @@ log link. Count with variance much larger than the mean,
 quasi-Poisson or negative binomial. Positive continuous
 outcomes (costs, times) call for gamma with a log link.
 Proportions of successes out of a known denominator call for
-binomial with the denominator as weights. The choice is not
-mechanical; it depends on the data-generating process. Count
+binomial with the denominator as weights. The choice depends
+on the data-generating process. Count
 data with structural excess zeros (many patients who do not
 use the health service at all) calls for a zero-inflated
 model, not a Poisson.
@@ -92,8 +92,8 @@ covariate values are usually clearer than odds ratios.
 **Overdispersion is a conditional error.** In Poisson
 regression, if $\mathrm{Var}(Y) > E(Y)$, the standard errors
 printed by `glm()` understate uncertainty. P-values and CIs
-become over-confident. Detecting this is the analyst's job,
-not the software's. The fix is quasi-Poisson (same
+become over-confident. `glm()` does not flag this; the
+analyst has to check for it. The fix is quasi-Poisson (same
 coefficients, corrected SEs) or negative binomial (a
 different likelihood, usually with a better AIC).
 
@@ -106,11 +106,8 @@ a 'fit' with infinite-like coefficients and standard errors.
 The right responses are Firth penalized likelihood
 (`brglm2::brglm()` or `logistf::logistf()`), informative
 priors (Bayesian logistic regression), or acknowledging that
-the data simply cannot support the analysis. Ignoring the
-warning is not an option.
-
-These judgment calls are what distinguishes GLM analysis
-from mechanical output of `glm(...)`.
+the data cannot support the analysis. Do not ignore the
+warning.
 
 ## The GLM framework
 
@@ -130,11 +127,11 @@ A GLM has three components:
    $\mu_i = g^{-1}(\eta_i)$.
 
 Standard linear models are the special case of a Gaussian
-family with the identity link. The key innovations are, on
-the one hand, the freedom to choose a distribution matching
-the outcome type, and on the other, the link function that
-lets the linear predictor vary over the real line even when
-$\mu_i$ is constrained to $[0, 1]$ or $(0, \infty)$.
+family with the identity link. GLMs add two things: the
+freedom to choose a distribution matching the outcome type,
+and a link function that lets the linear predictor vary over
+the real line even when $\mu_i$ is constrained to $[0, 1]$
+or $(0, \infty)$.
 
 The *canonical* link for a family arises naturally from its
 exponential-family structure:
@@ -374,7 +371,7 @@ clustering, or contagion effects.
 
 Overdispersion does not bias the point estimates, but it
 makes standard errors too small, p-values too small, and CIs
-too narrow. Detecting it is the analyst's responsibility.
+too narrow.
 
 The Pearson dispersion statistic:
 
@@ -402,9 +399,9 @@ fit_q <- glm(count ~ age + condition, family = quasipoisson,
              data = visits)
 ```
 
-This is easy, but it comes with a catch: quasi-Poisson is a
-quasi-likelihood model, so AIC is not defined in the usual
-sense, which makes model comparison awkward.
+This is easy, but quasi-Poisson is a quasi-likelihood
+model, so AIC is not defined in the usual sense, which makes
+model comparison awkward.
 
 **Negative binomial.** A full likelihood that accommodates
 overdispersion through an extra dispersion parameter
@@ -439,9 +436,8 @@ would re-fit with either `quasipoisson` (which keeps the
 coefficients and scales SEs by $\sqrt{\hat\phi}$) or,
 preferably, `MASS::glm.nb()` for a proper negative binomial
 likelihood that handles overdispersion and supports
-AIC-based model comparison. The diagnosis is non-optional:
-reporting the over-confident Poisson SEs without correction
-is a methodological error.
+AIC-based model comparison. Reporting the over-confident
+Poisson SEs without correction is a methodological error.
 
 :::
 
@@ -523,8 +519,8 @@ than hand-computing contrast SEs with the delta method.
 For more flexible marginal-effects computation across model
 classes (GLMs, GAMs, Bayesian models, machine learning
 models, custom likelihoods), the `marginaleffects` package
-by Vincent Arel-Bundock has emerged as a strong
-general-purpose alternative to `emmeans`. It supports a
+by Vincent Arel-Bundock is a general-purpose alternative
+to `emmeans`. It supports a
 wider model-class menu and a clean API for predictions,
 comparisons, and slopes; we would consider it whenever
 `emmeans` does not directly handle a given model.
@@ -661,7 +657,7 @@ Three habits define defensible GLM practice:
 
 ## Further reading
 
-- [@legler2019bysh] Chapters 4--5, the most readable
+- [@legler2019bysh] Chapters 4 and 5, the most readable
   book-length GLM introduction.
 - [@faraway2016extending], Faraway's extending-the-linear-
   model is a comfortable level for practicing

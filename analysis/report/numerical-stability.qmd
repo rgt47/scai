@@ -31,7 +31,7 @@ By the end of this chapter you should be able to:
 
 ## Orientation
 
-Computer arithmetic is not arithmetic. Every floating-point
+Computer arithmetic differs from real arithmetic. Every floating-point
 number is a real number rounded to one of a finite set,
 spaced unevenly across the real line. Every operation on
 floating-point numbers introduces a small relative error,
@@ -48,10 +48,8 @@ The numerical-methods chapters of the first half, beginning
 with @sec-matrix-algebra, taught the algorithms; this chapter
 teaches when those algorithms break and how to tell. The
 material is foundational for every numerical chapter that
-follows. It is also the kind of material a working
-biostatistician spends a career rediscovering one bug at a
-time. Understanding it once, in one place, saves the
-career-long version.
+follows. A working biostatistician who skips it tends to
+rediscover it one bug at a time over a career.
 
 ## The statistician's contribution {#sec-numerical-stability-human}
 
@@ -71,9 +69,9 @@ ill-conditioned'. The diagnostic is fast: compute the
 condition number, compute the gradient by finite
 differences and compare to the analytic gradient, perturb
 the input slightly and watch the output. If the output
-moves by more than the perturbation should produce, the
-problem is not the code; the problem is the floating-point
-behavior of the algorithm on this data.
+moves by more than the perturbation should produce, look
+at the floating-point behavior of the algorithm on this
+data before looking for a coding error.
 
 **Statistical formulas in textbooks are not numerically
 stable formulas.** The shortcut variance form
@@ -105,14 +103,11 @@ cannot supply.
 data drawn from $N(0, 1)$ rarely exposes numerical
 problems. Real biomedical data has near-zero variances,
 near-collinear covariates, near-saturated probabilities,
-and observations that span many orders of magnitude. A
-correctness test on the center of the data distribution
-is necessary; a robustness test on the boundary is
-necessary too.
-
-These judgments are what distinguish numerical code that
-works on the analyst's laptop from numerical code that
-works on the next analyst's harder dataset.
+and observations that span many orders of magnitude. Test
+the center of the data distribution for correctness and
+the boundary for robustness; code that passes only the
+first works on the analyst's laptop and fails on the next
+analyst's harder dataset.
 
 ## Floating-point arithmetic in one page
 
@@ -561,11 +556,9 @@ where $M = \max_i z_i$. Now the exponentials inside the
 sum have arguments $z_i - M \le 0$, so each $\exp(\cdot)$
 is in $(0, 1]$ and cannot overflow. The sum and log are
 applied to a small finite number, then $M$ is added back
-on the log scale. The mathematics is identical; the
-floating-point behavior is dramatically different.
-This is the canonical example of a *numerically stable
-rewrite*: same answer, different computation, no
-overflow.
+on the log scale. The mathematics is identical and only
+the floating-point behavior changes, which makes this the
+canonical example of a *numerically stable rewrite*.
 
 :::
 
@@ -689,11 +682,11 @@ saturated probabilities). The robust implementation
 should work on all three; the textbook implementation
 will fail on the second or third.
 
-The meta-lesson: numerical robustness is not a
-correctness property of the formula; it is a property of
-how the formula is *computed*. LLMs assist with the
-computation but cannot recognize instability without you
-naming the specific risk.
+Numerical robustness is a property of how a formula is
+*computed*, so two algebraically identical formulas can
+differ in it. LLMs assist with the computation but cannot
+recognize instability without you naming the specific
+risk.
 
 ## Principle in use
 
@@ -712,8 +705,8 @@ Three habits define defensible numerical practice:
 3. **Test the boundary.** Synthetic data centered near
    zero rarely exposes problems. Run on data with
    means far from zero, near-collinear covariates, and
-   probabilities near 0 or 1. The boundary cases are
-   where production data lives.
+   probabilities near 0 or 1, the regimes that production
+   data often occupies.
 
 ## Exercises
 

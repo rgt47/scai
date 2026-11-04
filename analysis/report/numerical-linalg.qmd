@@ -54,13 +54,12 @@ wrong one.
 
 ## The statistician's contribution {#sec-numerical-linalg-human}
 
-The choice of algorithm and storage format is a modeling
-choice in disguise. The statistical question is the same
-whether you store $X$ as a dense matrix or a sparse one.
-The dense path, however, may use 100 GB of RAM and run for
-a week, while the sparse path uses 100 MB and runs in an
-hour. Knowing which path your problem permits is part of
-the job.
+The statistical question is the same whether you store $X$
+as a dense matrix or a sparse one, but the cost is not.
+The dense path may use 100 GB of RAM and run for a week,
+while the sparse path uses 100 MB and runs in an hour.
+Deciding which path your problem permits is the analyst's
+job, not the software's.
 
 **Recognize the structure before forming the matrix.** A
 mixed-effects design matrix with subject-level random
@@ -84,20 +83,15 @@ $n < 10^4$ and dense, direct solvers (LU, Cholesky, QR)
 are almost always right. For $n > 10^5$ and sparse,
 iterative solvers (CG, GMRES) become competitive or
 necessary. The crossover depends on sparsity and
-conditioning, not just on size. Knowing where your problem
-sits is what decides the implementation.
+conditioning as well as on size.
 
 **The BLAS choice matters more than the R code.** A
 matrix multiplication that takes 30 seconds with the
 reference BLAS may take 3 seconds with OpenBLAS or 1
-second with MKL. The R code is identical. It is the BLAS
-implementation underneath that differs. For matrix-heavy
+second with MKL, with identical R code in all three
+cases. For matrix-heavy
 work, verifying the active BLAS via `sessionInfo()` is, in
 our experience, the single highest-leverage diagnostic.
-
-These judgments are what convert a textbook
-implementation that works on toy problems into production
-code that works on real biomedical data sizes.
 
 ## Sparse linear algebra
 
@@ -489,9 +483,7 @@ transform; matrix-vector multiplication is $O(n \log n)$
 via FFT.
 
 For most biostatistics, banded and sparse-SPD are the
-two structural specializations that matter most. The
-others are useful when the application domain calls
-for them.
+two structural specializations that matter most.
 
 ## Worked example: GMRF for spatial smoothing
 
@@ -607,11 +599,11 @@ benchmark. A 5--20× improvement on dense matrix multiply
 confirms the BLAS was the bottleneck. If the improvement
 is small, the bottleneck was something else.
 
-The meta-pattern: numerical linear algebra is layered.
-The R-level code is the surface; the BLAS layer determines
-performance; the matrix structure determines what
-algorithm is appropriate. Each layer is a separate
-diagnostic axis.
+A numerical linear algebra problem can sit in any of
+three layers, and each is diagnosed separately: the
+R-level code, the BLAS that determines performance, and
+the matrix structure that determines which algorithm is
+appropriate.
 
 ## Principle in use
 

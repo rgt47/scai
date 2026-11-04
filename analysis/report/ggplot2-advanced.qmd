@@ -56,10 +56,9 @@ small in code but consequential in clarity.
 
 **Match the polish to the audience.** A figure for an
 internal slide deck does not need 600-DPI vector output. A
-figure for a clinical journal does. Spending an hour
-fine-tuning a figure for an audience of three is misuse of
-time; not spending the hour on a figure for a peer-reviewed
-paper is misuse of opportunity.
+figure for a clinical journal does. An hour spent
+fine-tuning a figure for an audience of three is wasted; a
+figure for a peer-reviewed paper deserves that hour.
 
 **Display uncertainty.** A point estimate without a
 confidence interval invites the reader to over-trust the
@@ -71,8 +70,9 @@ Refusing to show uncertainty because the band looks
 show that.
 
 **Compose deliberately.** Multi-panel figures should make
-comparisons easy. Shared axes, shared legends, consistent
-scales, panel labels in the same position. Inconsistent
+comparisons easy, which means shared axes, shared legends,
+consistent scales, and panel labels in the same position.
+Inconsistent
 panels create work for the reader that the figure itself
 should be doing.
 
@@ -80,10 +80,6 @@ should be doing.
 `ggplot2` text is fine on a slide; on a printed page it
 often looks small and gray. Customizing the theme is a
 ten-line investment that pays off across an entire paper.
-
-These judgments determine whether figures get accepted on
-the first review or send the manuscript back for
-revisions.
 
 ## Composing multi-panel figures with `patchwork`
 
@@ -313,8 +309,8 @@ ggplot(samples, aes(x = group, y = posterior)) +
 
 `ggdist` is particularly worth knowing for Bayesian work
 or any analysis with full uncertainty distributions:
-`stat_halfeye`, `stat_dotsinterval`, `stat_lineribbon`
-make rich uncertainty representations one line each.
+`stat_halfeye`, `stat_dotsinterval`, and `stat_lineribbon`
+each draw a full uncertainty distribution in one line.
 
 For point estimates with CIs in a forest plot:
 
@@ -365,7 +361,7 @@ Three things to know about export:
    recipient may see a fallback font that looks wrong.
 
 For journal submissions, check the figure size requirements
-(typically single-column 85--90 mm, double-column 170--180 mm)
+(typically single-column 85 to 90 mm, double-column 170 to 180 mm)
 and produce figures at exactly the target size, not
 larger. Plots designed at 6×4 inches and submitted at
 3 inches wide have illegible labels.
@@ -437,8 +433,7 @@ p_cook <- ggplot(diag_data, aes(seq_len(nrow(diag_data)), .cooksd)) +
 
 This composition reads naturally: top row two related
 diagnostics (residual structure and Q-Q), bottom row a
-single observation-level diagnostic. Panel labels carry the
-reader through.
+single observation-level diagnostic.
 
 ## Collaborating with an LLM on advanced ggplot
 

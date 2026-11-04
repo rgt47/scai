@@ -29,9 +29,9 @@ By the end of this chapter you should be able to:
 The boundary between machine learning and biostatistics is
 porous and confused. Both fit predictive models from data;
 both quantify uncertainty; both worry about overfitting and
-generalization. The usual cultural distinction (ML emphasizes black-box
-prediction, biostatistics emphasizes interpretable
-inference) was never as clean as the caricature suggests,
+generalization. The usual cultural distinction (ML
+emphasizes black-box prediction, biostatistics emphasizes
+interpretable inference) was never as clean as the caricature suggests,
 and it has eroded further as both fields adopt each other's
 tools.
 
@@ -43,7 +43,7 @@ mis-applied to a question that calls for classical
 inference instead.
 
 We anchor on `tidymodels` [@kuhn2024tidymodels] as the
-contemporary R interface, a coherent, principled stack
+contemporary R interface: a coherent, principled stack
 that handles preprocessing, resampling, tuning, and
 evaluation with consistent verbs. We then walk through the
 algorithm choices that matter most in clinical and
@@ -68,7 +68,7 @@ treatment is, or how a policy intervention would change
 outcomes. Conflating prediction performance with causal
 or counterfactual claims is the most common error in
 applied ML in medicine. The statistician's job is to keep
-this distinction visible, in the analysis, the report, and
+this distinction visible in the analysis, the report, and
 the conversation with collaborators.
 
 **(Judgment 2.) The held-out set is the deployment
@@ -77,8 +77,8 @@ on data from one hospital and evaluated on held-out cases
 from the same hospital are evaluated on the *training*
 distribution. Models that will be deployed to a different
 hospital, or to a future cohort, must be evaluated under
-that shift, temporal hold-out, geographic hold-out, or
-prospective validation. The statistician identifies the
+that shift (temporal hold-out, geographic hold-out, or
+prospective validation). The statistician identifies the
 deployment scenario and designs the evaluation to match.
 
 **(Judgment 3.) Calibration is the metric clinicians need.**
@@ -91,9 +91,6 @@ risk), calibration is the binding constraint, and it is
 not what tuning typically optimizes. The statistician
 checks calibration explicitly and recalibrates if needed.
 
-These judgments decide whether an ML pipeline produces a
-deployable tool or a benchmark on a private dataset.
-
 ## The `tidymodels` workflow
 
 `tidymodels` [@kuhn2024tidymodels] is a meta-package
@@ -101,7 +98,7 @@ covering the steps of a modeling pipeline:
 
 - `rsample` for resampling (CV, bootstrap, time-based
   splits).
-- `recipes` for preprocessing (centring, encoding, missing
+- `recipes` for preprocessing (centering, encoding, missing
   data handling).
 - `parsnip` for model specification (uniform interface
   across `glmnet`, `ranger`, `xgboost`, `keras`, etc.).
@@ -154,15 +151,15 @@ final_fit <- finalize_workflow(wf, best) |>
     roc_auc, brier_class, accuracy))
 ````
 
-Two design choices to highlight. First, the metric used to
+Two design choices need comment. First, the metric used to
 select hyperparameters matters. Choosing on `roc_auc`
 optimizes ranking; choosing on `brier_class` (or
 `mn_log_loss`) optimizes probabilistic calibration.
 Choose the metric your downstream decision actually uses.
 
 Second, `last_fit()` deliberately uses the test split *only*
-once, after tuning is complete. The temptation to peek and
-re-tune is the single largest source of optimistic
+once, after tuning is complete. Peeking at the test set and
+re-tuning is the single largest source of optimistic
 performance estimates in applied ML.
 
 ## Algorithm choices that matter
@@ -196,9 +193,9 @@ generalize poorly.
 biomedical data with $n$ in the thousands, neural networks
 rarely outperform gradient boosting and require considerably
 more engineering effort. They earn their place on
-high-dimensional sequence, image, or text data, clinical
+high-dimensional sequence, image, or text data: clinical
 notes via transformers, medical imaging via convolutional
-networks, time series via recurrent or attention
+networks, and time series via recurrent or attention
 architectures. Outside those settings, prefer trees.
 
 A practical decision rule:
@@ -224,8 +221,8 @@ be tuned on AUC or on Brier score?
 
 Brier score (or log loss). The decision rule uses absolute
 predicted probabilities; calibration matters for the
-decision. AUC measures discrimination, does the model
-correctly *order* patients, and is invariant to monotonic
+decision. AUC measures discrimination (does the model
+correctly *order* patients?) and is invariant to monotonic
 transformations of the score. A model with excellent AUC
 can have terrible calibration: it ranks correctly but its
 predicted probabilities are systematically off. Tuning on
@@ -254,9 +251,9 @@ nested <- nested_cv(
 )
 ````
 
-Nested CV is computationally expensive, 50 fits in the
-example above, plus a final fit on the full training set
-,  but it is the correct estimator when the question is
+Nested CV is computationally expensive (50 fits in the
+example above, plus a final fit on the full training set),
+but it is the correct estimator when the question is
 'what performance should we expect when we deploy this
 pipeline?'
 
@@ -329,8 +326,8 @@ For a deployed model, the relevant interpretability
 question is rarely 'which features are most important
 overall' (the model permutation importance answers that)
 but 'why did the model give *this* patient *this*
-prediction'. **SHAP values** [@lundberg2017unified]:
-Shapley values from cooperative game theory, provide a
+prediction'. **SHAP values** [@lundberg2017unified]
+(Shapley values from cooperative game theory) provide a
 principled per-prediction decomposition.
 
 ````{.r}
@@ -346,16 +343,16 @@ prediction (consistency), and they distribute credit
 fairly across features. They have one persistent
 limitation: they describe the *model's* dependence on a
 feature, not the world's. If the model has learned a
-spurious association, sex is associated with outcome
-because of unmeasured confounders, SHAP will faithfully
+spurious association (say, sex is associated with outcome
+because of unmeasured confounders), SHAP will faithfully
 describe that association as the model uses it. SHAP does
-not provide causal inference, and a model interpreter who
-treats SHAP values as causal effects has crossed an
-important line.
+not provide causal inference, and an interpreter who
+treats SHAP values as causal effects is making a claim the
+method cannot support.
 
-The cleaner framing: SHAP explains *the model*, not the
-world. The model explains the data only to the extent that
-the analyst trusts the model. If a clinician asks 'why does
+An explanation of the model says something about the data
+only to the extent that the analyst trusts the model. If a
+clinician asks 'why does
 the model predict high risk for this patient,' SHAP gives a
 defensible answer. If the same clinician asks 'so if we
 intervene on age, will risk drop,' SHAP cannot answer
@@ -432,8 +429,8 @@ over-confidence at high predicted probabilities; a Platt
 recalibration narrows the gap.
 
 A logistic regression on the same problem with elastic-net
-regularization gives AUC around 0.73 and Brier around 0.16
-,  effectively indistinguishable. For this dataset, the
+regularization gives AUC around 0.73 and Brier around
+0.16, effectively indistinguishable. For this dataset, the
 gradient-boosted tree's flexibility yields no benefit over
 the regularized GLM. The simpler model is the right
 deployment.
@@ -447,7 +444,7 @@ on parsimony, calibration, and ease of explanation.
 
 ## Collaborating with an LLM on machine learning
 
-Three patterns dominate. LLMs handle the syntax of
+LLMs handle the syntax of
 `tidymodels`, `xgboost`, and SHAP fluently. They are
 unreliable on the choice between prediction and
 inference, on validation strategy, and on the
@@ -502,12 +499,12 @@ confirm the advantage is not an artifact of single-level
 tuning. If the difference is small, report both models and
 let the parsimony argument decide.
 
-The meta-pattern: LLMs are competent at the *mechanics*
-(pipeline construction, metric calculation, SHAP plots)
-and weak at the *adjudication* (does this model match the
-deployment scenario, is the apparent advantage real, what
-does the explanation actually mean). Treat the LLM as a
-fluent technician.
+LLMs are competent at the *mechanics* (pipeline
+construction, metric calculation, SHAP plots) and weak at
+judging whether the model matches the deployment scenario,
+whether an apparent advantage is real, and what an
+explanation actually means. Treat the LLM as a fluent
+technician.
 
 ## Principle in use
 
@@ -527,10 +524,8 @@ Three habits define defensible ML work:
 
 3. **Distinguish model explanation from causal claim.**
    SHAP, permutation importance, and partial-dependence
-   plots describe the model. They do not describe the
-   world. Reports that conflate the two mislead clinicians
-   and reviewers; reports that keep them separate are
-   defensible.
+   plots describe the model, not the world. Reports that
+   conflate the two mislead clinicians and reviewers.
 
 ## Exercises
 

@@ -81,7 +81,7 @@ difference look large is dishonest. Logarithmic axes
 without a clear visual cue mislead readers who do not
 notice. Axes should encode what they appear to encode.
 
-**Color matters.** Roughly 8% of men and 0.5% of women have
+**Accessible color.** Roughly 8% of men and 0.5% of women have
 some form of color vision deficiency. Default `ggplot2`
 palettes (and most journal defaults) are not color-blind-
 safe. The `viridis`, `RColorBrewer`, and `ggthemes` palettes
@@ -89,10 +89,9 @@ include accessible options. Picking one is a thirty-second
 fix that keeps the plot legible to a substantially larger
 audience.
 
-These judgments are what separate plots that communicate
-from plots that fill space. They are not automatable; the
-grammar makes them easier to think about by structuring
-the plot into separable decisions.
+These judgments are not automatable. The grammar makes
+them easier to think about by structuring the plot into
+separable decisions.
 
 ## The grammar of graphics: seven components
 
@@ -316,18 +315,17 @@ ggplot(penguins, aes(flipper_length_mm, body_mass_g)) +
   facet_wrap(~ species, ncol = 1)
 ```
 
-Faceting is one of the strongest tools in the grammar:
-it lets you condition on a third (or fourth) variable
-without losing the underlying plot's design. Particularly
-useful for displaying group-specific patterns when groups
-are too many or too small for color-coding to be readable.
+Faceting lets you condition on a third (or fourth)
+variable without losing the underlying plot's design. It
+is particularly useful for displaying group-specific
+patterns when groups are too many or too small for
+color-coding to be readable.
 
 ## Common mistakes
 
 **Truncated axes.** Setting `ylim()` to exclude zero on a
 bar chart exaggerates differences. Setting it to exclude
-the data range entirely is misleading. The axis should
-encode the data faithfully.
+the data range entirely is misleading.
 
 **Dual y-axes.** Two y-axes on different scales nearly
 always mislead. Readers cannot tell which trace
@@ -412,8 +410,8 @@ ggsave("flipper_mass.pdf", plot = p, width = 6, height = 4)
 
 For papers, use vector formats (PDF, SVG) when possible;
 they remain crisp at any zoom. For web, PNG at moderate DPI
-is a good default. Avoid JPG for plots, the
-compression artifacts are visible on lines and text.
+is a good default. Avoid JPG for plots: its compression
+artifacts are visible on lines and text.
 
 ## Collaborating with an LLM on visualization
 

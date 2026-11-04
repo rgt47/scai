@@ -72,14 +72,14 @@ meaningful or the adversarial checks that make its
 conclusions trustworthy.
 
 **Ask the right question.** The most common simulation
-failure is not a bug in the code; it is a simulation that
-does not address any question worth asking. 'Does method A
+failure is a simulation that does not address any question
+worth asking. 'Does method A
 outperform method B?' is rarely a precise enough question.
 'At what sample size, under what distributional conditions,
 for what effect size, does method A control Type-I error
 while method B does not?' is specific enough to be
-answerable. The sharpening of question is the
-statistician's job.
+answerable. Sharpening the question is the statistician's
+job.
 
 **Make the DGM honest.** A simulation in which every
 assumption of the method is exactly met will make every
@@ -87,8 +87,8 @@ reasonable method look great. The interesting question is
 robustness: what happens when assumptions are violated in
 ways the method's theory does not cover? Heavy-tailed
 errors, heteroscedasticity, missing data, measurement error,
-contamination, these are what real data bring. A
-simulation that omits them proves the method works on
+and contamination are what real data bring. A simulation
+that omits them proves the method works on
 simulation data, which is a weaker claim than it sounds.
 
 **Pick performance measures that match the claim.** If the
@@ -112,10 +112,8 @@ of replicates, and the performance measures before running
 the simulation. Simulation experiments are as susceptible
 to garden-of-forking-paths bias as real experiments.
 
-These judgments are what separate a simulation that could
-have been a data dredge from a simulation that survives
-adversarial review. An LLM will happily execute a poorly
-designed simulation as efficiently as a well-designed one.
+An LLM will happily execute a poorly designed simulation as
+efficiently as a well-designed one.
 
 ## The ADEMP framework
 
@@ -211,8 +209,8 @@ simulation, and what does setting the seed *not* guarantee?
 **Answer.**
 
 `set.seed()` fixes the pseudorandom stream, so running the
-simulation twice produces identical output, essential
-for reproducibility of tables, figures, and results
+simulation twice produces identical output, which is
+essential for reproducibility of tables, figures, and results
 reported in a paper. It does *not* guarantee that different
 R versions will produce identical output (RNG
 implementations have occasionally changed), that different
@@ -407,7 +405,7 @@ methods to it. The pattern already appears in the
 
 CRN is essentially the simulation analog of a paired
 design in experimental statistics. The variance reduction
-can be dramatic, factors of 5 or more are common for
+can be large: factors of 5 or more are common for
 methods that are correlated in their responses to the data.
 
 ::: {.callout-note icon=false collapse=true}
@@ -429,7 +427,7 @@ of the difference. This is the Monte Carlo analog of a
 paired study: comparing within a unit is more powerful
 than comparing across units when the unit-level
 variability is large. The variance reduction is often a
-factor of 3--10 in practice, buying the equivalent of many
+factor of 3 to 10 in practice, buying the equivalent of many
 thousands of extra replicates for free.
 
 :::
@@ -548,8 +546,8 @@ simulate_coverage(n = 30)
 
 A coverage rate within about 2 Monte Carlo SEs of the
 nominal 0.95 is consistent with correct coverage.
-Substantial deviations flag a problem, either an
-incorrect CI procedure, a violation of assumptions the CI
+Substantial deviations flag a problem: an incorrect CI
+procedure, a violation of assumptions the CI
 requires, or a bug in the simulation code itself.
 
 ## Collaborating with an LLM on simulation design
@@ -610,7 +608,7 @@ double-checked against `binom.test` or a bootstrap. For a
 continuous measure, the MCSE is the sample SD of the
 per-replicate estimates, divided by $\sqrt R$.
 
-The meta-lesson: an LLM can write a simulation loop faster
+An LLM can write a simulation loop faster
 than you can, but it cannot ensure that the simulation is
 asking a useful question or that the conclusions are robust
 to Monte Carlo noise. Those remain the analyst's job.

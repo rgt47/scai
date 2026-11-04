@@ -21,7 +21,7 @@ By the end of this chapter you should be able to:
 
 - Explain the plug-in principle that underlies the bootstrap.
 - Implement a nonparametric bootstrap in base R.
-- Compute percentile, basic, BCa, and studentised bootstrap
+- Compute percentile, basic, BCa, and studentized bootstrap
   confidence intervals.
 - Construct bootstrap p-values via null-enforcing resampling.
 - Apply case and residual bootstrap to regression coefficients.
@@ -71,7 +71,7 @@ statistic's behavior?** The percentile method is
 transformation-respecting and easy to explain, but
 undercoverage is common in small samples. BCa is
 second-order accurate and preferred for publication. The
-studentised method has the best coverage but requires a
+studentized method has the best coverage but requires a
 bootstrap-within-bootstrap. An LLM typically defaults to
 the percentile method regardless of whether the bootstrap
 distribution is skewed; selecting a more appropriate method
@@ -82,19 +82,15 @@ Always plot the histogram of the $B$ replicates. If it is
 wildly skewed, truncated sharply at a boundary, or
 multimodal, either the bootstrap is failing for one of the
 reasons above or the sampling distribution is genuinely
-unusual. Both demand investigation; neither should be
-silently accepted as an answer.
+unusual. Either way, investigate before accepting the
+number as an answer.
 
-In summary: the LLM provides an efficient implementation of
-the bootstrap. The statistician determines *what gets
-implemented*, *on what data*, and *how to interpret the
-output*. The remainder of this chapter provides the
-technical vocabulary needed to make those determinations.
+The remainder of this chapter provides the technical
+vocabulary needed to make these four decisions.
 
 ## The plug-in principle
 
-The bootstrap rests on a simple and consequential idea. We
-do not know the true population distribution $F$, but we do
+We do not know the true population distribution $F$, but we do
 know the **empirical distribution** $\hat F_n$, the
 distribution that places probability $1/n$ on each observed
 data point. The *plug-in principle* says: to estimate any
@@ -115,7 +111,7 @@ substitution of one for the other.
 The substitution is justified by the Glivenko-Cantelli
 theorem: $\hat F_n$ converges uniformly to $F$ as $n$ grows.
 For smooth statistics, the higher-order accurate
-bootstrap intervals (BCa, studentised) achieve a coverage
+bootstrap intervals (BCa, studentized) achieve a coverage
 error of $O(1/n)$, faster than the $O(1/\sqrt n)$ rate of
 a central-limit-theorem interval. The plain percentile
 bootstrap is only first-order accurate ($O(1/\sqrt n)$
@@ -208,7 +204,7 @@ for large $n$ but compounds with the other small-sample
 weaknesses of the percentile method discussed below.
 
 The bootstrap *does* faithfully capture the shape of the
-sampling distribution, skewness, multimodality, and the
+sampling distribution: its skewness, multimodality, and the
 boundary effects that arise near constrained parameters
 (such as a correlation coefficient near $\pm 1$). These
 shape diagnostics inform the choice of confidence-interval
@@ -304,7 +300,7 @@ distribution's median) and an acceleration constant
 (estimated by jackknife). Available in `boot::boot.ci(type
 = 'bca')`. Preferred for publication-grade intervals.
 
-**Studentised interval.** Bootstraps a pivot
+**Studentized interval.** Bootstraps a pivot
 $(\hat\theta^* - \hat\theta) / \widehat{\mathrm{SE}}^*$,
 then inverts to an interval on $\theta$. Second-order
 accurate and often has the best coverage, but requires a
@@ -313,7 +309,7 @@ inner standard error.
 
 In practice: reach for the percentile interval first;
 switch to BCa if the sample is small or the statistic is
-skewed; use the studentised interval only when the cost of
+skewed; use the studentized interval only when the cost of
 the double bootstrap is justified.
 
 ## Hypothesis testing by resampling {#sec-bootstrap-test}
@@ -322,9 +318,8 @@ A confidence interval and a hypothesis test answer overlapping
 questions about a parameter, and the bootstrap supplies both.
 Hypothesis testing requires one extra construction: resampling
 must occur under conditions in which the null hypothesis is
-true. This **null enforcement** step is the load-bearing
-distinction between a bootstrap confidence interval and a
-bootstrap test.
+true. This **null enforcement** step is what distinguishes a
+bootstrap test from a bootstrap confidence interval.
 
 For a two-sample mean comparison, $H_0\!: \mu_A = \mu_B$, the
 standard construction is **pool and center**. Concatenate the
@@ -658,9 +653,8 @@ Section @sec-bootstrap-human identified the four decisions
 that require the statistician's judgment. This section
 provides practice exercises. Each prompt below is
 adversarial: it is designed to expose a specific LLM
-failure mode. The model's response should be treated as a
-hypothesis requiring verification, not as a result to be
-accepted at face value.
+failure mode. Treat the model's response as a hypothesis
+that requires verification.
 
 ### Correlation and the Fisher-z transformation
 
@@ -751,7 +745,7 @@ question the LLM will not ask for you.
 ## Further reading
 
 - [@efron1986bootstrap], the clearest short introduction to the percentile bootstrap.
-- [@efron1993bootstrap] Chapters 13-15, BCa and studentised intervals.
+- [@efron1993bootstrap] Chapters 13-15, BCa and studentized intervals.
 - [@hesterberg2015bootstrap], pedagogical pitfalls that appear in student work.
 
 ## Practice test {#sec-practice-test-bootstrap}

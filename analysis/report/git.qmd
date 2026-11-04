@@ -40,9 +40,9 @@ the code we have written. Git is the tool almost every data
 scientist uses for this. It is notoriously user-hostile on the
 surface. The error messages are famously unhelpful, and the
 man pages seem to assume you already understand what they are
-trying to explain. Its core ideas are, on the other hand,
-straightforward, and the payoff of fluency is large. A project under version control
-does not accumulate files named
+trying to explain. Its core ideas are nonetheless
+straightforward, and the payoff of fluency is large. A
+project under version control does not accumulate files named
 `analysis_final_v3_really.R`. Collaborators do not exchange
 zipped folders by email. And no one has to guess which version
 produced the numbers in Table 2.
@@ -51,16 +51,15 @@ Version control is also the single best tool for building a
 defensible audit trail for a statistical analysis. When a
 regulator, a reviewer, or a future-you asks 'why did the point
 estimate change between the February and April drafts?', a
-well-kept Git history produces an immediate, specific answer.
-That answer is far more convincing than a remembered narrative.
+well-kept Git history produces an immediate, specific answer,
+which is far more convincing than a remembered narrative.
 
 ## The statistician's contribution {#sec-git-human}
 
 The mechanics of Git are boring: `add`, `commit`, `push`, `pull`,
-`merge`. Anyone, including an LLM, can recite them. What is not
-boring, and what no tool can automate, is the judgment about
-*what* and *when* to commit, *what* to write in the commit
-message, and *when* to branch.
+`merge`. Anyone, including an LLM, can recite them. No tool
+can automate the judgment about *what* and *when* to commit,
+*what* to write in the commit message, and *when* to branch.
 
 These judgments shape how trustworthy your analysis looks
 months or years later. They are the statistician's contribution
@@ -94,7 +93,7 @@ analysis that could reveal the primary model is fragile, a
 refactor that might turn out to be worse than what you started
 with, a new collaborator's contribution that needs review
 before it lands. Trivial changes can go straight to `main`.
-The trap is in between, medium-sized changes where you
+The trap lies in between: medium-sized changes where you
 tell yourself it will only take an hour. It usually does not.
 
 **What not to commit.** `renv.lock`, yes. `.Rproj.user/`, no.
@@ -147,15 +146,13 @@ backup copies of your files (`analysis_v1.R`,
 
 Three things. First, Git tracks *changes* (the diff between
 versions) rather than storing whole-file copies, so the
-history is compact and readable, you can ask 'what
+history is compact and readable: you can ask 'what
 changed between these two versions?' and get a precise
 answer. Second, every change carries context: an author, a
 timestamp, and a message explaining *why* the change was
 made. Third, Git supports collaboration workflows that dated
 backups cannot: parallel branches, systematic merging,
-review of proposed changes before they land. The filename
-trick preserves file states; Git preserves the reasoning
-behind each state.
+review of proposed changes before they land.
 
 :::
 
@@ -248,7 +245,7 @@ A disciplined loop looks like this:
 7. Repeat from step 2 until the change is complete.
 8. `git push` to publish.
 
-Commit often, five to ten times per session is not
+Commit often: five to ten times per session is not
 unreasonable for an engaged working day. A granular history is
 cheap, and it is easier to squash small commits later than to
 split a big one.
@@ -257,7 +254,7 @@ split a big one.
 
 A branch is a pointer to a commit that moves forward as you
 make new commits. Branches are, contrary to some intuitions,
-not copies of your files, switching branches changes which
+not copies of your files; switching branches changes which
 pointer you are on and updates the working directory to match.
 This is why creating and switching branches in Git is nearly
 instantaneous, and why branches are a first-class tool for
@@ -316,8 +313,8 @@ state. Common examples: sensitivity analyses on a
 pre-registered primary model, comparisons between
 competing statistical methods, risky refactors,
 contributions from collaborators that need review before
-they land. For trivial edits, a typo fix, a small
-prose change, the overhead of a branch is not worth it.
+they land. For trivial edits (a typo fix, a small
+prose change) the overhead of a branch is not worth it.
 The judgment call is in the middle: medium-sized changes
 where the work is not trivially safe. In practice, err
 toward branching; the cost of a wasted branch is nearly
@@ -402,9 +399,9 @@ happens.
 A pull request (PR) is a proposal to merge changes from one
 branch into another. Instead of pushing directly to `main`,
 you push a feature branch, open a PR against `main`, and
-invite review. A PR is far more than a merge mechanism: it is
-a checkpoint at which team members read the code, ask
-questions, request revisions, and approve.
+invite review. A PR is also a checkpoint at which team
+members read the code, ask questions, request revisions, and
+approve.
 
 The typical PR lifecycle:
 
@@ -467,10 +464,10 @@ A few rules of thumb:
 - If you are unsure, abort with `git merge --abort` and talk
   to whoever wrote the other version before trying again.
 
-Conflicts are not a sign of failure. They are a sign that two
-people were working on the same thing, and Git is correctly
-refusing to guess. The alternative, silent, incorrect
-merging, would be worse.
+A conflict does not mean anyone did something wrong. It
+means two people were working on the same thing and Git is
+correctly refusing to guess; silent, incorrect merging would
+be worse.
 
 ## `.gitignore` and R project structure
 
@@ -523,7 +520,7 @@ Four rules for what to ignore:
    output is itself a deliverable and the rendering is
    expensive or non-deterministic.
 3. **Large data.** Git is designed for source, not data. Over
-   about 10--50 MB per file, committing data starts to hurt.
+   about 10 to 50 MB per file, committing data starts to hurt.
    Over about 100 MB, GitHub refuses. Options: store the data
    externally and download in a script; use Git LFS; or
    commit a small synthetic sample and document access to the
@@ -585,8 +582,8 @@ from `test_data/` in continuous integration.
 
 ## Commit message style and history hygiene
 
-A brief exhortation, because this is the single practice that
-most clearly separates experienced users from novices.
+Commit messages deserve a brief exhortation, because no other
+practice so clearly separates experienced users from novices.
 
 **Imperative first line, under 50 characters.** 'Add Cox
 regression helper', not 'Added Cox regression helper stuff'.
@@ -594,7 +591,7 @@ It should complete the phrase 'If applied, this commit will
 ___'.
 
 **Blank line, then a paragraph for anything non-obvious.**
-Explain *why*, not *what*, the diff shows what. For
+Explain *why*, not *what*; the diff shows what. For
 statistical code, include the analytical reasoning:
 
 ```
@@ -612,7 +609,7 @@ downstream CI widths but not point estimates.
 issue when the PR merges.
 
 **Match commit granularity to logical changes**, not to time
-elapsed. A commit is a unit of reasoning, not a unit of work.
+elapsed.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: Commit message style
@@ -689,7 +686,7 @@ CSVs.'
 *What to watch for.* LLM-generated `.gitignore` files tend to
 be thorough and sometimes over-broad. Read every line. In
 particular, watch for patterns that would exclude files you
-need, `*.yaml` will exclude `_quarto.yml`, for example.
+need: `*.yaml` will exclude `_quarto.yml`, for example.
 Also watch for missing entries: LLMs sometimes forget
 `.Rproj.user/`, `renv/library/`, or OS-specific files.
 
@@ -699,17 +696,16 @@ which encode the community-standard defaults for R
 projects. Use the model's version as a draft and the
 `usethis` defaults as a safety check.
 
-The meta-lesson is the same as elsewhere in this book: the LLM
-produces a plausible candidate quickly. You are still the one
-responsible for verifying that it is correct for your
-situation.
+As elsewhere in this book, the LLM produces a plausible
+candidate quickly, and you remain responsible for verifying
+that it is correct for your situation.
 
 ## Principle in use
 
-The statistician's contribution to a Git workflow is not the
-typing of commands; it is the curation of a history that a
-future reader, reviewer, collaborator, regulator, or
-yourself, can trust. Three habits do most of the work:
+The statistician's contribution to a Git workflow is the
+curation of a history that a future reader (reviewer,
+collaborator, regulator, or yourself) can trust. Three habits
+do most of the work:
 
 1. Commits are atomic and carry messages that explain the
    'why'. The history reads as a sequence of deliberate,
@@ -846,7 +842,7 @@ the appropriate compliance channel.
    work. Unlike dated backup copies, Git stores *differences*
    between versions (not full copies), records metadata for
    each change (author, time, message), and supports
-   workflows, branching, merging, review, that file
+   workflows (branching, merging, review) that file
    backups cannot.
 2. `git init` creates a new, empty repository by adding a
    `.git/` directory to the current folder, making future

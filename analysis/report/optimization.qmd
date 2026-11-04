@@ -40,10 +40,10 @@ By the end of this chapter you should be able to:
 Likelihood-based inference is, we shall argue, optimization
 in disguise. Every MLE, every penalized regression, every
 mixed-effects fit, every Cox model, and every neural network
-ultimately calls a general-purpose optimizer. Understanding
-what the optimizer is doing, and when it is failing, is the
-difference between producing results and producing
-plausible-looking noise.
+ultimately calls a general-purpose optimizer. Unless you
+understand what the optimizer is doing, and when it is
+failing, you cannot tell a result from plausible-looking
+noise.
 
 The optimizer in R that covers most real cases is `optim()`.
 Underneath, it provides several algorithms. Choosing between
@@ -53,10 +53,9 @@ skills this chapter develops.
 
 ## The statistician's contribution {#sec-optimization-human}
 
-Optimization algorithms are mechanical. BFGS is BFGS;
-Newton-Raphson is Newton-Raphson. What is *not* mechanical,
-and what no optimizer can automate, is the judgment that
-surrounds the optimization.
+Optimization algorithms are mechanical: BFGS is BFGS, and
+Newton-Raphson is Newton-Raphson. No optimizer can automate
+the judgment that surrounds the optimization.
 
 **Is this problem convex?** Convex problems have a unique
 global optimum; any descent method converges to it regardless
@@ -98,10 +97,6 @@ estimates. Checking the Hessian for positive definiteness,
 starting from multiple initial values, and computing Wald
 standard errors are all defensive moves that verify
 convergence was genuine.
-
-These judgment calls separate code that fits a model from
-code that fits a model defensibly. The optimizer handles the
-arithmetic; the statistician handles everything else.
 
 ## Optimization in statistical computing
 
@@ -234,7 +229,7 @@ gradient_descent <- function(f, grad_f, theta0,
 }
 ```
 
-**Step size is critical.** Too large and the iterates
+**Step size.** Too large and the iterates
 oscillate or diverge; too small and convergence is
 impractically slow. For convex Lipschitz-smooth $f$ with
 Lipschitz constant $L$, the rule $\alpha \leq 1/L$ guarantees
@@ -331,7 +326,7 @@ quadratic). In practice, often as fast as Newton on real
 problems and vastly easier to implement.
 
 **L-BFGS** (limited-memory BFGS) stores only the last few
-(typically 3--20) pairs of $s_k$ and $y_k$ rather than the
+(typically 3 to 20) pairs of $s_k$ and $y_k$ rather than the
 full $B_k$, reducing memory from $O(n^2)$ to $O(nm)$ where
 $m$ is the memory length. This makes it practical for very
 high-dimensional problems (millions of parameters). L-BFGS-B
@@ -465,9 +460,9 @@ probabilities are tiny.
 **2. Optimize on the log scale for positive parameters.** We
 parameterized by $\log \sigma$ instead of $\sigma$ so the
 optimizer works on an unconstrained space ($\sigma > 0$
-becomes $\log \sigma \in \mathbb R$). This is a universal
-trick: log for positive parameters, logit for probabilities,
-Fisher $z$ for correlations.
+becomes $\log \sigma \in \mathbb R$). The same device
+applies generally: log for positive parameters, logit for
+probabilities, Fisher $z$ for correlations.
 
 **3. Pass data via `...`.** `optim(par, fn, y = y)` passes
 `y` to `fn` without making it a global variable. For
@@ -552,8 +547,8 @@ Five failure modes account for most optimization bugs:
 starting values, scale parameters so they are all $O(1)$.
 
 **2. Boundary solutions.** The MLE is at (or close to) the
-boundary of the parameter space, a variance hitting zero,
-a probability hitting 1. Wald inference breaks down; profile
+boundary of the parameter space: a variance hitting zero,
+or a probability hitting 1. Wald inference breaks down; profile
 likelihoods or bootstrap are more reliable.
 
 **3. Flat likelihood.** The likelihood is nearly constant
@@ -726,16 +721,14 @@ Three habits characterize effective use of optimization in R:
 
 1. **Think before optimizing.** Is the problem convex? Is
    the parameterization sensible? Is the objective
-   numerically stable? The optimizer is only as good as the
-   problem you hand it.
+   numerically stable?
 2. **Verify convergence.** `$convergence = 0` is necessary
    but not sufficient. Check the Hessian. Run from multiple
    starting points. Compare against a canonical
    implementation when possible.
 3. **Check gradients.** If you wrote an analytic gradient,
    compare it to `numDeriv::grad()`. If they disagree, the
-   analytic one is wrong. A wrong gradient will silently
-   mislead the optimizer into the wrong answer.
+   analytic one is wrong.
 
 These three habits catch nearly all the 'I ran `optim()` and
 got a weird answer' bugs.
@@ -766,7 +759,7 @@ got a weird answer' bugs.
 ## Further reading
 
 - [@nocedal2006numerical], the modern reference; Chapters
-  1--6 cover the methods behind `optim()`.
+  1 to 6 cover the methods behind `optim()`.
 - [@boyd2004convex], the definitive convex optimization
   text; free online at
   <https://web.stanford.edu/~boyd/cvxbook>.

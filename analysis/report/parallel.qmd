@@ -60,8 +60,8 @@ worth it.
 30 seconds in serial does not need parallelism; the time
 spent setting up `future.apply` exceeds the saving. A
 simulation that takes 30 minutes is worth parallelizing;
-30 hours is essential. Knowing which case applies requires
-profiling first, rather than parallelizing preemptively.
+30 hours is essential. Profile first to learn which case
+applies.
 
 **Reproducibility is non-trivial.** Naive parallel code
 with `set.seed()` does not produce reproducible results
@@ -85,12 +85,8 @@ threads competing on probably 8 physical cores. The
 typical fix: `RhpcBLASctl::blas_set_num_threads(1)` inside
 the worker so BLAS does not spawn additional threads.
 This pitfall stays invisible until timing is measured
-and the 'parallel' code turns out somehow *slower* than
+and the 'parallel' code turns out *slower* than
 serial.
-
-These judgments are what distinguishes parallel code that
-delivers a speedup from parallel code that delivers a
-speedup *and* correct, reproducible results.
 
 ## When does parallelism help?
 
@@ -100,7 +96,8 @@ Three categories of problem:
 the others. Bootstrap resamples, Monte Carlo simulation
 replicates, fitting the same model to many strata. Speedup
 scales nearly linearly with the number of cores, up to
-overhead. The dominant case in statistical computing.
+overhead. This is the dominant case in statistical
+computing.
 
 **Data parallel.** A single computation can be split
 across cores by partitioning the data: matrix
@@ -119,8 +116,8 @@ serial dependency.
 For sequential problems, you can sometimes parallelize *at
 a higher level*: run several MCMC chains in parallel
 (common). Or split the data into independent batches and
-fit separate models to each. The trick is identifying the
-boundary where independence holds.
+fit separate models to each. Either approach requires
+finding the boundary where independence holds.
 
 ## The `future` framework
 
@@ -274,7 +271,7 @@ Typical patterns for embarrassingly parallel code:
   saturation; possibly diminishing returns beyond.
 
 For the modest per-iteration work typical of bootstrap or
-simulation, expect 70--90% efficiency on 4--8 cores; lower
+simulation, expect 70 to 90% efficiency on 4 to 8 cores; lower
 on 16+ cores due to overhead and contention.
 
 ## Common pitfalls

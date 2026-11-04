@@ -42,8 +42,7 @@ This chapter is the testing companion to the package-
 development chapter. It treats testing as a first-class
 activity rather than something to add at the end. A
 package without tests asks a reader to trust the code on
-faith. A package with tests is a tool that other people
-can rely on.
+faith.
 
 The canonical R testing framework is `testthat` (currently
 version 3, accessed via `usethis::use_testthat(3)`). It is
@@ -57,8 +56,8 @@ priorities for statistical code are specific.
 
 **Test the math, not just the syntax.** A test that
 verifies a function returns a tibble of the right shape is
-not the test that matters; it is a structural check. The
-test that matters is whether the function returns the
+only a structural check. The test that matters is whether the
+function returns the
 right *answer* on a known case. We would compare to a
 closed-form solution where one exists, and to a reference
 implementation otherwise.
@@ -67,8 +66,8 @@ implementation otherwise.
 NA. Single observation. Floating-point near-machine-zero.
 Inputs that exercise type coercion (logical to numeric,
 integer to double). These are where statistical functions
-break, and they break silently, the function returns
-something, just not the right thing.
+break, and they break silently: the function returns
+something, but not the right answer.
 
 **Snapshot tests for plots and printed output.** Direct
 equality fails for plots (rendering changes between
@@ -92,9 +91,6 @@ returns NA on an edge case has a test for that behavior:
 it is intended. A function that crashes on the same input
 has no test: it is a bug. Tests document intentions in a
 machine-checkable form.
-
-These judgments are what make tests useful rather than
-performative.
 
 ## Writing tests with `testthat`
 
@@ -259,9 +255,8 @@ returns `c(1, 4, 9, ..., 100)` (doubles), the
 `(1:10)^2` (integers, since integer^integer is integer
 in R), `expect_identical` fails because integer ≠
 double, even though the values match. `expect_equal`
-ignores this distinction. The lesson: use
-`expect_identical` only when you genuinely care about
-the type as well as the value.
+ignores this distinction. Use `expect_identical` only
+when you care about the type as well as the value.
 
 :::
 
@@ -296,8 +291,8 @@ badge for your README.
 
 ## `R CMD check`
 
-`R CMD check` is the gold standard for package quality. It
-runs:
+`R CMD check` is the standard test of package quality. It
+covers:
 
 - **Documentation completeness.** Every exported function
   has documentation; every documented parameter exists.
@@ -356,8 +351,8 @@ A good vignette:
 
 - Introduces the problem the package solves.
 - Walks through a worked example end to end.
-- Highlights the key functions and how they fit together.
-- Is short enough to read in 10--15 minutes.
+- Shows the main functions and how they fit together.
+- Is short enough to read in 10 to 15 minutes.
 
 A vignette is *not* a function-by-function reference; the
 help pages serve that purpose.
@@ -388,9 +383,9 @@ This runs `covr::package_coverage()` and uploads the
 results to Codecov, where you can see line-by-line
 coverage and how it has changed over time.
 
-Setting up CI is a one-time investment that pays off for
-the life of the package. Every change is automatically
-checked; regressions are caught before merge.
+CI is set up once and then checks every change
+automatically for the life of the package, so regressions
+are caught before merge.
 
 ## Worked example: testing `summarise_numeric()`
 

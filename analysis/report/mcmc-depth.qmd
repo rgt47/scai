@@ -60,10 +60,9 @@ at all.
 **$\hat R$ near 1 is necessary, not sufficient.** A
 chain with $\hat R = 1.001$ may still have low effective
 sample size, divergences, or trapped behavior on a
-multimodal posterior. The full diagnostic suite
-(divergences, E-BFMI, ESS bulk and tail, trace plots,
-pair plots) is the verification; $\hat R$ alone is
-insufficient.
+multimodal posterior. Verification requires the full
+diagnostic suite: divergences, E-BFMI, ESS bulk and
+tail, trace plots, and pair plots.
 
 **Reparameterization is a modeling choice.** A
 hierarchical model with a centered parameterization
@@ -93,9 +92,6 @@ convergence to *the* posterior. Multiple chains starting
 from dispersed values, with $\hat R$ across chains as
 the consistency check, is the protection against
 multimodality and non-stationarity.
-
-These judgments are what distinguish a converged Bayesian
-analysis from one that mis-reports its uncertainty.
 
 ## Hamiltonian Monte Carlo
 
@@ -308,7 +304,7 @@ canonical example: a hierarchical normal with group
 means $\mu_j \sim N(\mu, \tau)$ and observation-level
 likelihood $y_{ij} \sim N(\mu_j, \sigma)$.
 
-**Centerd parameterization** (CP):
+**Centered parameterization** (CP):
 
 ```stan
 parameters {
@@ -547,7 +543,7 @@ Choose between centered and non-centered parameterization
 based on the information level.'
 
 *What to watch for.* Few observations per group (under
-roughly 5--10) calls for NCP. Many observations per
+roughly 5 to 10) calls for NCP. Many observations per
 group (50+) is the regime where CP works. The LLM
 should make this choice and explain it. If it picks one
 without explanation, ask why.
@@ -596,12 +592,11 @@ correlation.
 reparameterization; refit; verify divergences are
 gone.
 
-The meta-pattern: modern MCMC's diagnostics are
-informative if you read them; LLMs help interpret them
-faster than you would alone. The judgment is whether to
-trust the LLM's diagnosis enough to publish, which
-requires checking it against the actual posterior
-behavior.
+Modern MCMC diagnostics are informative if you read
+them, and an LLM helps you interpret them faster than you
+would alone. Deciding whether to trust its diagnosis
+enough to publish requires checking that diagnosis
+against the actual posterior behavior.
 
 ## Principle in use
 

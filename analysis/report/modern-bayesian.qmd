@@ -34,14 +34,14 @@ it, how to compare competing models, and what to do when
 HMC is too slow to be practical.
 
 Three currents shape modern Bayesian computation. First,
-**probabilistic programming languages (PPLs)**, Stan, PyMC,
-Turing, NumPyro, separate model specification from inference
+**probabilistic programming languages (PPLs)** (Stan, PyMC,
+Turing, NumPyro) separate model specification from inference
 algorithm. You write the joint density; the compiler produces
 samplers and gradient code. Second, **the Bayesian workflow**
 [@gelman2020bayesian] reframes inference as iterative
 model-criticism rather than a single posterior summary.
-Third, **scalable approximations**, variational inference,
-Pathfinder, INLA, Laplace, extend Bayesian computation to
+Third, **scalable approximations** (variational inference,
+Pathfinder, INLA, Laplace) extend Bayesian computation to
 problem sizes where MCMC is hopeless.
 
 The chapter follows that arc. We start with the PPL stack
@@ -71,8 +71,7 @@ treatment effects on the log-odds scale, a known boundary
 on a variance component, a hierarchical structure that
 shares information across centers. None of these decisions
 are visible from the data alone, and an LLM that proposes
-'use the default priors' is dodging the question rather
-than answering it.
+'use the default priors' has not answered the question.
 
 **(Judgment 2.) A passing diagnostic is necessary, not
 sufficient.** $\hat R = 1.00$ and ESS in the thousands tell
@@ -83,8 +82,9 @@ The first is a multimodal posterior where chains separately
 settle in different modes. Each chain looks fine on its own,
 and pooled diagnostics flag nothing if all modes happen to be
 visited proportionally. The second is a posterior with
-regions of high curvature that the sampler silently skips. The defense is **posterior predictive
-checking** (does the fitted model produce data that look
+regions of high curvature that the sampler silently
+skips. The defense is **posterior predictive checking**
+(does the fitted model produce data that look
 like the observed data on quantities you care about?) and
 **prior predictive checking** (does the model produce
 remotely plausible data before seeing any observations?).
@@ -102,9 +102,6 @@ right ballpark, whether it extrapolates safely, and whether
 its assumptions are defensible to a reviewer. LLMs are
 strong at running `loo_compare`; they are weak at noticing
 when the answer is 'neither model is fit for purpose.'
-
-These judgments are what distinguish an analysis that
-survives review from one that does not.
 
 ## The probabilistic programming stack
 
@@ -132,8 +129,8 @@ ships with pre-compiled Stan models for common GLMs and
 GLMMs and is the fastest way to fit a Bayesian regression
 in R. `brms` [@burkner2017brms] generates Stan code on the
 fly from an R formula and supports a much wider class of
-models, multivariate outcomes, distributional regression,
-nonlinear models, missing-data imputation, time-varying
+models: multivariate outcomes, distributional regression,
+nonlinear models, missing-data imputation, and time-varying
 effects via splines and Gaussian processes. `brms` is the
 workhorse of applied Bayesian regression in R.
 
@@ -228,7 +225,8 @@ silent specification errors with `brms`.
 
 **Step 2: prior predictive checks.** Before fitting, draw
 samples from the prior alone and pass them through the
-likelihood. Plausible? Implausible? `pp_check(fit, type =
+likelihood, and ask whether the result is plausible.
+`pp_check(fit, type =
 "bars", prefix = "ppd")` plots prior predictive draws against
 the data. If the priors imply outcomes far from anything the
 collaborator considers possible, tighten them.
@@ -242,9 +240,9 @@ and funnel pathologies in hierarchical models.
 **Step 4: posterior predictive checks.** `pp_check(fit, type
 = "bars")` for binary or count outcomes; `pp_check(fit, type
 = "dens_overlay")` for continuous. Look for systematic
-discrepancies between simulated and observed data, the
+discrepancies between simulated and observed data: the
 model under-predicts large values, mis-locates the mean,
-under-disperses the tails. These are the structural failures
+or under-disperses the tails. These are the structural failures
 $\hat R$ will not catch.
 
 **Step 5: targeted posterior predictive checks.** Beyond
@@ -293,7 +291,7 @@ Cross-validation answers the question 'which model predicts
 new observations better.' True $K$-fold CV is expensive when
 each fit takes hours. **Pareto-smoothed importance-sampling
 LOO** [@vehtari2017practical] approximates exact LOO from a
-single fit by reweighting posterior draws, it is the
+single fit by reweighting posterior draws; it is the
 default in `loo`.
 
 `loo_compare(loo(fit1), loo(fit2))` returns the difference
@@ -309,7 +307,7 @@ with LOO on well-behaved problems but can be unstable on
 hierarchical models with strong shrinkage. `loo` is the
 recommended default; report WAIC only when it is required.
 
-Two failure modes deserve emphasis. First, **Pareto-$\hat k$
+Two failure modes are common. First, **Pareto-$\hat k$
 flags above 0.7** indicate the importance-sampling step has
 broken for that observation; the elpd estimate is unreliable
 unless those observations are refit exactly. Second,
@@ -342,8 +340,8 @@ fit_a   -8.4       3.7
 ```
 
 The random-slope model is preferred by 8.4 elpd units with
-SE 3.7, about 2.3 SE units, evidence in favor of the
-slope-varying model but not overwhelming. Re-examine
+SE 3.7 (about 2.3 SE units): evidence in favor of the
+slope-varying model, but not overwhelming. Re-examine
 Pareto-$\hat k$ values for both fits before concluding.
 
 ## Variational inference and faster approximations
@@ -375,16 +373,16 @@ HMC.
 
 **Laplace approximation** treats the posterior as Gaussian
 centered at the MAP with covariance equal to the inverse
-observed information. For posteriors that are nearly Gaussian
-,  well-identified models with substantial data, it is
-accurate and trivially fast. It fails badly on skewed or
+observed information. For posteriors that are nearly
+Gaussian (well-identified models with substantial data), it
+is accurate and trivially fast. It fails badly on skewed or
 multimodal posteriors and on hierarchical models with funnel
 geometry.
 
 **INLA** [@rue2009approximate] (Integrated Nested Laplace
 Approximation) is a structured approximation specialized for
-latent Gaussian models, GLMMs, spatial Gaussian random
-fields, time-series models with Gaussian latent structure.
+latent Gaussian models: GLMMs, spatial Gaussian random
+fields, and time-series models with Gaussian latent structure.
 For models that fit its template, INLA is dramatically
 faster than MCMC and accurate enough that the
 spatial-statistics community treats it as the default. The
@@ -495,7 +493,7 @@ posterior is 0.42 [0.27, 0.61].
 
 ## Collaborating with an LLM on modern Bayesian computation
 
-Three patterns dominate. LLMs are reliable at translating a
+LLMs are reliable at translating a
 verbal model description into `brms` formula syntax and at
 suggesting standard prior choices. They are unreliable at
 diagnosing posterior failures and at interpreting `loo`
@@ -503,8 +501,8 @@ comparisons in context. They cannot judge whether a
 posterior predictive check is passing on the right quantity.
 
 **Prompt 1: 'Translate this model to `brms` syntax.'**
-Provide a clean specification, outcome, family, fixed
-effects, random-effects structure, priors, and ask for the
+Provide a clean specification (outcome, family, fixed
+effects, random-effects structure, priors) and ask for the
 formula and `prior()` calls.
 
 *What to watch for.* The LLM will sometimes add or drop
@@ -558,12 +556,12 @@ elpd is unreliable until you `reloo()`. Then ask whether
 the elpd difference is several SE units; if not, the
 comparison is inconclusive.
 
-The meta-pattern: LLMs are excellent at the *mechanics* of
-Bayesian workflow, formula syntax, function calls,
-diagnostic interpretation in textbook cases. They are poor
-at the *adjudication*, deciding when a passing diagnostic
-is misleading, when a comparison is too noisy to act on,
-when a model is fit-for-purpose. Treat the LLM as a fluent
+LLMs handle the *mechanics* of the Bayesian workflow well:
+formula syntax, function calls, and diagnostic
+interpretation in textbook cases. They are poor at
+deciding when a passing diagnostic is misleading, when a
+comparison is too noisy to act on, and when a model is
+fit-for-purpose. Treat the LLM as a fluent
 intern who knows the syntax but has never sat through a
 model-criticism review.
 
@@ -589,8 +587,8 @@ Three habits define defensible work in this area:
 3. **Read `loo_compare` together with Pareto-$\hat k$.**
    Never quote an elpd difference without checking that
    the importance-sampling approximation has not failed.
-   The `loo` package prints both; the temptation to skim
-   to the elpd table is a recipe for over-confident model
+   The `loo` package prints both; skimming straight to
+   the elpd table leads to over-confident model
    selection.
 
 ## Exercises

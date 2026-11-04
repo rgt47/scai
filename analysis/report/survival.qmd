@@ -46,8 +46,7 @@ participants, the study ends, or they withdraw, or follow-up
 stops for some other time-bounded reason, all before the
 event is observed. A naive analysis that drops censored
 observations is biased, and a naive analysis that imputes
-their event times is more biased still. Survival methods
-are the principled response.
+their event times is more biased still.
 
 R's `survival` package, written by Terry Therneau, is the
 canonical implementation. It is one of the oldest and
@@ -61,8 +60,8 @@ Survival analysis is a domain where the mechanics
 software, but the assumptions and the interpretation are
 where most analyses go wrong.
 
-**Independent censoring is an assumption, not a
-default.** The Kaplan-Meier estimator and the Cox model
+**Independent censoring is an assumption.** The
+Kaplan-Meier estimator and the Cox model
 both assume that censoring is independent of the event:
 participants who drop out are similar in event risk to
 participants who remain. This often fails. Patients who
@@ -75,7 +74,7 @@ progressed) is usually not. Detecting violations of
 independent censoring is rarely possible from the data
 alone; it is a substantive judgment.
 
-**The proportional hazards assumption matters.** Cox
+**Proportional hazards.** Cox
 regression's coefficient $\exp(\beta)$ is interpretable as
 a hazard ratio *only if* that ratio is constant over time.
 When PH fails, and it often does for treatments whose
@@ -93,7 +92,7 @@ extracted from the model. Reporting only the HR misses
 the substantive answer.
 
 **Time-varying covariates need the counting-process
-format.** A baseline covariate that the patient acquires
+format.** A covariate that the patient acquires
 during follow-up (e.g., a complication, a dose change) is
 not a baseline covariate. Treating it as one, using its
 final value or its baseline value with a single row per
@@ -101,7 +100,7 @@ patient, biases the estimated effect. The counting-
 process format with one row per follow-up interval is the
 correct representation.
 
-**Competing risks change everything.** If a patient can
+**Competing risks.** If a patient can
 die from the cause of interest, from another cause, or
 remain alive at study end, naive Kaplan-Meier on cause-
 specific death overstates the cumulative incidence. The
@@ -109,9 +108,6 @@ correct estimator is the cumulative incidence function;
 the correct regression model is Fine-Gray's
 subdistribution hazards. Forgetting this is a classic
 error in cardiovascular and oncology analyses.
-
-These judgments are what distinguishes survival
-analysis from a mechanical execution of `coxph()`.
 
 ## Censoring
 
@@ -246,9 +242,9 @@ $$
 
 The hazard at time $t$ is the baseline hazard
 $\lambda_0(t)$ multiplied by an exponential function of the
-covariates. Importantly, $\lambda_0(t)$ is left
-*unspecified* and is not estimated, only the relative
-hazards (the $\boldsymbol\beta$) are.
+covariates. $\lambda_0(t)$ is left *unspecified* and is
+not estimated; only the relative hazards (the
+$\boldsymbol\beta$) are.
 
 ```r
 fit <- coxph(Surv(time, status == 2) ~ age + sex + ph.ecog,
@@ -382,7 +378,7 @@ When a patient can die from the cause of interest, from
 another cause, or remain alive (or in a similar three-way
 state), naive Kaplan-Meier on the cause of interest, by
 treating death from other causes as censoring, *over*-
-states the cumulative incidence. The reason: the
+states the cumulative incidence, because the
 estimator implicitly assumes that the patient who died
 of another cause might still have died of the cause of
 interest later, which is impossible.
@@ -695,7 +691,7 @@ this covariate is:
 ## Answer
 
 **D.** Counting-process format is the correct
-representation. Options A--C all introduce bias.
+representation. Options A to C all introduce bias.
 :::
 
 ## Prerequisites answers {#sec-quiz-answers-survival}

@@ -86,8 +86,7 @@ natural; for a methods paper, a z-score may read more
 cleanly. The transformation on the *outcome*, log, square
 root, Box-Cox, is a more consequential decision: it
 changes the estimand from 'additive effect on $y$' to
-'multiplicative effect on $e^y$', and these are not
-interchangeable.
+'multiplicative effect on $e^y$'.
 
 **Whether the model's claims are defensible.** A linear
 model's p-values and confidence intervals are valid under
@@ -106,10 +105,10 @@ meaningful but imprecisely estimated. The statistician
 reports both; claiming importance because of $p$ alone, or
 dismissing importance for the same reason, is not defensible.
 
-These decisions shape whether a linear-model analysis is
-honest or misleading. An LLM will happily fit any model you
-describe; it will not tell you that the model is not the
-right one for your question.
+An LLM will fit any model you describe without telling you
+that it is the wrong model for your question, and these
+decisions determine whether the resulting analysis is honest
+or misleading.
 
 ## Anatomy of `lm()`
 
@@ -127,9 +126,10 @@ intercept is included by default, and the data are in
 4. Solves for $\hat\beta$ via `qr.coef(qrX, y)`.
 5. Computes residuals, fitted values, residual variance
    $\hat\sigma^2 = \|y - X\hat\beta\|^2 / (n - p)$, and the
-   covariance matrix $\widehat{\mathrm{Var}}(\hat\beta) = \hat\sigma^2 (X^T X)^{-1}$
-  , the last via back-substitution on $R$, not by forming
-   $(X^T X)^{-1}$ explicitly.
+   covariance matrix
+   $\widehat{\mathrm{Var}}(\hat\beta) = \hat\sigma^2 (X^T X)^{-1}$;
+   the last is computed by back-substitution on $R$, not by
+   forming $(X^T X)^{-1}$ explicitly.
 6. Returns all of this as an `lm` object.
 
 ```r
@@ -337,8 +337,8 @@ all.equal(as.vector(se_beta),
 
 Everything `lm()` reports, coefficients, SEs, $R^2$,
 residual SD, df, comes from the QR decomposition, the
-residuals, and $(X^T X)^{-1}$. No magic, no Bayesian prior,
-no hidden regularization.
+residuals, and $(X^T X)^{-1}$. There is no prior and no
+hidden regularization.
 
 ## Diagnostics
 
@@ -348,7 +348,8 @@ cover the main assumption checks.
 **Plot 1: Residuals vs. Fitted.** Checks linearity and
 homoscedasticity. Looks for: no systematic trend (linear
 relationship holds), consistent spread (variance constant).
-A curve → non-linearity. A funnel → heteroscedasticity.
+A curve indicates non-linearity; a funnel indicates
+heteroscedasticity.
 
 **Plot 2: Q-Q plot of standardized residuals.** Checks
 approximate normality. Points should lie near the 45° line.
@@ -358,9 +359,9 @@ curved deviation from the line.
 **Plot 3: Scale-Location.** The square root of the absolute
 standardized residual against fitted values. Another view
 of homoscedasticity, more sensitive than plot 1 to trends in
-spread. A monotonic increasing trend → variance increases
-with the mean, a classical pattern for count or proportion
-data.
+spread. A monotonic increasing trend means the variance
+increases with the mean, a classical pattern for count or
+proportion data.
 
 **Plot 4: Residuals vs. Leverage.** Identifies influential
 observations. Cook's distance contours (dashed lines) mark
@@ -374,7 +375,7 @@ plot(fit)
 par(mfrow = c(1, 1))
 ```
 
-What none of these plots can check is **independence**. For
+None of these plots checks **independence**. For
 time-series or clustered data, plot the residuals against
 time or against the cluster ID and look for structure.
 Independence violations usually require a different model
@@ -382,7 +383,7 @@ Independence violations usually require a different model
 
 ### Leverage, influence, Cook's distance
 
-Not every observation matters equally. **Leverage** ($h_i$,
+**Leverage** ($h_i$,
 the $i$th diagonal of the hat matrix $H = X(X^T X)^{-1} X^T$)
 measures how unusual observation $i$'s predictor values are;
 high-leverage observations pull the fit toward themselves.
@@ -410,7 +411,7 @@ correctly coded, whether it is part of a class of points the
 model is not designed for, or whether re-fitting without it
 changes substantive conclusions.
 
-**DFBETA** (or DFBETAS, its studentised version) measures the
+**DFBETA** (or DFBETAS, its studentized version) measures the
 change in each coefficient when each observation is removed:
 
 ```r
@@ -543,7 +544,7 @@ augment(fit)     # per-observation: fitted, residuals, hat values, cooks
 
 Pair with `gt` or `kableExtra` for publication-quality
 tables; with `ggplot2` for coefficient forest plots, fitted-
-value overlays, and diagnostic plots customised beyond
+value overlays, and diagnostic plots customized beyond
 `plot(fit)`.
 
 ::: {.callout-note icon=false collapse=true}
@@ -589,8 +590,8 @@ because they were in the dataset. If the justification is
 
 *Verification.* Compare the LLM's specification to what the
 study's analysis plan (or a similar published paper) would
-have pre-specified. Discrepancies are prompts for thought,
-not red flags in themselves.
+have pre-specified. Treat each discrepancy as a question to
+resolve; by itself it does not show that the LLM is wrong.
 
 **Prompt 2: interpreting coefficients.** Paste the
 `summary(fit)` output and ask: 'interpret each coefficient
@@ -651,9 +652,9 @@ and sex) appears in the coefficient table. Interpretation
 must be cautious: the outcome is ordinal and the 0-1-2
 coding imposes equal spacing that may not be clinically
 valid. The next chapter's proportional-odds model is a
-better fit; this example is here to demonstrate workflow,
-not to claim that linear regression on an ordinal outcome is
-the right model.
+better fit; this example demonstrates the workflow only, and
+linear regression is not the right model for an ordinal
+outcome.
 
 ## Principle in use
 

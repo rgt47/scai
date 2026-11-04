@@ -15,17 +15,15 @@ print it is Volume II.
 The word 'advanced' carries three meanings in the second half,
 in increasing strength.
 
-The first is **a deeper treatment of foundational topics.**
+The first is a deeper treatment of foundational topics.
 @sec-numerical-stability and @sec-numerical-linalg, on
 numerical stability and numerical linear algebra, revisit
 material the first half touches but does not treat in depth.
 Floating-point arithmetic, condition numbers, sparse and
 iterative solvers, and BLAS-level performance are the
-load-bearing fundamentals for everything that follows. An
-advanced treatment that omits them is, we would argue, missing
-a layer.
+fundamentals that everything after them depends on.
 
-The second is **topics that exceed introductory scope.**
+The second is topics that exceed introductory scope.
 @sec-advanced-optimization through @sec-modern-bayesian take
 up advanced optimization, the EM algorithm and its extensions,
 Monte Carlo in depth, Bayesian computation, MCMC in depth, and
@@ -34,8 +32,8 @@ first-half treatment of its topic into the territory needed
 for current methodological research and for applied practice
 with modern tools.
 
-The third is **topics that did not appear in the first half
-at all.** @sec-parallel through @sec-interactive-viz take up
+The third is topics that did not appear in the first half
+at all. @sec-parallel through @sec-interactive-viz take up
 parallel and high-performance computing, high-dimensional
 methods, machine learning, R package development and testing,
 software engineering for statisticians, reproducible
@@ -47,8 +45,7 @@ them for.
 
 ## What 'in the Age of AI' commits the second half to
 
-The subtitle is a structural commitment and not decoration.
-Every chapter carries two named sections that exercise it.
+The subtitle commits every chapter to two named sections.
 
 The first, **The statistician's contribution**, is placed
 early: it is an explicit articulation of the judgments at the

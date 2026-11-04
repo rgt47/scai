@@ -45,10 +45,10 @@ categories.
 The framework holds whether the LLM answers you in a
 chat window or acts as a coding agent that edits files
 and runs code on its own. An agent does not change what
-the model knows or does not know. It changes how fast a
-wrong answer becomes a wrong file, which is why the
-categories below matter more, not less, once the LLM in
-front of you can execute its own advice.
+the model knows or does not know, only how fast a wrong
+answer becomes a wrong file, so the categories below
+matter more once the LLM in front of you can execute its
+own advice.
 
 Practitioners in 2026 distinguish two disciplines. 'Vibe
 coding' means prompting a model, accepting the result, and
@@ -113,8 +113,7 @@ information.**
   to answer when the question is stated ambiguously.
 
 These tasks require context the LLM does not and cannot
-have. They require, by definition, the statistician's
-judgment.
+have, and so they require the statistician's judgment.
 
 **Category 4: Things the LLM cannot do because of
 professional accountability.**
@@ -131,9 +130,8 @@ irrespective of how capable the LLM becomes.
 
 ## What LLMs cannot do: concrete examples
 
-Abstract categories are less convincing than concrete
-failures. We present four, one from each part of this
-book, all of which an LLM will cheerfully answer
+We present four concrete failures, one from each part of
+this book, all of which an LLM will cheerfully answer
 incorrectly if the reader does not guide it.
 
 **Bootstrap a confidence interval for the maximum of a
@@ -141,8 +139,8 @@ sample (@sec-bootstrap).** The LLM will produce working
 code. The code will return a CI whose upper endpoint
 equals the observed sample maximum, because the
 bootstrap maximum cannot exceed the observed maximum.
-This is a known pathology of the bootstrap for extrema.
-Unfortunately, an LLM will not warn the reader of it.
+This is a known pathology of the bootstrap for extrema,
+and an LLM will not warn the reader of it.
 
 **Fit a Cox proportional-hazards model to a data frame
 with recurring patient visits (@sec-survival).** The LLM
@@ -158,8 +156,8 @@ three clusters (@sec-mixed-models).** The LLM will fit
 cluster effect will be almost entirely driven by the
 finite-sample prior implicit in REML; the user will read
 the coefficient as an estimate of a population quantity
-it does not meaningfully estimate. Unfortunately, the LLM
-will not distinguish a well-posed LMM from a poorly-posed
+it does not meaningfully estimate. The LLM will not
+distinguish a well-posed LMM from a poorly-posed
 one.
 
 **Iteratively re-weighted least squares on a
@@ -208,10 +206,9 @@ Specifically, we recommend that students:
 
 Students occasionally ask whether this training is
 obsolete. Will the LLM, in five years, be good enough
-that these warnings no longer apply? The honest answer,
-it seems, is perhaps, and perhaps not. On the other hand,
-three arguments remain even under the optimistic
-assumption:
+that these warnings no longer apply? Perhaps, and perhaps
+not. Three arguments for the training hold even under
+the optimistic assumption:
 
 1. **Professional accountability does not transfer.**
    However capable the LLM becomes, when an FDA reviewer
@@ -226,9 +223,9 @@ assumption:
    engineer. The market pays considerably more for the
    former.
 
-In sum, learning this material is not a hedge against
-LLM failure. It is the substance of what a
-biostatistician is for.
+The material is therefore worth learning even if LLMs
+stop failing, because the judgment it builds is the
+substance of a biostatistician's work.
 
 ## What you will be able to do
 
@@ -242,8 +239,8 @@ able to:
   resolving merge conflicts and collaborating via pull
   requests.
 - Implement the core numerical algorithms of statistics
- , linear system solvers, decompositions, and
-  optimizers, from first principles, and explain why
+  (linear system solvers, decompositions, and
+  optimizers) from first principles, and explain why
   packaged implementations are usually preferable.
 - Design and execute a simulation study that produces
   defensible answers to a research question.

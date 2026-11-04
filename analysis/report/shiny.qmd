@@ -28,7 +28,7 @@ By the end of this chapter you should be able to:
 - Use `bindEvent()` (a more general decorator added in
   Shiny 1.6 alongside `eventReactive()`) to control
   when an expensive reactive recomputes.
-- Modularise an app using Shiny modules with namespace
+- Modularize an app using Shiny modules with namespace
   isolation.
 - Deploy an app to `shinyapps.io` or a Posit Connect
   server.
@@ -62,18 +62,17 @@ are not in the framework.
 trigger every downstream computation. Sometimes that is
 right (a small dataset filter); sometimes it is disastrous
 (a 30-second model fit running every time the user moves a
-slider by 1). The right reactive granularity, often
+slider by 1). The right reactive granularity (often
 involving `bindEvent()` to delay expensive computations
-until a 'Run' button is pressed, is the analyst's
-judgment, not the framework's default.
+until a 'Run' button is pressed) is the analyst's
+judgment; the framework will not choose it for you.
 
 **Validate inputs.** A Shiny app is a public surface,
 even when 'public' means 'visible to three collaborators'.
 Inputs that crash the server because the
 user uploaded a CSV with extra columns, or set a slider to
 zero, are bugs. `validate()` and `req()` catch them
-gracefully. Defensive validation is the cost of a robust
-app.
+gracefully.
 
 **Modularize.** A single-file app of 200 lines is fine. A
 single file of 2000 lines is unmaintainable. Shiny modules
@@ -89,9 +88,6 @@ Server has different scaling and security
 characteristics. A Posit Connect deployment integrates
 with internal authentication. Pick the destination that
 matches the audience; do not assume.
-
-These judgments are what distinguishes a deployed,
-shared analysis from a local-only exploration toy.
 
 ## Reactive programming in one page
 
@@ -173,8 +169,8 @@ Five things to notice:
    in the UI; `output$scatter <- renderPlot({ ... })` in
    the server.
 4. **`renderPlot({ ... })` is reactive.** It re-runs every
-   time any reactive value referenced in the body changes
-  , here, `input$xvar` and `input$yvar`.
+   time any reactive value referenced in the body
+   changes: here, `input$xvar` and `input$yvar`.
 5. **`shinyApp(ui, server)` returns an app object** that
    can be run interactively (in the console) or deployed.
 
@@ -341,8 +337,8 @@ output$result <- renderPlot({
 ```
 
 `req(input$file)` halts evaluation silently if the user
-has not yet uploaded a file, nothing renders, no error
-shown.
+has not yet uploaded a file: nothing renders and no
+error is shown.
 
 `validate(need(...))` halts evaluation and displays a
 human-readable message explaining why. Useful when the
@@ -350,8 +346,7 @@ user has done something almost-but-not-quite right.
 
 Without these, an app with a missing file or invalid
 input throws server-side errors that may render as red
-text in the UI or stack traces in the log. Validate
-deliberately.
+text in the UI or stack traces in the log.
 
 ## Shiny modules
 
@@ -547,8 +542,8 @@ is gated behind a button.
 ## Collaborating with an LLM on Shiny
 
 Shiny apps are an area where LLMs can produce a lot of
-working code quickly, and where reactivity bugs hide in
-plain sight.
+working code quickly, and where reactivity bugs are easy
+to miss.
 
 **Prompt 1: drafting an app.** Describe the app: what
 should the user see, what inputs should they have, what

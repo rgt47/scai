@@ -62,13 +62,12 @@ joint likelihood is tractable as a function of the
 parameters, direct maximization via Newton or BFGS is
 typically faster than EM. EM's appeal is conceptual
 (separating the latent from the observed) and lies in its
-guarantee of monotonic likelihood improvement. Its runtime,
-however, is often slower than that of direct methods. When
-you can compute the gradient of the marginal
+guarantee of monotonic likelihood improvement, not its
+speed. When you can compute the gradient of the marginal
 log-likelihood, you can probably skip EM.
 
-**Convergence to a local maximum is the rule, not the
-exception.** Mixture models in particular have multiple
+**Expect convergence to a local maximum.** Mixture models in
+particular have multiple
 modes, and EM converges to whichever is closest to the
 starting point. The fix is multi-start: run from many
 initial values, keep the best. Without this, the
@@ -92,9 +91,6 @@ explicitly. Reporting parameter estimates without standard errors is
 common enough in EM applications. Doing so without
 acknowledging the gap is, in our view, a genuine reporting
 failure.
-
-These judgments distinguish a working EM implementation
-from one that confidently reports the wrong answer.
 
 ## The EM algorithm
 
@@ -390,8 +386,7 @@ complete-data Hessian minus the variance of the complete-
 data score, both evaluated at $\hat{\boldsymbol\theta}$
 and conditional on the observed data.
 
-The two terms have intuitive content. The first is what
-the information would be if we observed $\mathbf{z}$
+The first term is what the information would be if we observed $\mathbf{z}$
 directly (the *complete information*). The second
 penalizes that quantity for the uncertainty introduced by
 not observing $\mathbf{z}$ (the *missing information*).
@@ -538,8 +533,8 @@ the same problem. The two should agree to within bootstrap
 noise. If they disagree by an order of magnitude, the
 Louis implementation is wrong.
 
-The meta-pattern: EM derivations are simple in
-principle and prone to subtle errors in practice. Using
+EM derivations are simple in principle and prone to
+subtle errors in practice. Using
 an LLM to draft the derivation is fine; using it to
 generate the implementation without a manual derivation
 check is risky.

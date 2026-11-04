@@ -47,9 +47,8 @@ explicitly bounded.
 
 ## The statistician's contribution {#sec-monte-carlo-human}
 
-Monte Carlo is honest about uncertainty in a way that
-many other tools are not: every Monte Carlo estimate
-carries an explicit standard error. The judgments at the
+Every Monte Carlo estimate carries an explicit standard
+error, which many other tools do not supply. The judgments at the
 center of this chapter are about choosing the right
 Monte Carlo method for the problem at hand and
 interpreting the resulting error correctly.
@@ -86,9 +85,6 @@ simulations were enough. The convention 'we used 1000
 simulations' without an SE is, in our view, undisciplined.
 The convention 'we used 1000 simulations, with Monte Carlo
 SE 0.003 on the reported coverage' is disciplined.
-
-These judgments distinguish a Monte Carlo analysis
-that documents its uncertainty from one that hides it.
 
 ## Importance sampling
 
@@ -367,7 +363,7 @@ Modern variants:
 - **ABC with summary statistic learning.** Use machine
   learning to identify informative summary statistics.
 
-ABC is useful but not without limitations:
+ABC has three main limitations:
 
 - Choosing $T$ requires substantive knowledge.
 - The tolerance $\epsilon$ trades bias for variance; too
@@ -481,8 +477,8 @@ $$
 where $s$ is the sample SD of the per-replicate
 estimates.
 
-The discipline: always report MCSE alongside the point
-estimate. A Monte Carlo result without an MCSE is
+Always report MCSE alongside the point estimate. A Monte Carlo
+result without an MCSE is
 incomplete; a Monte Carlo result with an MCSE smaller
 than the precision being claimed is dishonest.
 
@@ -598,10 +594,9 @@ zero (for two-sided tests) under truly null data; if
 it is biased, the permutation respects the wrong
 exchangeability.
 
-The meta-pattern: Monte Carlo is honest about
-uncertainty if the user is honest about the failure
-modes. LLMs accelerate the routine cases; they need
-human judgment for non-standard designs.
+LLMs accelerate the routine Monte Carlo cases. Failure
+modes such as heavy-tailed weights, and non-standard
+designs, still need human judgment.
 
 ## Principle in use
 
@@ -616,8 +611,8 @@ Three habits define defensible Monte Carlo:
 3. **Use variance reduction when structure permits.**
    Common random numbers, control variates, stratified
    sampling: each is a free precision gain when the
-   structure supports it. They are not optional polish;
-   they are part of competent Monte Carlo.
+   structure supports it, and competent Monte Carlo
+   uses them.
 
 ## Exercises
 

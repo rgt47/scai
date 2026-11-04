@@ -82,15 +82,12 @@ be handled, what numerical regime is supported. The
 statistician treats this as part of the work, not as
 overhead added at the end.
 
-These judgments decide whether software is a research
-asset or a slowly accumulating liability.
-
 ## Profiling: `profvis` and `bench`
 
 R is famously slow at loops; it is also famously fast at
-vectorized operations on the right primitives. The
-question is rarely 'is R slow' but 'where is *my* code
-slow.' Profiling answers that.
+vectorized operations on the right primitives. The useful
+question is where *my* code is slow, and profiling
+answers it.
 
 **`profvis`** [@chang2024profvis] wraps R's sampling
 profiler in an interactive flame graph. The workflow:
@@ -106,7 +103,7 @@ The output identifies which functions consume the most
 time and how much of that time is in their own bodies
 versus delegated to children. The pattern that recurs:
 80% of the time is in 20% of the code. Within that 20%,
-a single line typically accounts for most of the budget,
+a single line typically accounts for most of the budget:
 a `for` loop over rows of a data frame, an unnecessary
 `rbind()` in a loop, or a poorly configured `lm.fit()`.
 
@@ -124,9 +121,9 @@ mark(
 ````
 
 `check = TRUE` confirms the implementations produce equal
-results. This is not optional. Many proposed 'faster'
-implementations turn out to be both faster and wrong; the
-check catches them.
+results. Always set it: many proposed 'faster'
+implementations turn out to be both faster and wrong, and
+the check catches them.
 
 **`bench::press()`** sweeps a parameter and produces a
 performance-by-size table, the right tool when the
@@ -143,8 +140,8 @@ The two practical patterns that recover most R speedups:
    helpful; never grow a vector with `c(x, new_value)`
    in a loop.
 
-When neither applies, a genuinely sequential algorithm
-with state that depends on earlier iterations, the next
+When neither applies (a genuinely sequential algorithm
+with state that depends on earlier iterations), the next
 move is C++.
 
 ## Rcpp: the C++ escape hatch
@@ -212,7 +209,7 @@ already-compiled C code (`lm.fit` or whichever solver).
 Rewriting the wrapping loop in Rcpp would buy nothing.
 The right next step is either to parallelize (chapter 8)
 or to consolidate the 1000 small fits into a single large
-fit using a per-row factor, a one-line `lm` call with a
+fit using a per-row factor: a one-line `lm` call with a
 group factor produces the 1000 coefficients in
 milliseconds.
 
@@ -317,8 +314,8 @@ specific regimes.
 
 ## Working with AI assistants
 
-Coding assistants, Copilot, Cursor, Claude Code, or
-similar, are now standard tools. Used well, they speed up
+Coding assistants (Copilot, Cursor, Claude Code, or
+similar) are now standard tools. Used well, they speed up
 boilerplate, accelerate refactors, and surface
 documentation. Used badly, they produce subtly wrong code
 that passes the eye test and fails in production.
@@ -356,10 +353,9 @@ LLM-authored numerical kernel only when no library exists,
 and verify exhaustively against a reference.
 
 **Test-skipping.** LLMs will gladly remove tests that fail
-to pass after a refactor. The right move is the opposite:
-if a test fails, the test is your friend; investigate the
-behavior change. An LLM that suggests removing a test is
-solving the wrong problem.
+to pass after a refactor. Do the opposite: treat a
+failing test as a report of a behavior change, and
+investigate the change.
 
 **Wholesale generation of unfamiliar code.** Asking the
 LLM for 800 lines of code in a domain you have never
@@ -375,22 +371,20 @@ keep. 'Agentic coding' or 'agentic engineering' is the
 disciplined alternative: an agent plans, writes, and runs
 code in a loop, and a human still reviews the diff against
 real acceptance criteria before trusting it. The three
-patterns to avoid above are, in effect, vibe coding by
-another name. The three patterns of productive use above
-are agentic engineering done well.
+patterns to avoid above amount to vibe coding; the three
+productive patterns are agentic engineering done well.
 
-The framing that has emerged: **the LLM is a fast,
-fluent, tireless junior collaborator.** It will type
-faster than you and produce more lines of code per hour.
-It will not catch the numerical edge cases, judge the
-right level of abstraction, or know what to test. Those
-remain yours.
+A common framing treats the LLM as a fast junior
+collaborator. It will type faster than you and produce
+more lines of code per hour, but it will not catch the
+numerical edge cases, judge the right level of
+abstraction, or know what to test. Those remain yours.
 
 ## Worked example: optimizing a sequential algorithm
 
 We illustrate the profile → optimize → verify cycle on a
-sequential filter, a one-step Kalman filter for a
-state-space model, that starts as a slow R loop.
+sequential filter (a one-step Kalman filter for a
+state-space model) that starts as a slow R loop.
 
 ````{.r}
 kalman_r <- function(y, x0, P0, A, H, Q, R) {
@@ -420,8 +414,8 @@ profvis({
 # 1.4 seconds; 95% in the for loop body
 ````
 
-Vectorization is not available, each iteration depends on
-the previous. The remaining options are Rcpp or accepting
+Vectorization is not available, because each iteration
+depends on the previous one. The remaining options are Rcpp or accepting
 the runtime. The Rcpp version:
 
 ````{.cpp}
@@ -466,15 +460,14 @@ non-negotiable part: an Rcpp implementation that is fast
 but produces different output is a regression that must be
 caught at compile time, not in production.
 
-The rule of thumb that emerges: **when the loop is
-genuinely sequential and dominates runtime, Rcpp is worth
-it; verify equivalence with `bench::mark(check = TRUE)`
-or a snapshot test.**
+As a rule of thumb, when the loop is genuinely sequential
+and dominates runtime, Rcpp is worth it; verify
+equivalence with `bench::mark(check = TRUE)` or a
+snapshot test.
 
 ## Collaborating with an LLM on software engineering
 
-Three patterns dominate. LLMs are productive on
-boilerplate, refactors, and documentation. They are
+LLMs are productive on boilerplate, refactors, and documentation. They are
 unreliable on performance reasoning, on numerical
 correctness in custom algorithms, and on test design.
 
@@ -483,8 +476,8 @@ clarity.'** Provide the function and any test cases.
 
 *What to watch for.* The LLM will produce a refactored
 version with smaller helpers and clearer naming. It may
-quietly change behavior, a default argument, a sort
-order, an edge-case branch. It rarely confirms by running
+change behavior without saying so: a default argument, a
+sort order, an edge-case branch. It rarely confirms by running
 the test suite.
 
 *Verification.* Run the test suite before and after.
@@ -534,10 +527,10 @@ typist with no judgment; supply the judgment yourself.
 Three habits define defensible software engineering work:
 
 1. **Profile before optimizing; verify after.**
-   Optimization work without a profile is guesswork.
-   Optimization results without a verification of
-   numerical equivalence are claims, not facts. Both
-   habits are inexpensive; both are routinely skipped.
+   Optimization work without a profile is guesswork,
+   and a speedup is not established until numerical
+   equivalence has been verified. Both habits are
+   inexpensive, and both are routinely skipped.
 
 2. **Treat the test suite as the spec.** Write tests as
    you write the function, not after. The tests are how

@@ -48,10 +48,9 @@ numerical intuition needed for the rest of the book.
 Under the hood, `lm()` performs a QR decomposition on the
 design matrix, and `prcomp()` performs an SVD on a centered
 data matrix. Mixed models, GLMs, and penalized regression all
-reduce, in turn, to iterative linear algebra. Learning to
-think directly in matrices, rather than through the cushion
-of formula syntax, is the move that makes these methods
-transparent rather than magical.
+reduce, in turn, to iterative linear algebra. Once you can
+think directly in matrices, without the cushion of formula
+syntax, you can see what these methods compute.
 
 The critical syntactic point, repeated on purpose: `*` is
 elementwise, `%*%` is matrix multiplication. Confusing them
@@ -79,8 +78,8 @@ interest (a variance-covariance matrix, typically).
 singular design matrix produces coefficients whose error
 bars are meaningless. `kappa(A)` returns the condition
 number; values above $10^{10}$ or so signal that the
-computation is walking on a knife edge. The right response is
-not to run it anyway and see what happens. It is to diagnose
+computation is walking on a knife edge. Instead of running
+it anyway and seeing what happens, diagnose the cause
 (redundant columns? collinearity? scaling issues?) and either
 fix the data or switch to a regularized method.
 
@@ -97,14 +96,11 @@ into a character.
 
 **Dimension hygiene.** The most common runtime failure in
 matrix code is 'non-conformable arguments', a dimension
-mismatch. The fix is not fancier error handling. It is the
-habit of checking `dim(A)` and `dim(B)` before multiplying,
-or writing the expected dimensions as a comment next to each
-matrix construction. When dimensions fail, the statistician
-knows what the matrices *should* be; the compiler does not.
-
-These decisions are what make numerical statistical code
-trustworthy. None of them can be read off a reference card.
+mismatch. The fix is the habit of checking `dim(A)` and
+`dim(B)` before multiplying, or writing the expected
+dimensions as a comment next to each matrix construction.
+When dimensions fail, the statistician knows what the
+matrices *should* be; the compiler does not.
 
 ## Matrix fundamentals
 
@@ -166,8 +162,8 @@ level is that column operations are cache-friendly in R; this
 is why `colSums()` is faster than `rowSums()` on large matrices.
 
 The `as.matrix()` gotcha: if any column of the data frame is
-non-numeric (character, factor), the whole matrix coerces to
-character. Silent. Common bug. When in doubt, check
+non-numeric (character, factor), the whole matrix silently
+coerces to character, a common bug. When in doubt, check
 `storage.mode(M)` after the coercion.
 
 Dimnames via `dimnames(A) <- list(row_names, col_names)` or
@@ -376,7 +372,7 @@ colMeans(A)
 
 These dispatch to tight C loops. For these specific
 operations, always prefer them over `apply(A, 1, sum)` or
-`apply(A, 2, mean)`. The speedup is typically 10--50×.
+`apply(A, 2, mean)`. The speedup is typically 10 to 50×.
 
 `apply(A, MARGIN, FUN)` remains useful when `FUN` is custom
 (e.g., `apply(A, 1, quantile, probs = 0.9)`). But avoid it
@@ -413,7 +409,7 @@ system.time(C2 <- A %*% B)
 
 Typical speedup: 100× to 1000×, depending on BLAS
 configuration. Stock R ships with reference BLAS; installing
-OpenBLAS or Intel MKL often produces another 5×--20× on
+OpenBLAS or Intel MKL often produces another 5× to 20× on
 matrix-heavy code with no code changes. `sessionInfo()`
 reports which BLAS is active.
 
@@ -463,10 +459,9 @@ and underlies much of numerical linear algebra.
 ## Sparse matrices: the `Matrix` package
 
 Base R matrices store every element, including zeros. For
-problems where most entries are zero, text data, graph
+problems where most entries are zero (text data, graph
 adjacency, design matrices with many dummy variables,
-genomic data, this is wasteful in both memory and
-computation.
+genomic data), this wastes both memory and computation.
 
 The `Matrix` package provides sparse matrix classes that
 store only the nonzero entries and dispatch to specialized
@@ -518,7 +513,7 @@ all.equal(as.vector(beta_hat), as.vector(beta_lm))
 #> [1] TRUE
 ```
 
-A few things are hiding in plain sight:
+Note three choices in this code:
 
 - We used `crossprod` instead of `t(X) %*% X`. The results
   are identical up to rounding; `crossprod` is about twice
@@ -661,12 +656,7 @@ Four habits define effective use of matrix algebra in R:
    familiar.
 4. **Check dimensions and condition numbers.** Dimension
    mismatches and ill-conditioning are the two big silent
-   failure modes. Make their diagnosis routine, not
-   exceptional.
-
-These habits do not make linear algebra easy, the math is
-what the math is, but they make the R encoding of that
-math trustworthy.
+   failure modes. Make their diagnosis routine.
 
 ## Exercises
 

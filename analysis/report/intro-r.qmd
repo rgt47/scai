@@ -54,8 +54,8 @@ which types the data *should* carry, and assert them with
 can be expressed in base R and in `dplyr`. An LLM will lean
 toward whichever style dominated its training data, usually
 `dplyr` for interactive work. The performance, dependency,
-and readability tradeoffs belong to you. Pick the style that
-fits the project's needs, not the model's default.
+and readability tradeoffs belong to you, and the project's
+needs should settle them.
 
 **3. Edge cases in statistical data.** R's built-in functions
 handle `NA`, `NaN`, `Inf`, zero-length vectors, and
@@ -63,7 +63,8 @@ length-mismatched vectors in different ways. The defaults
 are usually right for general-purpose data; they are often
 wrong for biomedical data where missingness is informative.
 An LLM will not check whether your data has the edge cases
-that would break its generated code. You will.
+that would break its generated code, so that check falls to
+you.
 
 ## Installing R and RStudio
 
@@ -252,8 +253,8 @@ arithmetic but dangerous when lengths mismatch by accident. R
 warns if the longer length is not a multiple of the shorter,
 but not otherwise.
 
-**Loop vs vectorized.** A concrete benchmark makes the stakes
-visible:
+**Loop vs vectorized.** The following benchmark compares the
+two on the same computation:
 
 ```{.r}
 library(bench)
@@ -275,7 +276,7 @@ bench::mark(
 )
 ```
 
-The vectorized version is typically 10–100× faster because
+The vectorized version is typically 10 to 100× faster because
 the elementwise arithmetic happens in compiled C code, not in
 R's interpreter. For a vector of length 1 million the gap
 grows to 1000× or more.

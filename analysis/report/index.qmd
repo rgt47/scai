@@ -7,7 +7,7 @@ a graduate textbook in statistical computing for biostatistics
 students.
 
 We intend the book as a practical, code-first introduction to the
-computing techniques that biostatisticians use daily. That is,
+computing techniques that biostatisticians use daily:
 programming in R, version control, linear algebra, simulation,
 statistical modeling, graphics, reproducible software, and the
 emerging role of large language models in each of these activities.
