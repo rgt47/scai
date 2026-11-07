@@ -29,40 +29,51 @@ By the end of this chapter you should be able to:
 ## Orientation
 
 The preceding chapter on Bayesian computation
-(@sec-bayesian) introduced MCMC at the
-Metropolis-Hastings and Gibbs-sampler level. That
-treatment shows the mathematical structure but produces
-samplers that are slow on realistic posteriors. Modern
-applied Bayesian work uses Hamiltonian Monte Carlo
-(HMC), or its adaptive descendant the No-U-Turn Sampler
-(NUTS), via Stan, PyMC, NumPyro, or the R interfaces
-`rstan`, `cmdstanr`, `rstanarm`, and `brms`.
+(@sec-bayesian) introduced MCMC at the level of the
+Metropolis-Hastings algorithm and the Gibbs sampler.
+That treatment shows the mathematical structure, but
+the samplers it produces are slow on realistic
+posteriors. Modern applied Bayesian work instead uses
+Hamiltonian Monte Carlo (HMC), or its adaptive
+descendant the No-U-Turn Sampler (NUTS). These are
+available through Stan, PyMC, NumPyro, or the R
+interfaces `rstan`, `cmdstanr`, `rstanarm`, and `brms`.
 
-This chapter treats HMC and NUTS in depth: enough
-mechanics to understand why they work and what their
-diagnostics mean, plus the practical bookkeeping that
-distinguishes a converged chain from one that looks
-converged. The next chapter (@sec-modern-bayesian)
-covers the application layer (Stan, posterior workflows,
-LOO/WAIC); this chapter covers the algorithmic and
-diagnostic layer.
+In this chapter we shall treat HMC and NUTS in some
+depth. We give enough of the mechanics to explain why
+the methods work and what their diagnostics mean. We
+also cover the practical bookkeeping that distinguishes
+a converged chain from one that only looks converged.
+The next chapter (@sec-modern-bayesian) covers the
+application layer (Stan, posterior workflows,
+LOO/WAIC); the present chapter covers the algorithmic
+and diagnostic layer.
+
+We begin with the judgments that fall to the
+statistician. We then develop HMC and NUTS, the modern
+convergence diagnostics, and the reparameterizations
+that repair difficult posterior geometry. The chapter
+closes with parallel chains, a worked example on the
+Eight Schools data, and a discussion of collaborating
+with an LLM on MCMC.
 
 ## The statistician's contribution {#sec-mcmc-depth-human}
 
 Modern MCMC tools handle the algorithmic mechanics
 automatically. The judgments at the center of this
-chapter are about reading diagnostics correctly,
+chapter concern reading diagnostics correctly and
 recognizing pathological posterior shapes from their
-diagnostic signatures, and making the parameterization
-choices that determine whether the sampler can converge
-at all.
+diagnostic signatures. They also concern the
+parameterization choices that determine whether the
+sampler can converge at all.
 
 **$\hat R$ near 1 is necessary, not sufficient.** A
-chain with $\hat R = 1.001$ may still have low effective
-sample size, divergences, or trapped behavior on a
-multimodal posterior. Verification requires the full
-diagnostic suite: divergences, E-BFMI, ESS bulk and
-tail, trace plots, and pair plots.
+chain with $\hat R = 1.001$ may still have a low
+effective sample size, divergences, or trapped
+behavior on a multimodal posterior. Verification
+therefore requires the full diagnostic suite:
+divergences, E-BFMI, ESS bulk and tail, trace plots,
+and pair plots.
 
 **Reparameterization is a modeling choice.** A
 hierarchical model with a centered parameterization
@@ -70,38 +81,41 @@ hierarchical model with a centered parameterization
 geometry from the same model with a non-centered
 parameterization ($\mu_j = \mu + \sigma z_j, z_j \sim N(0, 1)$).
 The mathematics is the same; the sampler's behavior is
-not. Knowing which parameterization matches your data's
-information level is the difference between a fast, clean
-fit and an MCMC chain that looks converged but never
+not. Matching the parameterization to the information
+level of the data is the difference between a fast,
+clean fit and an MCMC chain that looks converged. That
+is, the second chain appears converged but never
 explores the funnel of the variance parameter.
 
-**Divergences are not, in general, a tuning issue.** When
-NUTS reports divergent transitions, the standard advice is
-'increase `adapt_delta`'. That treats the symptom rather
-than the cause. The underlying cause is usually geometric:
-the posterior has a region the sampler cannot integrate
-accurately. Increasing
-`adapt_delta` may hide the divergences but not the
-geometry; the chain still mis-samples the difficult
-region. The cure is reparameterization, prior tightening,
-or model simplification.
+**Divergences are not, in general, a tuning issue.**
+When NUTS reports divergent transitions, the standard
+advice is 'increase `adapt_delta`'. That advice
+addresses the symptom. The underlying cause is usually
+geometric: the posterior has a region the sampler
+cannot integrate accurately. Increasing `adapt_delta`
+may hide the divergences, but it does not change the
+geometry, and the chain still mis-samples the difficult
+region. The cure is reparameterization, prior
+tightening, or model simplification.
 
 **Multiple chains, multiple starting points.**
-Convergence of one chain to a fixed point does not imply
-convergence to *the* posterior. Multiple chains starting
-from dispersed values, with $\hat R$ across chains as
-the consistency check, is the protection against
-multimodality and non-stationarity.
+Convergence of one chain to a fixed point does not
+imply convergence to *the* posterior. Our protection
+against multimodality and non-stationarity is to run
+multiple chains from dispersed starting values, with
+$\hat R$ across chains as the consistency check.
 
 ## Hamiltonian Monte Carlo
 
-HMC is a Metropolis-Hastings sampler whose proposal
-combines the parameter $\boldsymbol\theta$ with an
-auxiliary momentum variable $\mathbf{p}$ and uses the
-Hamiltonian dynamics on the joint $(\boldsymbol\theta, \mathbf{p})$
-space to propose long, low-rejection moves.
+HMC is a Metropolis-Hastings sampler with a particular
+kind of proposal. It augments the parameter
+$\boldsymbol\theta$ with an auxiliary momentum variable
+$\mathbf{p}$. It then uses Hamiltonian dynamics on the
+joint $(\boldsymbol\theta, \mathbf{p})$ space to propose
+long, low-rejection moves.
 
-The Hamiltonian for a target $p(\boldsymbol\theta)$ is
+In symbols, the Hamiltonian for a target
+$p(\boldsymbol\theta)$ is
 
 $$
 H(\boldsymbol\theta, \mathbf{p}) = -\log p(\boldsymbol\theta) + \frac{1}{2} \mathbf{p}^T M^{-1} \mathbf{p}
@@ -122,7 +136,8 @@ $$
 $$
 
 The continuous-time evolution preserves $H$ exactly. In
-practice, we discretize via the **leapfrog integrator**:
+practice we discretize it with the **leapfrog
+integrator**:
 
 $$
 \begin{aligned}
@@ -132,26 +147,30 @@ $$
 \end{aligned}
 $$
 
-Take $L$ leapfrog steps; propose
+We take $L$ leapfrog steps and propose
 $(\boldsymbol\theta^{(t+L\epsilon)}, -\mathbf{p}^{(t+L\epsilon)})$
-as the Metropolis candidate; accept with probability
+as the Metropolis candidate. The candidate is accepted
+with probability
 $\min(1, \exp(H_{\text{old}} - H_{\text{new}}))$. The
 discretization error in the leapfrog integrator is
 small but nonzero, so the acceptance probability is
-slightly below 1; the Metropolis accept/reject step
-corrects for that error, so the sampler still targets
-the exact posterior.
+slightly below 1. The Metropolis accept/reject step
+corrects for that error, and the sampler therefore
+still targets the exact posterior.
 
 The two tuning knobs are:
 
-- **Step size $\epsilon$.** Smaller produces more
-  accurate trajectories and higher acceptance, but
-  needs more steps to cover the same distance.
-- **Trajectory length $L$.** Longer trajectories produce
-  proposals farther from the current state, reducing
-  autocorrelation, but cost more gradient evaluations.
+- **Step size $\epsilon$.** A smaller step size
+  produces more accurate trajectories and higher
+  acceptance, but it needs more steps to cover the same
+  distance.
+- **Trajectory length $L$.** Longer trajectories
+  produce proposals farther from the current state,
+  which reduces autocorrelation, but they cost more
+  gradient evaluations.
 
-Tuning these by hand is delicate; NUTS automates it.
+Tuning these by hand is delicate. NUTS automates the
+tuning, as we now describe.
 
 ### The No-U-Turn Sampler (NUTS)
 
@@ -161,10 +180,10 @@ adaptations:
 1. **Automatic trajectory length.** NUTS extends the
    trajectory in random directions until it begins to
    double back on itself (forms a U-turn) or reaches a
-   maximum tree depth (typically 10, giving up to
-   $2^{10} - 1 = 1023$ leapfrog steps). The trajectory
-   automatically stops just before the proposal would
-   loop back.
+   maximum tree depth. The maximum is typically 10,
+   giving up to $2^{10} - 1 = 1023$ leapfrog steps. The
+   trajectory automatically stops just before the
+   proposal would loop back.
 2. **Automatic step-size adaptation.** During warmup,
    NUTS adjusts $\epsilon$ to achieve a target
    acceptance rate (default 0.8 in Stan).
@@ -172,38 +191,39 @@ adaptations:
 The result is a sampler with no user-tunable parameters
 except the target acceptance rate (`adapt_delta` in Stan,
 defaulting to 0.8). For most well-formulated posteriors,
-NUTS produces effective samples at hundreds to
-thousands per second, hundreds of times faster than
+NUTS produces hundreds to thousands of effective samples
+per second. That is hundreds of times faster than
 random-walk Metropolis.
 
-NUTS is the default in Stan, PyMC, NumPyro, and via the
-R wrappers `rstanarm`, `brms`, `rstan`, and `cmdstanr`.
-For routine Bayesian analyses, you do not implement
-NUTS yourself; you use one of these.
+NUTS is the default in Stan, PyMC, and NumPyro, and in
+the R wrappers `rstanarm`, `brms`, `rstan`, and
+`cmdstanr`. For routine Bayesian analyses we do not
+implement NUTS ourselves; we use one of these.
 
 ## Modern convergence diagnostics
 
 ### $\hat R$ (rank-normalized, split, with folding)
 
-The classical Gelman-Rubin diagnostic compares within-
-chain to between-chain variance. The 2021 update by
-Vehtari et al. introduces three improvements:
+The classical Gelman-Rubin diagnostic compares
+within-chain to between-chain variance. The 2021 update
+by Vehtari et al. introduces three improvements:
 
 - **Rank normalization.** Replace samples by their ranks,
-  then transform via $\Phi^{-1}$ to a normal scale.
-  Robust to heavy tails and asymmetric posteriors.
-- **Split.** Each chain is split in two halves; $\hat R$
-  is computed across the resulting $2C$ chains rather
-  than the original $C$. Detects within-chain
-  non-stationarity.
+  then transform via $\Phi^{-1}$ to a normal scale. This
+  makes the diagnostic robust to heavy tails and
+  asymmetric posteriors.
+- **Split.** Each chain is split in two halves, and
+  $\hat R$ is computed across the resulting $2C$ chains
+  rather than the original $C$. This detects
+  within-chain non-stationarity.
 - **Folding.** Compute $\hat R$ on $|x - \text{median}(x)|$
-  in addition to $x$ itself. Detects scale (variance)
-  non-stationarity.
+  in addition to $x$ itself. This detects scale
+  (variance) non-stationarity.
 
 The threshold is $\hat R < 1.01$ for both the regular and
-folded versions. The convention $\hat R < 1.1$ from
+folded versions. The convention $\hat R < 1.1$ from the
 older literature is too lax for modern applied Bayesian
-work; use 1.01.
+work, and we recommend 1.01.
 
 ```r
 library(posterior)
@@ -223,44 +243,50 @@ summarise_draws(draws, default_convergence_measures())
 ESS is the number of independent samples that would
 give the same standard error as the autocorrelated MCMC
 samples. **ESS bulk** measures the effective sample
-size for typical-value summaries (mean, median); **ESS
+size for typical-value summaries (mean, median). **ESS
 tail** measures it for tail summaries (95% credible
-intervals). The convention: at least 400 in each is
-required for reliable summaries. Below that, the
-posterior interval bounds are noisy.
+intervals). The convention is that at least 400 in each
+is required for reliable summaries. Below that, the
+bounds of posterior intervals are noisy.
 
 For most posteriors, ESS bulk and tail are similar. When
 they differ substantially, the tail of the posterior is
-slow-mixing; tail-quantile reporting is unreliable.
+slow-mixing, and the reporting of tail quantiles is
+unreliable.
 
 ### Divergent transitions
 
 A divergence in NUTS occurs when the leapfrog integrator
-fails to track the true Hamiltonian dynamics, typically
-because the integrator step size is too large for a
-high-curvature region. Divergences indicate that NUTS is
-not exploring some part of the posterior accurately;
-the resulting samples are biased away from that region.
+fails to track the true Hamiltonian dynamics. Typically
+this happens because the integrator step size is too
+large for a high-curvature region. Divergences indicate
+that NUTS is not exploring some part of the posterior
+accurately, and the resulting samples are biased away
+from that region.
 
-Default Stan reports divergence count as part of the
-warning system. Any positive count is concerning; double
-digits are a serious problem.
+By default Stan reports the divergence count as part of
+its warning system. Any positive count is concerning;
+double digits are a serious problem.
 
-The textbook fix: increase `adapt_delta` from 0.8 to
-0.95 or 0.99. This reduces the step size, which often
-fixes the immediate problem. But this treats the
-symptom; the underlying cause is usually a posterior
-geometry that requires a different parameterization
-(see below).
+The textbook fix is to increase `adapt_delta` from 0.8
+to 0.95 or 0.99. This reduces the step size, which often
+fixes the immediate problem. Unfortunately, it treats
+only the symptom. The underlying cause is usually a
+posterior geometry that requires a different
+parameterization, a topic we take up below.
 
 ### E-BFMI
 
-The Energy-based Bayesian Fraction of Missing Information
-diagnoses whether the chain is exploring the energy
-distribution efficiently. Values below 0.3 indicate
-problems; the canonical example is the funnel
-pathology, where the chain repeatedly fails to sample
-the bottom of the funnel.
+The Energy-based Bayesian Fraction of Missing
+Information diagnoses whether the chain explores the
+energy distribution efficiently. Values below 0.3, the
+nominal threshold in the Stan documentation, indicate
+problems. We note that `rstan::check_energy()` warns only
+below the laxer cutoff of 0.2, so a chain with E-BFMI
+between the two values passes that check silently. The
+canonical example is the funnel
+pathology, in which the chain repeatedly fails to
+sample the bottom of the funnel.
 
 ```r
 # Stan reports E-BFMI per chain
@@ -279,18 +305,18 @@ mcmc_pairs(stan_fit, pars = c("mu", "sigma", "tau"),
 ```
 
 Divergent transitions cluster in regions of the posterior
-the sampler cannot integrate accurately. In hierarchical
-models, divergences typically cluster in the bottom of
-the funnel (small $\tau$, small group means).
+that the sampler cannot integrate accurately. In
+hierarchical models they typically cluster in the bottom
+of the funnel (small $\tau$, small group means).
 
 ### Trace plots
 
 The classical trace plot shows the sampled value of each
 parameter against iteration. A converged chain looks
-like white noise around a stable mean. Chains that drift,
-chains that get stuck, and chains that explore different
-regions on different runs are visually obvious in a trace
-plot.
+like white noise around a stable mean. Chains that
+drift, chains that get stuck, and chains that explore
+different regions on different runs are all visually
+obvious in a trace plot.
 
 ```r
 mcmc_trace(stan_fit, pars = c("mu", "sigma"))
@@ -299,10 +325,11 @@ mcmc_trace(stan_fit, pars = c("mu", "sigma"))
 ## Reparameterization: centered vs. non-centered
 
 The single most common reason a hierarchical Bayesian
-model produces divergences is a parameterization
-mismatch with the data's information level. The
-canonical example: a hierarchical normal with group
-means $\mu_j \sim N(\mu, \tau)$ and observation-level
+model produces divergences is a mismatch between the
+parameterization and the information level of the data.
+To illustrate, consider the canonical example: a
+hierarchical normal model with group means
+$\mu_j \sim N(\mu, \tau)$ and observation-level
 likelihood $y_{ij} \sim N(\mu_j, \sigma)$.
 
 **Centered parameterization** (CP):
@@ -340,32 +367,31 @@ model {
 }
 ```
 
-The two parameterize the *same* model. The posterior on
-$(\mu, \tau, \mu_j)$ is identical in distribution. But the
-posterior geometry differs:
+The two programs parameterize the *same* model, and the
+posterior on $(\mu, \tau, \mu_j)$ is identical in
+distribution. However, the posterior geometry differs:
 
 - Under CP, the posterior on $(\tau, \mu_j)$ has a
-  funnel shape: when $\tau$ is small, $\mu_j$ is
-  squeezed close to $\mu$, producing high curvature in
-  the joint posterior.
+  funnel shape. When $\tau$ is small, $\mu_j$ is
+  squeezed close to $\mu$, which produces high curvature
+  in the joint posterior.
 - Under NCP, the posterior on $(\tau, z_j)$ is roughly
   spherical: $z_j$ stays around its prior $N(0, 1)$
   regardless of $\tau$.
 
-**When CP works:** when the data are informative about
-each $\mu_j$ (many observations per group). The
-posterior on $\mu_j$ is then dominated by the data, not
-the prior, and the funnel is mostly absent.
+CP works when the data are informative about each
+$\mu_j$ (many observations per group). The posterior on
+$\mu_j$ is then dominated by the data rather than the
+prior, and the funnel is largely absent. NCP works when
+the data are weakly informative about each $\mu_j$ (few
+observations per group). In that case the posterior is
+dominated by the prior, and the funnel is present in CP
+but absent in NCP.
 
-**When NCP works:** when the data are weakly informative
-about each $\mu_j$ (few observations per group). The
-posterior is dominated by the prior; the funnel is
-present in CP but absent in NCP.
-
-**The general rule:** start with NCP for any
+The general rule is to start with NCP for any
 hierarchical-prior parameter that is not strongly
-identified by the data. Switch to CP only when both work
-and CP gives more efficient sampling.
+identified by the data. We switch to CP only when both
+work and CP gives more efficient sampling.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: when does CP fail?
@@ -381,51 +407,53 @@ divergences drop to 8. Should you publish?
 No. The divergences dropped because the smaller step
 size made the sampler more careful, but the underlying
 geometry is still bad. The few-observations-per-group
-setting is exactly the case where CP fails: the data
+setting is exactly the case in which CP fails. The data
 do not pin down each $\mu_j$, so the posterior has a
 funnel shape that NCP would handle. The fix is to
 reparameterize to NCP: $\mu_j = \mu + \tau z_j$ with
 $z_j \sim N(0, 1)$. This typically eliminates the
 divergences and produces a faster sampler. Publishing
 with `adapt_delta = 0.99` and 8 remaining divergences
-means the bottom of the funnel was never properly
-sampled; the variance estimate $\tau$ is biased toward
-larger values, and the group-level estimates are
-biased toward the global mean. Re-fit with NCP, verify
-zero divergences, then report.
+means that the bottom of the funnel was never properly
+sampled. As a result, the variance estimate $\tau$ is
+biased toward larger values, and the group-level
+estimates are biased toward the global mean. We would
+refit with NCP, verify zero divergences, and only then
+report.
 
 :::
 
 ## Other reparameterizations
 
-Beyond centered / non-centered, several other
-reparameterizations recur:
+Beyond the centered and non-centered forms, several
+other reparameterizations recur.
 
 **Standardize predictors.** A predictor measured in
 millions has a coefficient that takes values in
-$10^{-6}$; one in tenths has a coefficient in 1.
-Mixing both in one regression produces a posterior on
-$\boldsymbol\beta$ with very different scales per
-coefficient, which the sampler's mass matrix has
-trouble adapting to. Standardizing every continuous
-predictor to mean 0, SD 1 puts coefficients on
-comparable scales and aids sampling.
+$10^{-6}$, while one measured in tenths has a
+coefficient in 1. Mixing both in one regression
+produces a posterior on $\boldsymbol\beta$ with very
+different scales per coefficient. The sampler's mass
+matrix has trouble adapting to such a posterior.
+Standardizing every continuous predictor to mean 0,
+SD 1 puts the coefficients on comparable scales and
+aids sampling.
 
 **Log-transform positive variables.** A posterior on
 $\sigma > 0$ is more naturally sampled in the
 unconstrained $\log \sigma$ space. Stan automatically
-applies the transform for `<lower=0>` declarations
-and includes the Jacobian; PyMC and similar do the
-same. Hand-rolled MCMC must include the change-of-
-variable Jacobian explicitly.
+applies the transform for `<lower=0>` declarations and
+includes the Jacobian, and PyMC and similar systems do
+the same. Hand-rolled MCMC must include the
+change-of-variable Jacobian explicitly.
 
 **Logit-transform probabilities.** Probabilities live
-in $(0, 1)$; sampling on the logit scale removes the
+in $(0, 1)$, and sampling on the logit scale removes the
 boundary effects.
 
 **Cholesky parameterization of covariance matrices.**
 For multivariate-normal random effects with covariance
-$\Sigma$, parameterize via the lower-triangular
+$\Sigma$, we parameterize via the lower-triangular
 Cholesky factor $L$ such that $\Sigma = L L^T$. Stan's
 `lkj_corr_cholesky` prior works on the Cholesky factor
 of the correlation matrix. This avoids the
@@ -435,7 +463,8 @@ substantially better sampling.
 ## Parallel chains
 
 Modern Bayesian software runs multiple chains in
-parallel by default. The standard configuration:
+parallel by default. The standard configuration is as
+follows:
 
 - **4 chains** (Stan default), each on its own CPU
   core.
@@ -445,14 +474,14 @@ parallel by default. The standard configuration:
   space (Stan default: uniform on $[-2, 2]$ in the
   unconstrained space).
 
-The four chains' worth of samples are pooled for
-inference; their consistency provides the $\hat R$
+The samples from the four chains are pooled for
+inference, and their consistency provides the $\hat R$
 diagnostic.
 
 For long-running models, `cmdstanr` and `rstan` can run
-chains in parallel. Set `parallel_chains = 4` in
-`cmdstanr` or `cores = 4` in `rstan` (or as many as you
-have).
+chains in parallel. We set `parallel_chains = 4` in
+`cmdstanr` or `cores = 4` in `rstan` (or as many cores
+as are available).
 
 ```r
 library(cmdstanr)
@@ -466,18 +495,18 @@ fit <- stan_model$sample(
 )
 ```
 
-For RNG reproducibility, set `seed`. Each chain receives
-a derived seed; running with the same `seed` produces
-identical samples. Without setting `seed`, results are
-not reproducible.
+For RNG reproducibility we set `seed`. Each chain
+receives a derived seed, and running with the same
+`seed` produces identical samples. Without a `seed`, the
+results are not reproducible.
 
 ## Worked example: Eight Schools
 
 The Eight Schools dataset (Rubin, 1981; Gelman et al.,
-2013) is the canonical hierarchical-Bayesian example. The
-data: estimated treatment effects of an SAT-prep coaching
-intervention at eight schools, with their standard
-errors:
+2013) is the canonical hierarchical-Bayesian example.
+The data consist of estimated treatment effects of an
+SAT-prep coaching intervention at eight schools,
+together with their standard errors:
 
 ```r
 schools_data <- list(
@@ -487,7 +516,8 @@ schools_data <- list(
 )
 ```
 
-A hierarchical model with non-centered parameterization:
+We fit a hierarchical model with the non-centered
+parameterization:
 
 ```stan
 data {
@@ -511,7 +541,7 @@ model {
 }
 ```
 
-Fit and check diagnostics:
+The fit and the diagnostic checks are as follows:
 
 ```r
 library(cmdstanr)
@@ -523,99 +553,103 @@ fit$summary()                  # tibble of point estimates, ESS, R-hat
 fit$diagnostic_summary()       # divergences, E-BFMI, max tree depth
 ```
 
-Under NCP, this model samples cleanly with zero
-divergences, $\hat R$ near 1, and ESS in the thousands
-in seconds. Re-running with the centered parameterization
-typically produces dozens of divergences.
+Under NCP this model samples cleanly in seconds, with
+zero divergences, $\hat R$ near 1, and ESS in the
+thousands. Re-running with the centered
+parameterization typically produces dozens of
+divergences.
 
 ## Collaborating with an LLM on MCMC
 
 LLMs handle Stan and PyMC code competently, including
 both centered and non-centered parameterizations. They
-are less reliable on the diagnostic interpretation:
-specifically, on translating diagnostic output into
-either 'this is fine, publish' or 'this is broken, fix
-the parameterization'.
+are less reliable on the interpretation of diagnostics.
+Specifically, they are less reliable at translating
+diagnostic output into either 'this is fine, publish'
+or 'this is broken, fix the parameterization'.
 
 **Prompt 1: write Stan code with appropriate
-parameterization.** Describe the model and the data's
-information level (how many observations per group).
-Ask: 'write Stan code for this hierarchical model.
-Choose between centered and non-centered parameterization
-based on the information level.'
+parameterization.** Describe the model and the
+information level of the data (how many observations
+per group). Then ask: 'write Stan code for this
+hierarchical model. Choose between centered and
+non-centered parameterization based on the information
+level.'
 
 *What to watch for.* Few observations per group (under
-roughly 5 to 10) calls for NCP. Many observations per
-group (50+) is the regime where CP works. The LLM
+roughly 5 to 10) call for NCP. Many observations per
+group (50+) is the regime in which CP works. The LLM
 should make this choice and explain it. If it picks one
 without explanation, ask why.
 
 *Verification.* Fit the model with the chosen
-parameterization; check for divergences. If
-divergences appear with the chosen parameterization,
-try the alternative. The right one usually has zero
-divergences.
+parameterization and check for divergences. If
+divergences appear, try the alternative. The correct
+choice usually has zero divergences.
 
 **Prompt 2: interpret diagnostic output.** Paste the
 output of `fit$diagnostic_summary()` (divergences,
 E-BFMI, max tree depth) and `fit$summary()` (R-hat,
-ESS). Ask: 'is this chain converged? What should I
+ESS). Then ask: 'is this chain converged? What should I
 worry about?'
 
-*What to watch for.* The LLM should check $\hat R < 1.01$
-on every parameter, ESS bulk and tail above 400 on
-every parameter, divergences = 0, E-BFMI > 0.3, and
-max tree depth not saturated. If any fail, the
-diagnosis depends on which: divergences point to
-parameterization or `adapt_delta`; low ESS points to
-chain length; saturated tree depth points to step size.
+*What to watch for.* The LLM should check
+$\hat R < 1.01$ on every parameter and ESS bulk and tail
+above 400 on every parameter. It should also check that
+divergences = 0, E-BFMI > 0.3, and the max tree depth is
+not saturated. If any check fails, the diagnosis depends
+on which one. Divergences point to the parameterization
+or to `adapt_delta`; low ESS points to chain length;
+saturated tree depth points to step size.
 
 *Verification.* Run with adjusted settings (more
-iterations, NCP, higher `adapt_delta`) and confirm the
-diagnostic improves.
+iterations, NCP, higher `adapt_delta`) and confirm that
+the diagnostic improves.
 
 **Prompt 3: diagnose a specific pathology.** Paste a
 pair plot description (or the actual `mcmc_pairs`
 output) showing divergences clustered in a particular
-region. Ask: 'what kind of geometric pathology produces
-this pattern, and what reparameterization would fix
-it?'
+region. Then ask: 'what kind of geometric pathology
+produces this pattern, and what reparameterization
+would fix it?'
 
 *What to watch for.* Divergences clustered at small
-$\tau$ in a hierarchical model: funnel pathology, fix
-with NCP. Divergences clustered at the boundary of a
-constrained parameter (e.g., $\rho \to 1$ in a
-correlation): scale issue, consider tighter prior.
-Divergences along a thin diagonal: posterior is
-ill-conditioned, need to reparameterize to break the
-correlation.
+$\tau$ in a hierarchical model indicate the funnel
+pathology, which NCP fixes. Divergences clustered at the
+boundary of a constrained parameter (e.g., $\rho \to 1$
+in a correlation) indicate a scale issue, and a tighter
+prior merits consideration. Divergences along a thin
+diagonal indicate an ill-conditioned posterior, which
+needs a reparameterization that breaks the correlation.
 
 *Verification.* Apply the recommended
-reparameterization; refit; verify divergences are
-gone.
+reparameterization, refit, and verify that the
+divergences are gone.
 
-Modern MCMC diagnostics are informative if you read
-them, and an LLM helps you interpret them faster than you
-would alone. Deciding whether to trust its diagnosis
-enough to publish requires checking that diagnosis
+Modern MCMC diagnostics are informative if we read them,
+and an LLM helps us interpret them faster than we would
+alone. Deciding whether to trust its diagnosis enough
+to publish, however, requires checking that diagnosis
 against the actual posterior behavior.
 
 ## Principle in use
 
 Three habits define defensible MCMC use:
 
-1. **Read the full diagnostic suite.** $\hat R$, ESS
-   (bulk and tail), divergences, E-BFMI. Any failure is a
-   reason to investigate before reporting.
+1. **Read the full diagnostic suite.** This means
+   $\hat R$, ESS (bulk and tail), divergences, and
+   E-BFMI. Any failure is a reason to investigate before
+   reporting.
 2. **Reparameterize before retuning.** When divergences
-   appear, the first move is non-centered parameterization
-   (for hierarchical models) or input standardization
-   (for regression). Tightening `adapt_delta` is the
-   second move, not the first.
+   appear, the first move is the non-centered
+   parameterization (for hierarchical models) or input
+   standardization (for regression). Tightening
+   `adapt_delta` is the second move, not the first.
 3. **Multiple chains, dispersed starts.** Four chains
-   with random initialization are the protection
-   against multimodality and against chains that look
-   converged in isolation but disagree across chains.
+   with random initialization protect against
+   multimodality. They also protect against chains that
+   look converged in isolation but disagree with one
+   another.
 
 ## Exercises
 

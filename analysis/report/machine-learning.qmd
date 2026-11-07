@@ -27,69 +27,75 @@ By the end of this chapter you should be able to:
 ## Orientation
 
 The boundary between machine learning and biostatistics is
-porous and confused. Both fit predictive models from data;
-both quantify uncertainty; both worry about overfitting and
-generalization. The usual cultural distinction (ML
-emphasizes black-box prediction, biostatistics emphasizes
-interpretable inference) was never as clean as the caricature suggests,
-and it has eroded further as both fields adopt each other's
-tools.
+porous and, in places, confused. Both disciplines fit
+predictive models from data, both quantify uncertainty, and
+both worry about overfitting and generalization. The usual
+cultural distinction holds that ML emphasizes black-box
+prediction while biostatistics emphasizes interpretable
+inference. That distinction was never as clean as the
+caricature suggests, and it has eroded further as each
+field adopts the other's tools.
 
-This chapter is not an introduction to machine learning.
-The goal is narrower: how to *use* the modern ML toolkit in
-biostatistical work where the question is genuinely
-predictive, and how to recognize when the toolkit is being
-mis-applied to a question that calls for classical
+The reader should not expect an introduction to machine
+learning here; our goal is narrower. We shall consider how
+to *use* the modern ML toolkit in biostatistical work where
+the question is genuinely predictive. We shall also
+consider how to recognize when the toolkit is being
+misapplied to a question that calls for classical
 inference instead.
 
-We anchor on `tidymodels` [@kuhn2024tidymodels] as the
-contemporary R interface: a coherent, principled stack
-that handles preprocessing, resampling, tuning, and
-evaluation with consistent verbs. We then walk through the
+We begin with `tidymodels` [@kuhn2024tidymodels] as the
+contemporary R interface. It is a coherent, principled
+stack that handles preprocessing, resampling, tuning, and
+evaluation with consistent verbs. We then turn to the
 algorithm choices that matter most in clinical and
-epidemiological work, the diagnostic and validation
-machinery, and the interpretability tools that have made
-black-box models more defensible than they used to be.
+epidemiological work, and after that to the validation and
+calibration machinery. Lastly, we discuss the
+interpretability tools that have made black-box models more
+defensible than they used to be, and we close with a worked
+example on readmission risk.
 
 ## The statistician's contribution {#sec-machine-learning-human}
 
 LLMs can fit a gradient-boosted tree, run cross-validation,
-and produce a calibration plot. They cannot decide whether
-prediction or inference is the right framing, whether the
-deployed model will actually improve the decision it
-informs, or whether the data resemble those in which the
-model will be used.
+and produce a calibration plot. They cannot, however,
+decide whether prediction or inference is the right
+framing. Nor can they judge whether the deployed model will
+actually improve the decision it informs, or whether the
+data resemble those in which the model will be used.
 
 **(Judgment 1.) Prediction is not inference.** A model
 that achieves high AUC on a held-out set is a good
-predictor. It is *not* a tool for asking which variables
-cause the outcome, what the conditional effect of
+predictor. It is *not*, however, a tool for asking which
+variables cause the outcome, what the conditional effect of
 treatment is, or how a policy intervention would change
 outcomes. Conflating prediction performance with causal
 or counterfactual claims is the most common error in
 applied ML in medicine. The statistician's job is to keep
-this distinction visible in the analysis, the report, and
-the conversation with collaborators.
+this distinction visible in the analysis, in the report,
+and in the conversation with collaborators.
 
 **(Judgment 2.) The held-out set should represent the
 deployment distribution, not the design distribution.** Models trained
 on data from one hospital and evaluated on held-out cases
 from the same hospital are evaluated on the *training*
-distribution. Models that will be deployed to a different
+distribution. A model that will be deployed to a different
 hospital, or to a future cohort, must be evaluated under
-that shift (temporal hold-out, geographic hold-out, or
-prospective validation). The statistician identifies the
-deployment scenario and designs the evaluation to match.
+that shift. The options include temporal hold-out,
+geographic hold-out, and prospective validation. The
+statistician identifies the deployment scenario and
+designs the evaluation to match it.
 
 **(Judgment 3.) Calibration is the metric clinicians need.**
-Discrimination (AUC, accuracy) tells you whether the
-model orders patients correctly. It does not tell you
-whether 'the model says 30%' means 30% of those patients
-will have the event. For decisions that require absolute
-risk thresholds (treat / do not treat above 10% predicted
-risk), calibration is the binding constraint, and it is
-not what tuning typically optimizes. The statistician
-checks calibration explicitly and recalibrates if needed.
+Discrimination (AUC, accuracy) tells us whether the model
+orders patients correctly. It does not tell us whether
+'the model says 30%' means that 30% of those patients will
+have the event. Some decisions require absolute risk
+thresholds (treat / do not treat above 10% predicted
+risk). For such decisions calibration is the binding
+constraint, and it is not what tuning typically optimizes.
+The statistician therefore checks calibration explicitly
+and recalibrates if needed.
 
 ## The `tidymodels` workflow
 
@@ -107,8 +113,9 @@ covering the steps of a modeling pipeline:
 - `workflows` for binding preprocessing + model into one
   object.
 
-The goal is consistency: switching from logistic regression
-to gradient boosting changes one line. A typical pipeline:
+The design goal is consistency. That is, switching from
+logistic regression to gradient boosting changes a single
+line. To illustrate, consider a typical pipeline:
 
 ````{.r}
 library(tidymodels)
@@ -151,11 +158,12 @@ final_fit <- finalize_workflow(wf, best) |>
     roc_auc, brier_class, accuracy))
 ````
 
-Two design choices need comment. First, the metric used to
-select hyperparameters matters. Choosing on `roc_auc`
-optimizes ranking; choosing on `brier_class` (or
-`mn_log_loss`) optimizes probabilistic calibration.
-Choose the metric your downstream decision actually uses.
+Two design choices in this pipeline warrant comment. First,
+the metric used to select hyperparameters determines what
+is optimized. Choosing on `roc_auc` optimizes ranking,
+whereas choosing on `brier_class` (or `mn_log_loss`)
+optimizes probabilistic calibration. We should choose the
+metric that the downstream decision actually uses.
 
 Second, `last_fit()` deliberately uses the test split *only*
 once, after tuning is complete. Peeking at the test set and
@@ -165,40 +173,42 @@ performance estimates in applied ML.
 ## Algorithm choices that matter
 
 For tabular biomedical data, four model families do most
-of the work:
+of the work. We take them in turn.
 
 **Regularized generalized linear models (`glmnet`).** The
 elastic net from @sec-high-dim fits cleanly into `tidymodels`
 via `parsnip::logistic_reg(penalty = tune(), mixture =
-tune())`. It is interpretable, well-calibrated by
-construction (with appropriate penalty), and the right
-baseline for any classification problem with sample sizes
-in the thousands or fewer.
+tune())`. It is interpretable and, with an appropriate
+penalty, well calibrated by construction. It is also the
+right baseline for any classification problem with sample
+sizes in the thousands or fewer.
 
-**Random forests (`ranger`).** Robust, low-tuning,
-performant on tabular data with non-linear interactions.
-Less prone to overfitting than boosted trees but typically
-outperformed by them when tuning is done well.
+**Random forests (`ranger`).** They need little tuning
+and perform reliably on tabular data with non-linear
+interactions. They are less prone to overfitting than
+boosted trees. However, they are typically outperformed by
+boosted trees when tuning is done well.
 
-**Gradient-boosted trees (`xgboost`, `lightgbm`).** The
-default for high-performance prediction on tabular data.
-`xgboost` [@chen2016xgboost] is the established choice;
-`lightgbm` is faster on very large datasets and handles
-categorical predictors more naturally. Both require careful
-tuning of `learn_rate`, `tree_depth`, `min_n`, and the
-number of trees; with too little capacity they underfit,
-and with too much they overfit.
+**Gradient-boosted trees (`xgboost`, `lightgbm`).** These
+are the default for high-performance prediction on tabular
+data. `xgboost` [@chen2016xgboost] is the established
+choice. `lightgbm` is faster on very large datasets and
+handles categorical predictors more naturally. Both require
+careful tuning of `learn_rate`, `tree_depth`, `min_n`, and
+the number of trees. With too little capacity they
+underfit, and with too much they overfit.
 
 **Neural networks (`torch`, `keras`).** For tabular
 biomedical data with $n$ in the thousands, neural networks
-rarely outperform gradient boosting and require considerably
-more engineering effort. They earn their place on
-high-dimensional sequence, image, or text data: clinical
-notes via transformers, medical imaging via convolutional
-networks, and time series via recurrent or attention
-architectures. Outside those settings, prefer trees.
+rarely outperform gradient boosting, and they require
+considerably more engineering effort. They earn their place
+on high-dimensional sequence, image, or text data. Examples
+include clinical notes via transformers, medical imaging
+via convolutional networks, and time series via recurrent
+or attention architectures. Outside those settings, we
+would prefer trees.
 
-A practical decision rule:
+A practical decision rule is as follows.
 
 | Setting | Default model |
 |--------|---------------|
@@ -220,14 +230,15 @@ be tuned on AUC or on Brier score?
 **Answer.**
 
 Brier score (or log loss). The decision rule uses absolute
-predicted probabilities; calibration matters for the
+predicted probabilities, so calibration matters for the
 decision. AUC measures discrimination (does the model
 correctly *order* patients?) and is invariant to monotonic
 transformations of the score. A model with excellent AUC
-can have terrible calibration: it ranks correctly but its
-predicted probabilities are systematically off. Tuning on
-AUC and then deploying with absolute-threshold decisions is
-a common error. Tune on Brier score; report AUC for context.
+can therefore have terrible calibration. That is, it ranks
+correctly, but its predicted probabilities are
+systematically off. Tuning on AUC and then deploying with
+absolute-threshold decisions is a common error. We would
+tune on Brier score and report AUC for context.
 
 :::
 
@@ -235,13 +246,13 @@ a common error. Tune on Brier score; report AUC for context.
 
 Single-level cross-validation gives an optimistic estimate
 of out-of-sample performance when CV is also used for
-hyperparameter tuning, because the tuning has implicitly
-seen all of the data.
+hyperparameter tuning. The reason is that the tuning has
+implicitly seen all of the data.
 
-**Nested CV** corrects this: an inner CV loop chooses
-hyperparameters, an outer CV loop estimates performance.
-The outer loop never sees the tuning, so its performance
-estimate is unbiased.
+**Nested CV** corrects this. An inner CV loop chooses
+hyperparameters, and an outer CV loop estimates
+performance. Because the outer loop never sees the tuning,
+its performance estimate is unbiased.
 
 ````{.r}
 nested <- nested_cv(
@@ -251,40 +262,41 @@ nested <- nested_cv(
 )
 ````
 
-Nested CV is computationally expensive (50 fits in the
-example above, plus a final fit on the full training set),
-but it is the correct estimator when the question is
-'what performance should we expect when we deploy this
-pipeline?'
+Nested CV is computationally expensive. The example above
+requires 50 fits, plus a final fit on the full training
+set. Nevertheless, it is the correct estimator when the
+question is 'what performance should we expect when we
+deploy this pipeline?'
 
 For models intended for deployment, **external validation**
 on data the model has never seen is more important than
 any internal CV estimate. The relevant external set
 depends on the deployment scenario:
 
-- **Temporal validation:** train on cases through year $T$,
-  evaluate on year $T+1$. Catches drift in case mix,
-  coding practices, and population.
-- **Geographic validation:** train on hospital A,
-  evaluate on hospital B. Catches site-specific
+- **Temporal validation:** train on cases through year $T$
+  and evaluate on year $T+1$. This catches drift in case
+  mix, coding practices, and population.
+- **Geographic validation:** train on hospital A and
+  evaluate on hospital B. This catches site-specific
   feature distributions.
 - **Prospective validation:** train on retrospective
-  data, evaluate on prospectively collected cases under
-  the actual deployment workflow. The gold standard for
-  high-stakes deployments.
+  data and evaluate on prospectively collected cases under
+  the actual deployment workflow. This is the gold
+  standard for high-stakes deployments.
 
 A model that drops 0.05 AUC from internal CV to external
-validation has a deployment problem; one that drops 0.15 has
-a fundamentally different distribution from the training
-set, and the analyst should investigate before deployment.
+validation has a deployment problem. A drop of 0.15 points
+to an external distribution fundamentally different from
+the training set, and the analyst should investigate
+before deployment.
 
 ## Calibration and recalibration
 
 Calibration is the property that 'the model says 20%' means
-20% of those cases have the event. It is checked by
-plotting predicted probability (binned) against observed
-event rate. A perfectly calibrated model lies on the
-diagonal.
+that 20% of those cases have the event. We check it by
+plotting predicted probability (binned) against the
+observed event rate. A perfectly calibrated model lies on
+the diagonal.
 
 ````{.r}
 library(probably)
@@ -293,30 +305,30 @@ cal_plot_breaks(test_with_preds,
                 num_breaks = 10)
 ````
 
-Common patterns:
+Two patterns are common:
 
 - **Over-confident** model: predicts probabilities too
-  close to 0 and 1; the curve is steeper than the
-  diagonal. Common with deep learning models trained on
-  small data.
+  close to 0 and 1, so the curve is steeper than the
+  diagonal. This is common with deep learning models
+  trained on small data.
 - **Under-confident** model: predicts probabilities too
-  close to the base rate; the curve is shallower than the
-  diagonal. Common with heavy regularization or with
-  log-loss-suboptimal training.
+  close to the base rate, so the curve is shallower than
+  the diagonal. This is common with heavy regularization
+  or with log-loss-suboptimal training.
 
 **Recalibration** post-fits a one-dimensional function
-mapping raw scores to calibrated probabilities. Two
-methods:
+that maps raw scores to calibrated probabilities. There
+are two standard methods:
 
 - **Platt scaling**: fits a logistic regression of the
   outcome on the raw score.
-- **Isotonic regression**: fits a non-decreasing function;
-  more flexible but requires more recalibration data.
+- **Isotonic regression**: fits a non-decreasing function.
+  It is more flexible but requires more recalibration data.
 
 `probably::cal_apply()` integrates these into the
-`tidymodels` workflow. Recalibration is essential when
-deploying a model whose raw outputs do not match the
-deployment distribution; it is also a free improvement on
+`tidymodels` workflow. Recalibration is essential when we
+deploy a model whose raw outputs do not match the
+deployment distribution. It is also a free improvement on
 most ML models, since the cost of training a calibration
 layer is trivial.
 
@@ -324,9 +336,9 @@ layer is trivial.
 
 For a deployed model, the relevant interpretability
 question is rarely 'which features are most important
-overall' (the model permutation importance answers that)
-but 'why did the model give *this* patient *this*
-prediction'. **SHAP values** [@lundberg2017unified]
+overall', which permutation importance answers. The more
+common question is 'why did the model give *this* patient
+*this* prediction'. **SHAP values** [@lundberg2017unified]
 (Shapley values from cooperative game theory) provide a
 principled per-prediction decomposition.
 
@@ -338,32 +350,32 @@ shap.plot.summary(shap_long)
 shap.plot.dependence(shap_long, x = "age")
 ````
 
-SHAP values have two strong properties: they sum to the
+SHAP values have two strong properties. They sum to the
 prediction (local accuracy), and they distribute credit
-fairly across features. They have one persistent
-limitation: they describe the *model's* dependence on a
-feature, not the world's. If the model has learned a
-spurious association (say, sex is associated with outcome
-because of unmeasured confounders), SHAP will faithfully
-describe that association as the model uses it. SHAP does
-not provide causal inference, and an interpreter who
-treats SHAP values as causal effects is making a claim the
-method cannot support.
+fairly across features. Unfortunately, they also have one
+persistent limitation: they describe the *model's*
+dependence on a feature, not the world's. Suppose the
+model has learned a spurious association; say, sex is
+associated with outcome because of unmeasured
+confounders. SHAP will then faithfully describe that
+association as the model uses it. SHAP does not provide
+causal inference. An interpreter who treats SHAP values as
+causal effects is making a claim the method cannot
+support.
 
 An explanation of the model says something about the data
-only to the extent that the analyst trusts the model. If a
-clinician asks 'why does
-the model predict high risk for this patient,' SHAP gives a
-defensible answer. If the same clinician asks 'so if we
-intervene on age, will risk drop,' SHAP cannot answer
-that question.
+only to the extent that the analyst trusts the model. To
+illustrate, suppose a clinician asks 'why does the model
+predict high risk for this patient?' SHAP gives a
+defensible answer. Suppose the same clinician then asks
+'so if we intervene on age, will risk drop?' SHAP cannot
+answer that question.
 
 ## Worked example: 30-day readmission risk model
 
-We extend the readmission example from
-@sec-modern-bayesian to a
-machine-learning workflow with proper validation and
-calibration.
+We now extend the readmission example from
+@sec-modern-bayesian to a machine-learning workflow with
+proper validation and calibration.
 
 ````{.r}
 library(tidymodels)
@@ -424,48 +436,52 @@ collect_metrics(final_fit)
 ````
 
 The held-out AUC is around 0.74 and the Brier score around
-0.16, competent for a heavily simulated example. Using
+0.16. These values are competent for a heavily simulated
+example. The calibration plot from
 `probably::cal_plot_breaks()` reveals a mild
-over-confidence at high predicted probabilities; a Platt
-recalibration narrows the gap.
+over-confidence at high predicted probabilities, and a
+Platt recalibration narrows the gap.
 
-A logistic regression on the same problem with elastic-net
-regularization gives AUC around 0.73 and Brier around
-0.16, effectively indistinguishable. For this dataset, the
-gradient-boosted tree's flexibility yields no benefit over
-the regularized GLM. The simpler model is the right
+A logistic regression with elastic-net regularization, fit
+to the same problem, gives an AUC around 0.73 and a Brier
+score around 0.16. That is, the two models are effectively
+indistinguishable. For this dataset the flexibility of the
+gradient-boosted tree yields no benefit over the
+regularized GLM, and the simpler model is the right
 deployment.
 
-This is the typical finding in applied biomedical ML: on
+This is the typical finding in applied biomedical ML. On
 tabular data with thousands of cases, regularized GLMs and
 gradient-boosted trees are within a percent of each other.
 The gradient-boosted tree wins when there are strong
-non-linear interactions; otherwise the simpler model wins
+non-linear interactions. Otherwise the simpler model wins
 on parsimony, calibration, and ease of explanation.
 
 ## Collaborating with an LLM on machine learning
 
-LLMs handle the syntax of
-`tidymodels`, `xgboost`, and SHAP fluently. They are
-unreliable on the choice between prediction and
-inference, on validation strategy, and on the
-interpretation of model explanations.
+LLMs handle the syntax of `tidymodels`, `xgboost`, and
+SHAP fluently. Unfortunately, they are unreliable on the
+choice between prediction and inference, on validation
+strategy, and on the interpretation of model explanations.
+We consider three representative prompts.
 
 **Prompt 1: 'Build me a tidymodels pipeline for this binary
 outcome.'** Provide the data and the outcome.
 
 *What to watch for.* The LLM will produce a working
-pipeline. It will rarely ask whether the goal is prediction
-or inference. It will rarely propose external validation.
-It will default to AUC as the tuning metric even when
-absolute calibration is the binding constraint.
+pipeline. It will rarely ask whether the goal is
+prediction or inference, and it will rarely propose
+external validation. It will also default to AUC as the
+tuning metric, even when absolute calibration is the
+binding constraint.
 
-*Verification.* Before accepting the pipeline, articulate
-the decision the model will inform. If the decision is a
-threshold-based action ('treat above 10% predicted risk'),
-override the metric to Brier score and add a calibration
-plot. If the decision is to deploy at another site, plan
-external validation now, not after CV is complete.
+*Verification.* Before accepting the pipeline, we should
+articulate the decision the model will inform. If the
+decision is a threshold-based action ('treat above 10%
+predicted risk'), we override the metric to Brier score
+and add a calibration plot. If the decision is to deploy
+at another site, we plan external validation now, not
+after CV is complete.
 
 **Prompt 2: 'Why is the model giving this prediction for
 this patient?'** Provide the patient's features and the
@@ -475,53 +491,56 @@ model.
 explanation: 'age contributes +0.4 to the log-odds, low
 CMI contributes -0.2,' etc. It will rarely flag that this
 explains the model's behavior, not the underlying
-biology. It may slip into language that sounds causal:
-'increasing age increases risk.'
+biology. It may also slip into language that sounds
+causal, such as 'increasing age increases risk.'
 
-*Verification.* The model explanation is a description of
-how the trained model uses the features in this case. It
-is not a causal effect. Translate any LLM explanation into
-explicit 'the model attributes' language before showing it
-to a clinician.
+*Verification.* The model explanation describes how the
+trained model uses the features in this case. It is not a
+causal effect. We therefore translate any LLM explanation
+into explicit 'the model attributes' language before
+showing it to a clinician.
 
 **Prompt 3: 'Compare gradient boosting and logistic
 regression on this dataset.'** Provide the data.
 
-*What to watch for.* The LLM will fit both, report metrics,
-and pick the higher-AUC model. It will rarely test for
-significance of the difference, run nested CV to estimate
-generalization honestly, or check calibration on the
-selected model. It will often miss that an apparent
+*What to watch for.* The LLM will fit both models, report
+metrics, and pick the higher-AUC model. It will rarely
+test the difference for significance, run nested CV to
+estimate generalization honestly, or check calibration on
+the selected model. It will often miss that an apparent
 0.005-AUC advantage is well within sampling noise.
 
-*Verification.* Estimate uncertainty in the AUC difference
-via paired bootstrap on the test set. Run nested CV to
-confirm the advantage is not an artifact of single-level
-tuning. If the difference is small, report both models and
-let the parsimony argument decide.
+*Verification.* We estimate the uncertainty in the AUC
+difference via a paired bootstrap on the test set. We then
+run nested CV to confirm that the advantage is not an
+artifact of single-level tuning. If the difference is
+small, we report both models and let the parsimony
+argument decide.
 
-LLMs are competent at the *mechanics* (pipeline
-construction, metric calculation, SHAP plots) and weak at
-judging whether the model matches the deployment scenario,
-whether an apparent advantage is real, and what an
-explanation actually means. Treat the LLM as a fluent
-technician.
+The LLM, then, is best treated as a fluent technician. It
+is competent at the *mechanics* (pipeline construction,
+metric calculation, SHAP plots). It is weak at judging
+whether the model matches the deployment scenario, whether
+an apparent advantage is real, and what an explanation
+actually means.
 
 ## Principle in use
 
 Three habits define defensible ML work:
 
-1. **State the deployment scenario before tuning.** Who
-   will use the model, where, on what distribution? Tune
-   the validation strategy and the metric to match. A
-   model evaluated on the same distribution it was trained
-   on is a benchmark, not a deployable artifact.
+1. **State the deployment scenario before tuning.** We
+   need to know who will use the model, where, and on what
+   distribution. The validation strategy and the metric
+   are then tuned to match. A model evaluated on the same
+   distribution it was trained on is a benchmark, not a
+   deployable artifact.
 
 2. **Calibrate before deployment.** Most ML models are
    poorly calibrated out of the box. Recalibration via
-   Platt or isotonic on a held-out set is cheap insurance.
-   Threshold-based decisions on uncalibrated scores are a
-   common source of clinical-deployment failures.
+   Platt scaling or isotonic regression on a held-out set
+   is cheap insurance. Unfortunately, threshold-based
+   decisions on uncalibrated scores are a common source of
+   clinical-deployment failures.
 
 3. **Distinguish model explanation from causal claim.**
    SHAP, permutation importance, and partial-dependence
@@ -540,7 +559,7 @@ Three habits define defensible ML work:
    train/test estimate. How large is the optimism?
 
 3. Train the model on the first 70% of the data sorted
-   by date, evaluate on the last 30%. Compare the
+   by date, and evaluate it on the last 30%. Compare the
    temporal-validation AUC to the random-split AUC.
    Discuss any differences.
 

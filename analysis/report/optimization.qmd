@@ -40,16 +40,26 @@ By the end of this chapter you should be able to:
 Likelihood-based inference is, we shall argue, optimization
 in disguise. Every MLE, every penalized regression, every
 mixed-effects fit, every Cox model, and every neural network
-ultimately calls a general-purpose optimizer. Unless you
+ultimately calls a general-purpose optimizer. Unless we
 understand what the optimizer is doing, and when it is
-failing, you cannot tell a result from plausible-looking
+failing, we cannot tell a result from plausible-looking
 noise.
 
-The optimizer in R that covers most real cases is `optim()`.
-Underneath, it provides several algorithms. Choosing between
-them, writing an objective function that behaves well
-numerically, and diagnosing failures when they occur are the
-skills this chapter develops.
+The optimizer in R that covers most real cases is `optim()`,
+which provides several algorithms underneath. In this
+chapter we shall develop three skills: choosing between
+those algorithms, writing an objective function that behaves
+well numerically, and diagnosing failures when they occur.
+
+We begin with the judgment calls that precede any
+optimization and with a survey of the objective functions
+that arise in statistics. We then consider convexity,
+followed by gradient descent, Newton's method, and the
+quasi-Newton methods BFGS and L-BFGS. The practical sections
+cover `optim()`, the writing of log-likelihoods, gradients,
+and Wald standard errors. The chapter closes with common
+failure modes, the use of an LLM as a collaborator, and a
+worked logistic regression.
 
 ## The statistician's contribution {#sec-optimization-human}
 
@@ -59,51 +69,54 @@ the judgment that surrounds the optimization.
 
 **Is this problem convex?** In a convex problem every local
 minimum is global, and strict convexity makes the minimizer
-unique; any descent method converges to it regardless
+unique. Any descent method then converges to it regardless
 of starting point. Non-convex problems have multiple local
-optima; the answer you get depends on where you started, and
-the 'answer' with the best objective value is not guaranteed
-to be the one you want. Before optimizing, ask: is the
-likelihood concave (equivalently, is the negative log-
-likelihood convex)? For GLMs with canonical links, yes. For
-mixture models, neural networks, and many penalized
-problems, no. The statistician's job is to know which case
-they are in and to pick an optimization strategy accordingly.
+optima, and the answer we get depends on where we started.
+Moreover, the 'answer' with the best objective value is not
+guaranteed to be the one we want. Before optimizing, we
+should ask whether the likelihood is concave (equivalently,
+whether the negative log-likelihood is convex). For GLMs
+with canonical links, it is. For mixture models, neural
+networks, and many penalized problems, it is not. The
+statistician's job is to know which case applies and to pick
+an optimization strategy accordingly.
 
 **Is the parameterization sensible?** An optimizer sees the
-objective function you give it, nothing more. Parameters on
+objective function we give it, nothing more. Parameters on
 wildly different scales (one in units of $10^{-6}$, another
 in units of $10^{6}$) produce an ill-conditioned Hessian
 that makes every optimizer struggle. Parameters that should
 be positive (variances, rates) pass through `exp()`;
 probabilities pass through `plogis()`; correlations pass
 through Fisher's $z$. Working on the transformed scale makes
-the problem unconstrained and better-conditioned. The
-optimizer does not know or care; the analyst does.
+the problem unconstrained and better conditioned. The
+optimizer does not know or care about any of this, but the
+analyst must.
 
-**Is the objective numerically stable?** Naively-coded log-
-likelihoods overflow or underflow with alarming frequency
-when the data get large. The standard fixes (working on
-the log scale, log-sum-exp for mixtures, centering covariates)
-are the statistician's responsibility. An optimizer that
-diverges because the likelihood overflowed is not a bug in
-the optimizer.
+**Is the objective numerically stable?** Naively coded
+log-likelihoods overflow or underflow with alarming
+frequency when the data get large. The standard fixes
+(working on the log scale, log-sum-exp for mixtures,
+centering covariates) are the statistician's
+responsibility. An optimizer that diverges because the
+likelihood overflowed is not exhibiting a bug in the
+optimizer.
 
-**When has the optimizer actually converged?** `$convergence
-== 0` means 'the algorithm thinks it stopped because it was
-happy', not 'we have found the MLE'. Flat likelihoods,
-boundary solutions, and identifiability problems can all
-produce successful-looking output with wrong parameter
-estimates. Checking the Hessian for positive definiteness,
-starting from multiple initial values, and computing Wald
-standard errors are all defensive moves that verify
-convergence was genuine.
+**When has the optimizer actually converged?**
+`$convergence == 0` means 'the algorithm thinks it stopped
+because it was happy', not 'we have found the MLE'. Flat
+likelihoods, boundary solutions, and identifiability
+problems can all produce successful-looking output with
+wrong parameter estimates. Several defensive moves verify
+that convergence was genuine. We can check the Hessian for
+positive definiteness, start from multiple initial values,
+and compute Wald standard errors.
 
 ## Optimization in statistical computing
 
-Most statistical methods can be written as: choose
+Most statistical methods can be written as follows: choose
 parameters $\theta$ to minimize (or maximize) some objective
-$f(\theta)$.
+$f(\theta)$. The familiar cases include these:
 
 - **Least squares.** $f(\beta) = \|y - X\beta\|^2$.
 - **Maximum likelihood.** $f(\theta) = -\log L(\theta; y)$.
@@ -115,23 +128,24 @@ $f(\theta)$.
 - **Neural networks.** Training loss plus regularization.
 
 Some of these have closed-form solutions (OLS, ridge). Most
-do not, and need iterative numerical optimization.
+do not, and they need iterative numerical optimization.
 
-R's core optimization functions:
+R's core optimization functions are the following:
 
-- `optimize(f, interval, ...)`, one-dimensional. Combines
-  golden-section search and parabolic interpolation. Fast
-  and reliable for univariate problems.
+- `optimize(f, interval, ...)`, one-dimensional. It combines
+  golden-section search and parabolic interpolation and is
+  fast and reliable for univariate problems.
 - `optim(par, fn, gr = NULL, method = "Nelder-Mead", ...)`:
-  general-purpose, multidimensional. Default method is
-  Nelder-Mead; supports BFGS, L-BFGS-B, CG, SANN, and
-  Brent. Pass `method = "BFGS"` for smooth problems.
+  general-purpose, multidimensional. The default method is
+  Nelder-Mead, and BFGS, L-BFGS-B, CG, SANN, and Brent are
+  also supported. We pass `method = "BFGS"` for smooth
+  problems.
 - `nlminb(start, objective, gradient = NULL, hessian = NULL, ...)`:
-  box-constrained, uses an interior trust-region method.
-  Often more robust than `optim()` for MLEs with many
-  parameters.
-- `uniroot(f, interval, ...)`, finds one-dimensional
-  roots, useful for scoring equations.
+  box-constrained, using an interior trust-region method.
+  It is often more reliable than `optim()` for MLEs with
+  many parameters.
+- `uniroot(f, interval, ...)`, which finds one-dimensional
+  roots and is useful for scoring equations.
 
 For specialized problems, dedicated packages (`quadprog`,
 `nloptr`, `optimx`, `glmnet`) offer better performance or
@@ -146,19 +160,20 @@ $$
 f(tx + (1-t)y) \leq t f(x) + (1-t) f(y).
 $$
 
-Geometrically: the line segment connecting any two points on
-the graph lies above (or on) the graph. Equivalent
-conditions: for a twice-differentiable $f$, the Hessian is
-positive semi-definite everywhere.
+Geometrically, the line segment connecting any two points on
+the graph lies above (or on) the graph. An equivalent
+condition holds for a twice-differentiable $f$: the Hessian
+is positive semi-definite everywhere.
 
-Convex problems are well-behaved:
+Convex problems are well-behaved in three respects:
 
 - Any local minimum is the global minimum.
 - Descent methods converge to the global optimum regardless
   of starting point.
 - Convergence rates are provably fast.
 
-Statistical examples of convex problems:
+Statistical examples of convex problems include the
+following:
 
 - OLS (quadratic in $\beta$).
 - Ridge regression ($L_2$-penalized OLS).
@@ -167,19 +182,20 @@ Statistical examples of convex problems:
 - Poisson regression with log link.
 - LASSO (convex but non-smooth; needs specialized methods).
 
-Non-convex statistical examples: mixture models (multiple
-local maxima; EM gives a local optimum), neural networks
-(many local optima), most latent-variable models, and many
-penalized problems with non-convex penalties (SCAD, MCP).
+Non-convex statistical examples are also common. They
+include mixture models (multiple local maxima; EM gives a
+local optimum), neural networks (many local optima), most
+latent-variable models, and many penalized problems with
+non-convex penalties (SCAD, MCP).
 
-Practical consequences:
+The practical consequences are twofold:
 
-- For convex problems, use BFGS or the problem-specific
-  closed form. Single starting point is fine.
-- For non-convex problems, use multiple starting points
+- For convex problems, we use BFGS or the problem-specific
+  closed form. A single starting point is fine.
+- For non-convex problems, we use multiple starting points
   (random restarts or domain-informed starts) and report the
-  best. Or use specialized algorithms (EM, stochastic
-  methods).
+  best. Alternatively, we use specialized algorithms (EM,
+  stochastic methods).
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: identifying convexity
@@ -191,17 +207,17 @@ MLE?
 
 **Answer.**
 
-(a) and (b) are convex: the OLS objective is quadratic
-with a positive-definite Hessian; the logistic log-
-likelihood is concave (so the negative log-likelihood is
-convex). (c) and (d) are not convex: k-means has many
+(a) and (b) are convex. The OLS objective is quadratic
+with a positive-definite Hessian, and the logistic
+log-likelihood is concave (so the negative log-likelihood
+is convex). (c) and (d) are not convex. k-means has many
 local optima corresponding to different centroid
-assignments; Gaussian mixture MLE has multiple local
-maxima (including a 'label-switching' symmetry plus
-genuinely different solutions). The practical
-implication: for (a) and (b), any reasonable optimizer
-gets the answer. For (c) and (d), starting point matters
-and multi-start is advisable.
+assignments. Gaussian mixture MLE has multiple local
+maxima, including a 'label-switching' symmetry plus
+genuinely different solutions. The practical implication
+is that for (a) and (b), any reasonable optimizer gets the
+answer. For (c) and (d), the starting point matters and
+multi-start is advisable.
 
 :::
 
@@ -209,7 +225,7 @@ and multi-start is advisable.
 
 Gradient descent is the conceptual foundation for most
 continuous optimization. The update rule for minimizing
-$f(\theta)$:
+$f(\theta)$ is
 
 $$
 \theta_{k+1} = \theta_k - \alpha_k \nabla f(\theta_k)
@@ -217,7 +233,7 @@ $$
 
 where $\alpha_k$ is the step size (learning rate). The
 gradient $\nabla f$ points in the direction of steepest
-*ascent*; the minus sign flips that to descent.
+*ascent*, and the minus sign flips that to descent.
 
 ```r
 gradient_descent <- function(f, grad_f, theta0,
@@ -230,73 +246,78 @@ gradient_descent <- function(f, grad_f, theta0,
 }
 ```
 
-**Step size.** Too large and the iterates
-oscillate or diverge; too small and convergence is
+**Step size.** Too large a step and the iterates oscillate
+or diverge; too small a step and convergence is
 impractically slow. For convex Lipschitz-smooth $f$ with
-Lipschitz constant $L$, the rule $\alpha \leq 1/L$ guarantees
-convergence. In practice, adaptive step sizes (backtracking
-line search, or methods like Adam that maintain per-parameter
-step sizes) are far more robust than a fixed $\alpha$.
+Lipschitz constant $L$, the rule $\alpha \leq 1/L$
+guarantees convergence. In practice, adaptive step sizes
+are far more reliable than a fixed $\alpha$. Examples are
+backtracking line search and methods such as Adam that
+maintain per-parameter step sizes.
 
 **Convergence rate.** For convex smooth $f$, gradient
 descent converges at rate $O(1/k)$ in function values. For
-strongly convex $f$, the rate improves to linear. For ill-
-conditioned problems (large ratio of largest to smallest
-eigenvalue of the Hessian), progress zigzags in a narrow
-valley, and convergence can be painfully slow.
+strongly convex $f$, the rate improves to linear.
+Ill-conditioned problems are another matter. When the ratio
+of the largest to the smallest eigenvalue of the Hessian is
+large, progress zigzags in a narrow valley, and convergence
+can be painfully slow.
 
-**Gradient descent in statistics is uncommon as the
-algorithm of choice** (Newton or quasi-Newton dominate for
-small-to-medium problems), but it is the foundation of
-stochastic gradient descent (SGD) and its variants (Adam,
-RMSProp, AdaGrad), which power nearly all modern
-deep-learning training. For large-sample statistical
-problems where a single gradient evaluation is expensive,
-SGD on mini-batches is often the right tool.
+**Gradient descent is uncommon in statistics as the
+algorithm of choice.** Newton or quasi-Newton methods
+dominate for small-to-medium problems. Nevertheless,
+gradient descent is the foundation of stochastic gradient
+descent (SGD) and its variants (Adam, RMSProp, AdaGrad),
+which power nearly all modern deep-learning training. For
+large-sample statistical problems where a single gradient
+evaluation is expensive, SGD on mini-batches is often the
+right tool.
 
 ## Newton's method
 
 Newton's method uses curvature information (the Hessian
 matrix $H_f$ of second derivatives) in addition to the
-gradient:
+gradient. In symbols,
 
 $$
 \theta_{k+1} = \theta_k - H_f(\theta_k)^{-1} \nabla f(\theta_k).
 $$
 
-The intuition: Newton's method approximates $f$ locally by a
-quadratic (the second-order Taylor expansion) and jumps to
-the minimum of that quadratic.
+The intuition is that Newton's method approximates $f$
+locally by a quadratic (the second-order Taylor expansion)
+and jumps to the minimum of that quadratic.
 
-**Convergence rate:** quadratic, near a strong local optimum.
-This means the number of correct digits roughly doubles each
-iteration. For well-behaved problems, Newton converges in a
-handful of iterations.
+**Convergence rate:** quadratic, near a strong local
+optimum. That is, the number of correct digits roughly
+doubles each iteration. For well-behaved problems, Newton
+converges in a handful of iterations.
 
 **Costs:** each iteration requires computing the Hessian
-($O(n^2)$ storage, $O(n^2)$ or more per element) and solving
-a linear system with it ($O(n^3)$). For $n$ in the tens or
-hundreds, fine; for $n$ in the thousands or more, prohibitive.
+($O(n^2)$ entries to store and evaluate) and solving a
+linear system with it ($O(n^3)$). For $n$ in the tens or
+hundreds, this is fine. For $n$ in the thousands or more, it
+is prohibitive.
 
-**Weaknesses:**
+**Weaknesses:** the method has three.
 
-- Requires the Hessian. For complicated objectives,
-  analytical Hessians are tedious to derive and code
+- It requires the Hessian. For complicated objectives,
+  analytical Hessians are tedious to derive and to code
   correctly.
-- The Hessian must be positive definite at the current point.
-  For non-convex problems, this fails; the 'step' may point
-  uphill or toward a saddle. Practical implementations
-  modify the Hessian (e.g., Levenberg-Marquardt adds a
-  ridge) to ensure a descent direction.
+- The Hessian must be positive definite at the current
+  point. For non-convex problems this fails, and the 'step'
+  may point uphill or toward a saddle. Practical
+  implementations modify the Hessian (e.g.,
+  Levenberg-Marquardt adds a ridge) to ensure a descent
+  direction.
 - Far from the optimum, the quadratic approximation is
   unreliable, and a full Newton step may diverge. Line
   search or trust-region safeguards are standard.
 
 **Fisher scoring** is a variant in which the Hessian is
 replaced by the expected information matrix (the Fisher
-information). This is what R's `glm()` uses internally: the
-observed-information Newton step and the Fisher-scoring step
-coincide for GLMs with canonical links. When they differ,
+information). This is what R's `glm()` uses internally. For
+GLMs with canonical links, the observed-information Newton
+step and the Fisher-scoring step coincide. When they differ,
 Fisher scoring is often more stable.
 
 ## Quasi-Newton: BFGS and L-BFGS
@@ -304,34 +325,37 @@ Fisher scoring is often more stable.
 The BFGS method (Broyden-Fletcher-Goldfarb-Shanno)
 approximates the inverse Hessian from successive gradient
 differences. It is not the default for `optim()` (that is
-Nelder-Mead), but it is the workhorse for moderate-sized MLE problems.
+Nelder-Mead), but it is the workhorse for moderate-sized
+MLE problems.
 
 The update maintains an approximation $B_k$ to the inverse
-Hessian, updated at each step using the change in parameters
+Hessian. At each step it uses the change in parameters
 $s_k = \theta_{k+1} - \theta_k$ and the change in gradients
 $y_k = \nabla f(\theta_{k+1}) - \nabla f(\theta_k)$. The
-resulting $B_k$ remains positive definite (ensuring a
-descent direction) and converges to the true inverse Hessian
-near the optimum.
+resulting $B_k$ remains positive definite, which ensures a
+descent direction. Under standard conditions, $B_k$ also
+approximates the true inverse Hessian increasingly well
+along the search directions near the optimum.
 
-**Advantages over Newton:**
+**Advantages over Newton:** there are three.
 
-- No explicit Hessian computation. Only gradient
+- No explicit Hessian computation is needed, only gradient
   evaluations.
-- $O(n^2)$ per iteration instead of $O(n^3)$.
-- Guaranteed descent direction via the positive-definiteness
-  of $B_k$.
+- The cost is $O(n^2)$ per iteration instead of $O(n^3)$.
+- A descent direction is guaranteed by the positive
+  definiteness of $B_k$.
 
 **Convergence rate:** superlinear (between linear and
-quadratic). In practice, often as fast as Newton on real
-problems and vastly easier to implement.
+quadratic). In practice, BFGS is often as fast as Newton on
+real problems and vastly easier to implement.
 
 **L-BFGS** (limited-memory BFGS) stores only the last few
 (typically 3 to 20) pairs of $s_k$ and $y_k$ rather than the
-full $B_k$, reducing memory from $O(n^2)$ to $O(nm)$ where
-$m$ is the memory length. This makes it practical for very
-high-dimensional problems (millions of parameters). L-BFGS-B
-adds box constraints: $\ell_i \leq \theta_i \leq u_i$.
+full $B_k$. This reduces memory from $O(n^2)$ to $O(nm)$,
+where $m$ is the memory length. As a result, L-BFGS is
+practical for very high-dimensional problems (millions of
+parameters). L-BFGS-B adds box constraints:
+$\ell_i \leq \theta_i \leq u_i$.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: BFGS vs. Newton
@@ -342,19 +366,20 @@ asymptotic convergence?
 
 **Answer.**
 
-Three reasons. First, BFGS does not require computing or
-inverting the Hessian, which is either expensive
-($O(n^3)$ per iteration) or requires code for the Hessian
-that is tedious and error-prone to derive. Second, the
-BFGS approximation is guaranteed positive definite, so the
-step is always a descent direction; Newton's raw step can
-point uphill in non-convex regions. Third, on real
-problems the BFGS approximation converges to the true
-Hessian near the optimum, so the superlinear rate is
-almost as fast as Newton's quadratic rate in practice.
-The fast asymptotic rate of Newton's method matters most
-when you are already very close to the optimum; BFGS's
-robustness matters for getting there in the first place.
+There are three reasons. First, BFGS does not require
+computing or inverting the Hessian. That computation is
+either expensive ($O(n^3)$ per iteration) or requires code
+for the Hessian that is tedious and error-prone to derive.
+Second, the BFGS approximation is guaranteed positive
+definite, so the step is always a descent direction.
+Newton's raw step, by contrast, can point uphill in
+non-convex regions. Third, on real problems the BFGS
+approximation captures the curvature near the optimum well
+enough that the superlinear rate is almost as fast as
+Newton's quadratic rate in practice. The fast asymptotic
+rate of Newton's method matters most when we are already
+very close to the optimum. The stability of BFGS matters
+for getting there in the first place.
 
 :::
 
@@ -373,7 +398,7 @@ result <- optim(
 )
 ```
 
-The output:
+The output has the following components:
 
 - `$par`: final parameter values.
 - `$value`: objective at `$par`.
@@ -384,26 +409,26 @@ The output:
   failed.
 - `$hessian`: if requested, the observed Hessian at `$par`.
 
-**Methods:**
+**Methods:** `optim()` offers five general methods.
 
-- `"Nelder-Mead"`, the default. Simplex method; no
-  gradients needed; robust to non-smooth or noisy
+- `"Nelder-Mead"`, the default. A simplex method; no
+  gradients needed; tolerant of non-smooth or noisy
   objectives; slow.
-- `"BFGS"`. Quasi-Newton, gradient-based. The
-  preferred choice for smooth problems where the
-  gradient is available; specify it explicitly with
+- `"BFGS"`. Quasi-Newton, gradient-based. The preferred
+  choice for smooth problems where the gradient is
+  available; it must be requested explicitly with
   `method = "BFGS"`.
 - `"L-BFGS-B"`, BFGS with box constraints
-  (`lower = ..., upper = ...` in the call). Use when
-  parameters have natural bounds.
+  (`lower = ..., upper = ...` in the call). Appropriate
+  when parameters have natural bounds.
 - `"CG"`, conjugate gradient; low memory, can be slow.
 - `"SANN"`, simulated annealing; for rough non-convex
-  problems where you suspect local optima. Slow and
+  problems where local optima are suspected. Slow and
   approximate.
 
-**Minimization is the default.** To maximize (e.g., a log-
-likelihood), pass the *negative* of your objective, or set
-`control = list(fnscale = -1)`.
+**Minimization is the default.** To maximize (e.g., a
+log-likelihood), we pass the *negative* of the objective or
+set `control = list(fnscale = -1)`.
 
 ## Writing a log-likelihood
 
@@ -424,7 +449,7 @@ three numerical reasons:
 3. Derivatives of logs are simpler than derivatives of
    products.
 
-A minimal example: maximum likelihood for the mean and
+To illustrate, consider maximum likelihood for the mean and
 variance of a normal sample.
 
 ```r
@@ -450,15 +475,15 @@ c(mu_hat    = fit$par[1],
 mean(y); sd(y)                        # compare
 ```
 
-Three idioms in this code are worth internalizing.
+Three idioms in this code merit attention.
 
 **1. `log = TRUE` in density functions.** `dnorm(y, log = TRUE)`
 returns $\log p(y)$ directly, avoiding underflow when
 probabilities are tiny.
 
 **2. Optimize on the log scale for positive parameters.** We
-parameterized by $\log \sigma$ instead of $\sigma$ so the
-optimizer works on an unconstrained space ($\sigma > 0$
+parameterized by $\log \sigma$ instead of $\sigma$, so that
+the optimizer works on an unconstrained space ($\sigma > 0$
 becomes $\log \sigma \in \mathbb R$). The same device
 applies generally: log for positive parameters, logit for
 probabilities, Fisher $z$ for correlations.
@@ -474,8 +499,9 @@ Most optimizers work better with analytic gradients than
 with numerical approximations. Numerical gradients (finite
 differences) are noisy and expensive.
 
-**Analytic.** Derive by hand; code carefully. Always check
-against a numerical gradient before trusting it:
+**Analytic.** We derive the gradient by hand and code it
+carefully. Before trusting it, we always check it against a
+numerical gradient:
 
 ```r
 library(numDeriv)
@@ -490,16 +516,17 @@ grad_an  <- grad_analytic(theta0, y)
 max(abs(grad_num - grad_an))         # should be ~1e-8
 ```
 
-If analytic and numerical disagree by more than rounding,
-there is a bug. This is non-negotiable: silently wrong
-gradients produce silently wrong parameter estimates, and the
-optimizer will cheerfully converge to the wrong answer.
+If the analytic and numerical gradients disagree by more
+than rounding, there is a bug. This check is
+non-negotiable. Silently wrong gradients produce silently
+wrong parameter estimates, and the optimizer will
+cheerfully converge to the wrong answer.
 
 **Numerical.** `optim()` falls back to finite differences if
-`gr = NULL`. Acceptable for small problems; slow and
-imprecise for large ones.
+`gr = NULL`. This is acceptable for small problems, but slow
+and imprecise for large ones.
 
-**Automatic differentiation.** Packages like `torch`,
+**Automatic differentiation.** Packages such as `torch`,
 `tensorflow`, and `TMB` compute exact derivatives from the
 computation graph. For complicated likelihoods, auto-diff is
 often easier than hand-derived gradients and just as fast.
@@ -526,49 +553,55 @@ se <- sqrt(diag(vcov_hat))
 se
 ```
 
-Wald $z$-statistics and confidence intervals follow directly.
-Two caveats:
+Wald $z$-statistics and confidence intervals follow
+directly. Two caveats apply:
 
 - The Hessian must be positive definite for this to make
   sense. If any diagonal of `vcov_hat` is negative, or if
   `chol()` on `fit$hessian` fails, the optimizer did not
   find a proper maximum.
-- The parameterization matters. If you optimized $\log\sigma$
-  and want an SE for $\sigma$, apply the delta method:
+- The parameterization matters. If we optimized
+  $\log\sigma$ and want an SE for $\sigma$, we apply the
+  delta method:
   $\mathrm{SE}(\sigma) \approx \sigma \cdot \mathrm{SE}(\log\sigma)$.
 
 ## Common failure modes
 
 Five failure modes account for most optimization bugs:
 
-**1. Non-convergence.** `fit$convergence != 0`, or reached
-`maxit`. Try: more iterations, a different method, better
-starting values, scale parameters so they are all $O(1)$.
+**1. Non-convergence.** Either `fit$convergence != 0`, or
+the run reached `maxit`. The remedies to try are more
+iterations, a different method, better starting values, and
+scaling the parameters so they are all $O(1)$.
 
 **2. Boundary solutions.** The MLE is at (or close to) the
-boundary of the parameter space: a variance hitting zero,
-or a probability hitting 1. Wald inference breaks down; profile
-likelihoods or bootstrap are more reliable.
+boundary of the parameter space, as when a variance hits
+zero or a probability hits 1. Wald inference breaks down,
+and profile likelihoods or the bootstrap are more reliable.
 
 **3. Flat likelihood.** The likelihood is nearly constant
 along some direction in parameter space. The optimizer
-wanders; the Hessian is nearly singular. Usually signals
-non-identifiability (too many parameters for the data to
-determine). Remove the redundant parameter or add a prior.
+wanders, and the Hessian is nearly singular. This usually
+signals non-identifiability (too many parameters for the
+data to determine). The remedy is to remove the redundant
+parameter or add a prior.
 
 **4. Multiple starting points give different answers.**
-The problem is non-convex. Run from many starts; take the
-best. Or switch to a method designed for non-convex problems
-(EM, simulated annealing, stochastic methods).
+The problem is non-convex. We run from many starts and take
+the best. Alternatively, we switch to a method designed for
+non-convex problems (EM, simulated annealing, stochastic
+methods).
 
-**5. Numerical overflow/underflow.** Probabilities of zero,
-infinite likelihoods. Usually caused by naively coded
-likelihoods that forgot to work on the log scale, or by
-categorical models with a predictor that perfectly separates
-the response (Firth correction or penalized likelihood is
-the standard fix).
+**5. Numerical overflow/underflow.** The symptoms are
+probabilities of zero and infinite likelihoods. The usual
+cause is a naively coded likelihood that does not work on
+the log scale. Another cause is a categorical model with a
+predictor that perfectly separates the response, for which
+Firth correction or penalized likelihood is the standard
+fix.
 
-Diagnostic ritual before trusting any `optim()` result:
+A diagnostic ritual should precede trust in any `optim()`
+result:
 
 1. Check `fit$convergence == 0`.
 2. Check `fit$message` if it is nonzero.
@@ -589,58 +622,61 @@ eigenvalue. What likely went wrong, and what would you do?
 
 **Answer.**
 
-`$convergence = 0` only means the optimizer's internal
-stopping criterion fired; it does not mean a true minimum
-was found. A negative eigenvalue of the Hessian at the
-reported optimum means the point is a saddle, not a
-minimum: the objective decreases in at least one
-direction. Likely causes: the optimizer stopped early
-because of a flat region, or the problem is non-convex
-and the optimizer is lodged near a saddle. Remedies: try
-a different starting point, increase `maxit` and decrease
-`reltol`, or switch methods (e.g., from BFGS to
-Nelder-Mead or a trust-region method in `nlminb`). Until
-the Hessian is positive definite, do not trust the
-reported parameter values.
+`$convergence = 0` only means that the optimizer's internal
+stopping criterion fired. It does not mean that a true
+minimum was found. A negative eigenvalue of the Hessian at
+the reported optimum means that the point is a saddle, not a
+minimum: the objective decreases in at least one direction.
+The likely causes are that the optimizer stopped early
+because of a flat region, or that the problem is non-convex
+and the optimizer is lodged near a saddle. Several remedies
+are available. We can try a different starting point,
+increase `maxit` and decrease `reltol`, or switch methods
+(e.g., from BFGS to Nelder-Mead or a trust-region method in
+`nlminb`). Until the Hessian is positive definite, the
+reported parameter values should not be trusted.
 
 :::
 
 ## Collaborating with an LLM on optimization
 
 Optimization is a domain where LLMs can produce working code
-quickly and also produce silently wrong code quickly. Three
-patterns work well.
+quickly and can also produce silently wrong code quickly.
+Three patterns work well.
 
-**Prompt 1: writing a log-likelihood.** Describe the model
-(e.g., 'a gamma regression with log link'), provide a data
-frame with column names, and ask: 'write the negative log-
-likelihood as a function `nll(theta, data)` using a
+**Prompt 1: writing a log-likelihood.** We describe the
+model (e.g., 'a gamma regression with log link'), provide a
+data frame with column names, and ask: 'write the negative
+log-likelihood as a function `nll(theta, data)` using a
 log-parameterized rate, and return a call to `optim` that
-maximizes it.'
+minimizes it.'
 
-*What to watch for.* Common mistakes: missing the
+*What to watch for.* Common mistakes include missing the
 Jacobian of a parameter transformation, forgetting to use
-`log = TRUE` in `dgamma()`, hard-coded column names that do
-not match the data, returning the positive instead of
-negative log-likelihood for a minimizer. Review every line.
+`log = TRUE` in `dgamma()`, and hard-coding column names
+that do not match the data. Another is returning the
+positive instead of the negative log-likelihood for a
+minimizer. Every line warrants review.
 
-*Verification.* Pick a case where the MLE has a closed form
-or where a canonical R implementation exists (e.g.,
-`glm(..., family = Gamma(link = "log"))`), fit with the LLM-
-generated code, and check that the coefficients and SEs
+*Verification.* We pick a case where the MLE has a closed
+form or where a canonical R implementation exists (e.g.,
+`glm(..., family = Gamma(link = "log"))`). We fit with the
+LLM-generated code and check that the coefficients and SEs
 agree to several digits. If they disagree, the LLM's code
 is wrong.
 
-**Prompt 2: deriving a gradient.** Paste the log-likelihood
-function and ask: 'derive the analytical gradient and write
-it as a function `grad(theta, data)` that returns a vector
-of the same length as `theta`.'
+**Prompt 2: deriving a gradient.** We paste the
+log-likelihood function and ask: 'derive the analytical
+gradient and write it as a function `grad(theta, data)`
+that returns a vector of the same length as `theta`.'
 
 *What to watch for.* LLMs are often confidently wrong about
 derivatives, especially when the likelihood involves a
-parameter transformation. Treat the output as a draft.
+parameter transformation. The output is best treated as a
+draft.
 
-*Verification.* Always check against a numerical gradient:
+*Verification.* We always check against a numerical
+gradient:
 
 ```r
 theta0 <- c(0.1, 0.2, -0.3)
@@ -649,26 +685,30 @@ grad_an  <- grad_function(theta0, data = dat)
 max(abs(grad_num - grad_an))
 ```
 
-Difference should be at most $10^{-6}$ or so. Anything larger
-is a bug.
+The difference should be at most $10^{-6}$ or so, and
+anything larger is a bug.
 
-**Prompt 3: diagnosing non-convergence.** Describe what you
-tried (method, starting values, convergence code and
+**Prompt 3: diagnosing non-convergence.** We describe what
+we tried (method, starting values, convergence code and
 message, eigenvalues of the Hessian) and ask: 'what is
 likely going wrong, and what would you try next?'
 
 *What to watch for.* LLMs are reasonable at pattern-matching
 classic failure modes (boundary solutions, flat likelihoods,
 separation in logistic regression). They are less good at
-novel data-specific problems. Treat the suggestions as a
-checklist, not as the answer.
+novel data-specific problems. The suggestions are best
+treated as a checklist, not as the answer.
 
-*Verification.* Whatever fix is suggested, try it and check
-whether the Hessian is positive definite afterwards. A 'fix'
-that gets `$convergence = 0` but leaves the Hessian
+*Verification.* Whatever fix is suggested, we try it and
+check whether the Hessian is positive definite afterwards.
+A 'fix' that gets `$convergence = 0` but leaves the Hessian
 indefinite has not actually fixed the problem.
 
 ## Worked example: logistic regression from scratch
+
+To illustrate the full workflow, consider a logistic
+regression fitted by direct maximization of the likelihood
+and checked against `glm()`.
 
 ```r
 set.seed(1)
@@ -702,17 +742,17 @@ se <- sqrt(diag(solve(fit$hessian)))
 se
 ```
 
-Two idioms worth memorizing:
+Two idioms in this code are worth memorizing:
 
 - `log1p(exp(eta))` instead of `log(1 + exp(eta))`. For
   large negative `eta`, `1 + exp(eta)` is numerically equal
-  to 1 and the log is zero; `log1p` preserves the precision.
-  For very large positive `eta`, both overflow; the standard
-  log-sum-exp trick (not shown here for brevity) is the
-  robust fix.
+  to 1 and the log is zero, whereas `log1p` preserves the
+  precision. For very large positive `eta`, both overflow;
+  the standard log-sum-exp trick (not shown here for
+  brevity) handles that case.
 - `sum(y * eta - log1p(exp(eta)))` is the stable form of the
-  logistic log-likelihood, avoiding the formation of
-  `plogis(eta)` and subsequent log.
+  logistic log-likelihood. It avoids forming `plogis(eta)`
+  and then taking its log.
 
 ## Principle in use
 
@@ -729,29 +769,30 @@ Three habits characterize effective use of optimization in R:
    compare it to `numDeriv::grad()`. If they disagree, the
    analytic one is wrong.
 
-These three habits catch nearly all the 'I ran `optim()` and
-got a weird answer' bugs.
-
 ## Exercises
 
 1. Maximize the log-likelihood of a normal sample by hand
    using Newton's method. Start from the sample mean and SD
-   plus noise; confirm convergence in three iterations.
+   plus noise, and record how many iterations convergence
+   takes.
 2. Use `optim(..., hessian = TRUE)` on a logistic
    regression likelihood and use the Hessian to compute
    Wald standard errors. Compare to `summary(glm_fit)`.
 3. Construct a simple non-identifiable model (e.g.,
-   $y \sim x_1 + x_2 + x_3$ with $x_3 = x_1 + x_2$). Show
-   that `optim()` fails to converge and explain what the
-   flat likelihood looks like (inspect `fit$hessian`).
-4. For a two-parameter Gamma MLE, code the negative log-
-   likelihood and its analytic gradient. Verify the
+   $y \sim x_1 + x_2 + x_3$ with $x_3 = x_1 + x_2$). Fit it
+   with `optim()` and inspect `fit$convergence` and
+   `fit$hessian`. Explain what the flat likelihood looks
+   like and why a zero convergence code does not settle the
+   question.
+4. For a two-parameter Gamma MLE, code the negative
+   log-likelihood and its analytic gradient. Verify the
    gradient against `numDeriv::grad()`. Then fit it with
    `optim()` and compare to `MASS::fitdistr(x, "gamma")`.
 5. Take a logistic regression where the response is
    perfectly separated by a predictor (all $y = 1$ when
    $x > 0$, all $y = 0$ otherwise). Fit with `glm()` and
-   observe the warning. Fit with `brglm::brglm()` (Firth
+   observe the warning. Refit with
+   `glm(..., method = brglm2::brglmFit)` (Firth
    correction) and explain why the Firth version produces a
    finite coefficient.
 
@@ -822,7 +863,7 @@ gradient descent with a fixed learning rate?
 ## Answer
 
 **C.** Large steps can overshoot the minimum and amplify
-instead of reducing the objective.
+the objective instead of reducing it.
 :::
 
 ### Question 4
@@ -879,8 +920,8 @@ having a unique global optimum?
 ::: {.callout-note collapse='true'}
 ## Answer
 
-**B.** Convexity implies any local minimum is also a
-global minimum; strict convexity makes it unique.
+**B.** Convexity implies that any local minimum is also a
+global minimum, and strict convexity makes it unique.
 :::
 
 ### Question 7
@@ -911,20 +952,19 @@ output.
 ## Prerequisites answers {#sec-quiz-answers-optimization}
 
 1. Each step moves in the direction *opposite* to the
-   gradient (the negative gradient direction), because the
-   gradient points in the direction of steepest *ascent*
-   and we want to descend.
+   gradient (the negative gradient direction). The reason
+   is that the gradient points in the direction of
+   steepest *ascent*, and we want to descend.
 2. The iterates may overshoot the minimum and diverge.
    Practical implementations use a line search or
    backtracking to adapt the step size to the local
    curvature. Fixed learning rates that work for one
    problem often fail for another.
 3. BFGS approximates the inverse Hessian from successive
-   gradient differences, avoiding the $O(n^3)$ cost of
-   forming and inverting a Hessian each iteration, and
-   guaranteeing a descent direction (because the
+   gradient differences. It thereby avoids the $O(n^3)$
+   cost of forming and inverting a Hessian each iteration,
+   and it guarantees a descent direction (because the
    approximation is positive definite). A *strictly
    convex* optimization problem has a unique global
-   optimum, so
-   any descent method converges to the same point
-   regardless of starting value.
+   optimum, so any descent method converges to the same
+   point regardless of starting value.

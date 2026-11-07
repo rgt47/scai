@@ -10,7 +10,7 @@ chapter. You can find the answers at the end of the chapter in
    directories required for a minimal functional R
    package?
 2. What is the primary function of the `DESCRIPTION` file?
-3. What is the key distinction between packages listed
+3. What is the main distinction between packages listed
    under `Imports` and those listed under `Suggests`?
 
 ## Learning objectives
@@ -37,63 +37,71 @@ By the end of this chapter you should be able to:
 
 Everything written so far in this book has been a script. A
 script is a set of instructions that runs top-to-bottom and
-ends. A *package* is a reusable library of functions with
-documentation, tests, and a dependency declaration.
-Packages are how analytical work scales beyond a single
-analyst and a single project.
+ends. A *package*, by contrast, is a reusable library of
+functions with documentation, tests, and a dependency
+declaration. Packages are how analytical work scales
+beyond a single analyst and a single project.
 
-The Wickham and Bryan book *R Packages* (2nd ed.) and the
-`usethis` and `devtools` packages it documents are the
-modern foundation for R package development. The workflow
-they describe has become the standard, and this chapter
-follows it.
+The modern foundation for R package development is the
+book *R Packages* (2nd ed.) by Wickham and Bryan, together
+with the `usethis` and `devtools` packages it documents.
+The workflow they describe has become the standard, and
+this chapter follows it.
 
-This chapter covers the workflow up to a buildable,
-installable, documented package. The next chapter (testing)
-covers the testing infrastructure that makes packages
-maintainable.
+In this chapter we shall carry that workflow as far as a
+buildable, installable, documented package. We begin with
+the case for packaging code and with
+`usethis::create_package()`. We then cover the package
+structure, `roxygen2` documentation, and the dependency
+fields of `DESCRIPTION`. Lastly, we turn to installation,
+`R CMD check`, and vignettes, and we close with a worked
+example. The testing infrastructure that makes packages
+maintainable is taken up in the next chapter, on testing.
 
 ## The statistician's contribution {#sec-packages-human}
 
 Package development looks like software engineering, and it
-is. The judgments specific to statistical packages are
-about audience and scope.
+is. However, the judgments specific to statistical
+packages concern audience and scope.
 
 **Who will use this?** A package for one's own analysis
 needs little more than working code and a `DESCRIPTION`. A
 package for a research group needs documentation and
 tests. A package for the public CRAN repository needs
 clean dependencies, vignettes, and continuous integration.
-We would pick the audience first; the engineering follows.
+We would pick the audience first; the engineering follows
+from it.
 
 **What goes in the package, and what stays in the
 analysis?** A function reused across two projects belongs
-in a package; one used once does not. A regression
-diagnostic that comes up in every analysis is a candidate;
-a one-off plot for one paper is not. The boundary is
-fuzzy, but the heuristic is that anything one would
-otherwise copy and paste between projects is a packaging
-candidate.
+in a package; one used once does not. Similarly, a
+regression diagnostic that comes up in every analysis is a
+candidate, while a one-off plot for one paper is not. The
+boundary is fuzzy. A useful heuristic is that anything one
+would otherwise copy and paste between projects is a
+packaging candidate.
 
 **Documentation as a contract.** The roxygen comment above
-a function is a promise about its behavior: what arguments
-it takes, what it returns, what conditions it expects.
-Vague documentation produces confused users and bug
-reports about expected behavior. Specific documentation,
-including the edge cases the function does or does not
-handle, saves time over the package's life.
+a function is a promise about its behavior. That is, it
+states what arguments the function takes, what it returns,
+and what conditions it expects. Vague documentation
+produces confused users and bug reports about expected
+behavior. Specific documentation, including the edge cases
+the function does or does not handle, saves time over the
+package's life.
 
 **Dependencies are a tax.** Each package listed under
 `Imports` becomes something users must install. Each version
 restriction (`dplyr (>= 1.0.0)`) constrains the environments
-the package will work in. The minimum-viable dependency
-list saves friction; the maximalist 'use whatever is
-convenient' approach produces packages that are hard to
-install five years later.
+in which the package will work. On the one hand, a
+minimum-viable dependency list saves friction. On the
+other, the maximalist 'use whatever is convenient'
+approach produces packages that are hard to install five
+years later.
 
 ## Why package code?
 
-Concrete benefits:
+The concrete benefits are five:
 
 - **Reuse.** A function in a package is loaded with
   `library(yourpkg)`; a function in a script is sourced
@@ -110,8 +118,9 @@ Concrete benefits:
   others. CRAN, GitHub, and internal package servers all
   use this format.
 
-Packaging adds files, conventions, and tooling. The
-threshold for going from script to package is roughly
+Against these benefits, packaging adds files, conventions,
+and tooling. The threshold for going from script to
+package is roughly
 'this code will be reused by me or someone else more than
 once'.
 
@@ -133,7 +142,7 @@ This creates:
 - `.Rbuildignore` (files to exclude from package build)
 - `.gitignore` (files to exclude from version control)
 
-Then add the standard scaffolding:
+We then add the standard scaffolding:
 
 ```r
 use_git()                    # initialize git repository
@@ -144,10 +153,10 @@ use_testthat()               # set up the testing framework
 use_news_md()                # NEWS.md for changelog
 ```
 
-Each of these adds files in canonical locations and
+Each of these calls adds files in canonical locations and
 updates `DESCRIPTION` and `.Rbuildignore` as needed. Doing
-all of this manually is tedious and error-prone; `usethis`
-encodes the conventions.
+all of this manually is tedious and error-prone, and
+`usethis` encodes the conventions for us.
 
 ## Package structure
 
@@ -195,10 +204,12 @@ What goes where:
 
 ## `roxygen2` documentation
 
-Documentation lives in comments above each function:
+Documentation lives in comments placed above each
+function. To illustrate, consider a function that
+summarizes a numeric vector:
 
 ```r
-#' Summarise a numeric vector
+#' Summarize a numeric vector
 #'
 #' Produces a tibble with the mean, standard deviation, and
 #' quartiles of a numeric vector, ignoring missing values.
@@ -223,7 +234,7 @@ summarise_numeric <- function(x, probs = c(0.25, 0.5, 0.75)) {
 }
 ```
 
-Tags:
+The commonly used tags are as follows.
 
 - `@param name description`: each argument.
 - `@return description`: what the function returns.
@@ -236,7 +247,7 @@ Tags:
 - `@inheritParams other_function`: copy parameter docs
   from another function.
 
-After editing roxygen comments, regenerate the `.Rd`
+After editing roxygen comments, we regenerate the `.Rd`
 files and `NAMESPACE`:
 
 ```r
@@ -244,7 +255,7 @@ devtools::document()
 ```
 
 This is one of the most common commands in package
-development; bind it to a keystroke.
+development, and it is worth binding to a keystroke.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: `@export` vs not
@@ -255,22 +266,23 @@ the package?
 
 **Answer.**
 
-The function is *internal*: not part of the public API.
-Users who load the package with `library(yourpkg)` cannot
-call it directly. They can still access it via the triple-
-colon operator (`yourpkg:::internal_fn(...)`), but doing
-so is discouraged because internal functions can change
-without notice between versions. Internal functions are
-useful for helpers shared among exported functions
-without polluting the namespace. Reserve `@export` for
-the functions you want users to call; everything else
-remains internal.
+The function is *internal*; that is, it is not part of the
+public API. Users who load the package with
+`library(yourpkg)` cannot call it directly. They can still
+access it via the triple-colon operator
+(`yourpkg:::internal_fn(...)`). Doing so is discouraged,
+however, because internal functions can change without
+notice between versions. Internal functions are useful for
+helpers shared among exported functions, since they do not
+pollute the namespace. We reserve `@export` for the
+functions we want users to call; everything else remains
+internal.
 
 :::
 
 ## `DESCRIPTION`: Imports, Suggests, Depends
 
-A typical `DESCRIPTION`:
+A typical `DESCRIPTION` file reads as follows.
 
 ```
 Package: phb228utils
@@ -295,34 +307,35 @@ Suggests:
 RoxygenNote: 7.3.2
 ```
 
-The dependency fields:
+The three dependency fields differ as follows.
 
-- **`Imports`** are mandatory. Functions you call in your
-  exported code go here. `library(yourpkg)` will fail if
-  these are not installed. Use `pkg::fn()` to call
-  imported functions explicitly (best practice) or
-  `@importFrom pkg fn` to make them available unqualified.
-- **`Suggests`** are optional. Used in vignettes, tests,
-  examples, or by features that gate themselves on
+- **`Imports`** are mandatory. The packages whose
+  functions are called in exported code go here, and
+  `library(yourpkg)` will fail if they are not installed.
+  Imported functions may be called explicitly with
+  `pkg::fn()` (best practice) or made available
+  unqualified with `@importFrom pkg fn`.
+- **`Suggests`** are optional. They are used in vignettes,
+  tests, examples, or by features that gate themselves on
   `requireNamespace("pkg", quietly = TRUE)`. The package
-  must work without these.
+  must work without them.
 - **`Depends`** is for packages that should be loaded
   whenever yours is loaded (so `library(yourpkg)` also
-  loads them). Avoid: it pollutes the user's namespace.
-  Use `Imports` instead.
+  loads them). We would avoid it, because it pollutes the
+  user's namespace, and use `Imports` instead.
 
-Add a dependency with `usethis::use_package()`:
+A dependency is added with `usethis::use_package()`:
 
 ```r
 use_package("dplyr")          # adds to Imports
 use_package("testthat", "Suggests")
 ```
 
-Version requirements: use minimum versions for features you
-need, not exact pins. `dplyr (>= 1.0.0)` means 'any version
-1.0 or later'. Avoid `dplyr (== 1.0.5)`: this constrains
-users to one specific version, which usually breaks within
-a year.
+For version requirements, we use minimum versions for the
+features we need, not exact pins. `dplyr (>= 1.0.0)` means
+'any version 1.0 or later'. We would avoid
+`dplyr (== 1.0.5)`, since it constrains users to one
+specific version, which usually breaks within a year.
 
 ## Installing and loading
 
@@ -332,9 +345,9 @@ During development:
 devtools::load_all()         # simulate library(yourpkg) without installing
 ```
 
-`load_all()` makes your package's functions available in
-the current R session, including non-exported ones (so
-you can call internal functions for testing). It is the
+`load_all()` makes the package's functions available in
+the current R session, including non-exported ones, so
+that we can call internal functions for testing. It is the
 fastest way to iterate on changes.
 
 To install for real use:
@@ -357,8 +370,9 @@ install.packages("/path/to/yourpkg.tar.gz", repos = NULL,
                  type = "source")
 ```
 
-The standard checks before submission to anyone (CRAN, a
-collaborator, your future self):
+Before submitting the package to anyone (CRAN, a
+collaborator, or our future selves), we run the standard
+checks:
 
 ```r
 devtools::check()
@@ -379,45 +393,54 @@ goal for any shareable package.
 
 ## Common `R CMD check` warnings
 
-**'no visible binding for global variable'** when you use
-column names with non-standard evaluation (NSE) inside
-functions. Common in dplyr code: `dplyr::filter(data, year == 2020)`
-references `year` without quoting. The fix:
+**'no visible binding for global variable'** arises when we
+use column names with non-standard evaluation (NSE) inside
+functions. It is common in dplyr code, where
+`dplyr::filter(data, year == 2020)` references `year`
+without quoting. One fix is to place the following
+declaration
 
 ```r
 utils::globalVariables(c("year", "treatment"))
 ```
 
-at the top of one of your `R/` files, or use `.data$year`
-and `.data$treatment` (preferred).
+at the top of one of the package's `R/` files. The
+preferred alternative is to use `.data$year` and
+`.data$treatment`.
 
-**'undefined exports'** when an `@export`ed function does
-not exist. Re-run `devtools::document()`.
+**'undefined exports'** arises when an `@export`ed
+function does not exist. The remedy is to re-run
+`devtools::document()`.
 
-**'package required but not declared'** when you use
-`pkg::fn()` for a package not in `Imports`. Add it.
+**'package required but not declared'** arises when we
+use `pkg::fn()` for a package not listed in `Imports`. The
+remedy is to add it.
 
-**'examples lines wider than 100 characters'** when an
-example line is too long. Break it up.
+**'examples lines wider than 100 characters'** arises when
+an example line is too long. The remedy is to break it up.
 
 ## Vignettes
 
-A vignette is a long-form article packaged with your code:
+A vignette is a long-form article packaged with the code.
+It is created with:
 
 ```r
 use_vignette("intro")
 ```
 
-This creates `vignettes/intro.Rmd` with a template. Edit
-it; build with `devtools::build_vignettes()`; access in R
-with `vignette("intro", "phb228utils")`.
+This creates `vignettes/intro.Rmd` with a template. We
+edit it, build it with `devtools::build_vignettes()`, and
+access it in R with `vignette("intro", "phb228utils")`.
 
-Vignettes are how to teach users *why* and *how to use*
-your package, beyond the function-by-function reference.
+Vignettes are how we teach users *why* and *how to use*
+the package, beyond the function-by-function reference.
 For an analysis package, the vignette is often a worked
 example.
 
 ## Worked example: a small package
+
+To illustrate the full workflow, consider the following
+sequence for a small package.
 
 ```r
 # 1. create the package
@@ -454,51 +477,52 @@ work.
 
 ## Collaborating with an LLM on package development
 
-Package development has a lot of conventions; LLMs handle
-most of them reasonably and stumble on a few specific
-ones.
+Package development has many conventions. LLMs handle
+most of them reasonably well and stumble on a few
+specific ones. We consider three representative prompts.
 
-**Prompt 1: drafting a roxygen header.** Paste the
+**Prompt 1: drafting a roxygen header.** We paste the
 function and ask: 'write a roxygen2 header with `@param`,
 `@return`, `@export`, and `@examples`. The example should be a
 realistic, runnable use of the function.'
 
 *What to watch for.* The example needs to actually run. A
-common LLM error: the example uses a variable that is not
-defined. Run the example yourself before committing.
+common LLM error is an example that uses a variable that
+is not defined. We would run the example ourselves before
+committing.
 
-*Verification.* `devtools::document()` then run the
-example via `?function_name`. If the example fails, fix
-it.
+*Verification.* We run `devtools::document()` and then
+run the example via `?function_name`. If the example
+fails, we fix it.
 
-**Prompt 2: diagnosing an `R CMD check` warning.** Paste
-the warning verbatim and ask: 'what does this mean and
-how do I fix it?'
+**Prompt 2: diagnosing an `R CMD check` warning.** We
+paste the warning verbatim and ask: 'what does this mean
+and how do I fix it?'
 
 *What to watch for.* The standard warnings (global
 variables, undocumented arguments, missing imports) have
-known fixes; LLMs handle them well. Less common warnings
-(invalid CITATION format, vignette engine issues) get
-mixed answers; verify against the R packages book or the
-CRAN policies.
+known fixes, and LLMs handle them well. Less common
+warnings (invalid CITATION format, vignette engine issues)
+get mixed answers. For these we verify against the R
+packages book or the CRAN policies.
 
-*Verification.* Apply the fix and re-run `check()`. If
-the warning persists, look up the message in the R
+*Verification.* We apply the fix and re-run `check()`. If
+the warning persists, we look up the message in the R
 packages book.
 
-**Prompt 3: deciding `Imports` vs `Suggests`.** Describe
-how you use a dependency (e.g., 'I call `ggplot2::ggplot`
-inside one of my exported functions; I also use it in a
-vignette'). Ask: 'should this be in Imports or
-Suggests?'
+**Prompt 3: deciding `Imports` vs `Suggests`.** We
+describe how a dependency is used (e.g., 'I call
+`ggplot2::ggplot` inside one of my exported functions; I
+also use it in a vignette'). We then ask: 'should this be
+in Imports or Suggests?'
 
 *What to watch for.* The rule is 'Imports if exported
 code uses it'. Vignette-only or test-only dependencies
-go in Suggests. The LLM should know this; if it
-hesitates, push for the rule.
+go in Suggests. The LLM should know this rule; if it
+hesitates, we push for the rule.
 
-*Verification.* Try installing the package on a fresh R
-session without the dependency installed. If
+*Verification.* We try installing the package on a fresh
+R session without the dependency installed. If
 `library(yourpkg)` fails, the dependency belongs in
 Imports.
 
@@ -507,20 +531,22 @@ Imports.
 Three habits define defensible package development:
 
 1. **Use `usethis` for scaffolding.** Hand-creating the
-   package skeleton is error-prone and wastes time.
-   `usethis` encodes the canonical layout and conventions.
+   package skeleton is error-prone and wastes time,
+   whereas `usethis` encodes the canonical layout and
+   conventions.
 2. **Document every exported function.** A roxygen
    header with `@param`, `@return`, and a runnable
    `@examples` is the contract with users.
-3. **Aim for a clean `R CMD check`.** No errors,
-   warnings, or notes. The output of `check()` is the
+3. **Aim for a clean `R CMD check`.** That is, the check
+   should report no errors, warnings, or notes. The output of `check()` is the
    first thing CRAN reviewers (and any thoughtful
    collaborator) look at.
 
 ## Exercises
 
 1. Create a package `phb228utils` with a single function
-   `summarise_numeric()` from chapter 1. Document it,
+   `summarise_numeric()` as defined in this chapter.
+   Document it,
    add an example, and confirm that `?summarise_numeric`
    works after `devtools::document()` and
    `devtools::load_all()`.
@@ -590,7 +616,7 @@ and `License`.
 
 ### Question 3
 
-What is the key distinction between packages listed
+What is the main distinction between packages listed
 under `Imports` versus `Suggests`?
 
 - A) `Imports` lists packages required for core
@@ -645,8 +671,8 @@ should next:
 ## Answer
 
 **B.** `devtools::document()` regenerates documentation
-and the namespace from roxygen comments. Hand-editing
-`.Rd` files is wrong; they will be overwritten.
+and the namespace from roxygen comments. Hand-editing the
+`.Rd` files is a mistake, since they will be overwritten.
 :::
 
 ## Prerequisites answers {#sec-quiz-answers-packages}
@@ -666,7 +692,8 @@ and the namespace from roxygen comments. Hand-editing
    functionality (they must be installed for the package
    to work). `Suggests` lists packages used only for
    optional features (vignettes, tests, examples) and
-   need not be installed by default. The rule of thumb:
-   if your exported code calls `pkg::fn()`, the package
-   goes in `Imports`. If only your tests, vignettes, or
-   optional features use it, `Suggests`.
+   need not be installed by default. The rule of thumb is
+   as follows. If your exported code calls `pkg::fn()`,
+   the package goes in `Imports`. If only your tests,
+   vignettes, or optional features use it, the package
+   goes in `Suggests`.

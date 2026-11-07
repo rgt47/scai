@@ -3,7 +3,7 @@
 ## Prerequisites
 
 Answer the following questions to see if you can bypass this
-chapter. You can find the answers at the end of the chapter in
+chapter. The answers appear at the end of the chapter in
 @sec-quiz-answers-parallel.
 
 1. What is the primary advantage of parallel computing for
@@ -35,89 +35,101 @@ By the end of this chapter you should be able to:
 ## Orientation
 
 Most simulations and bootstraps are *embarrassingly
-parallel*: each iteration is independent of the others.
-Running them in parallel often produces near-linear speedup
-with a trivial code change. This chapter shows how to do
-that correctly, and how to recognize the cases where
-parallelism does not help.
+parallel*. That is, each iteration is independent of the
+others. Running them in parallel often produces
+near-linear speedup with a trivial code change. In this
+chapter we shall show how to do that correctly and how to
+recognize the cases in which parallelism does not help.
 
 The modern R parallel ecosystem centers on the `future`
-package by Henrik Bengtsson. `future`, `future.apply`, and
-`furrr` provide a unified API that abstracts over backend
-choice (cores on a single machine, multiple machines, HPC
-clusters). Older packages (`parallel`, `foreach`,
-`doParallel`) still work and are widely deployed, but
-`future` is the recommended modern interface for most
-applications.
+package by Henrik Bengtsson. Together, `future`,
+`future.apply`, and `furrr` provide a unified API that
+abstracts over the choice of backend (cores on a single
+machine, multiple machines, HPC clusters). Older packages
+(`parallel`, `foreach`, `doParallel`) still work and are
+widely deployed. Nevertheless, `future` is the recommended
+modern interface for most applications.
+
+We begin with the judgments that fall to the statistician
+and with the question of when parallelism helps at all. We
+then present the `future` framework, the `future.apply`
+and `furrr` interfaces, and the measurement of speedup.
+The chapter closes with common pitfalls, a worked parallel
+bootstrap, and the cases in which we should not
+parallelize.
 
 ## The statistician's contribution {#sec-parallel-human}
 
 Parallelism is a tool for trading developer time for
-machine time. The judgments are about when the trade is
-worth it.
+machine time. The judgments concern when that trade is
+worth making.
 
 **Profile before parallelizing.** A simulation that takes
-30 seconds in serial does not need parallelism; the time
-spent setting up `future.apply` exceeds the saving. A
-simulation that takes 30 minutes is worth parallelizing;
-30 hours is essential. Profile first to learn which case
-applies.
+30 seconds in serial does not need parallelism, since the
+time spent setting up `future.apply` exceeds the saving. A
+simulation that takes 30 minutes is worth parallelizing,
+and one that takes 30 hours makes parallelism essential.
+We profile first to learn which case applies.
 
 **Reproducibility is non-trivial.** Naive parallel code
 with `set.seed()` does not produce reproducible results
-across workers. Each worker can draw from the same RNG
-stream, producing correlated (or identical) results, or
-from independent streams set up with the L'Ecuyer-CMRG
-generator. Detecting the difference is the analyst's
-responsibility; software defaults vary across packages.
+across workers. Each worker may draw from the same RNG
+stream, which produces correlated (or identical) results.
+Alternatively, the workers may draw from independent
+streams set up with the L'Ecuyer-CMRG generator. Detecting
+the difference is the analyst's responsibility, because
+software defaults vary across packages.
 
-**Mind the data.** Parallel workers receive copies of
-the global state. A 5 GB dataset in the R session becomes
-5 GB on each worker; with 8 workers, that is 40 GB of
-memory used. For small data this is fine; for large data,
-the data should be loaded inside the worker function, or
-shared-memory techniques should be used instead.
+**Mind the data.** Parallel workers receive copies of the
+global state. A 5 GB dataset in the R session becomes 5 GB
+on each worker, so 8 workers use 40 GB of memory. For
+small data this is acceptable. For large data, the data
+should instead be loaded inside the worker function, or
+shared-memory techniques should be used.
 
 **Mind the BLAS.** R's matrix operations dispatch to BLAS,
 which may itself be multi-threaded (OpenBLAS, MKL).
-Running 8 R workers each with 8 BLAS threads is 64
+Running 8 R workers, each with 8 BLAS threads, means 64
 threads competing on probably 8 physical cores. The
-typical fix: `RhpcBLASctl::blas_set_num_threads(1)` inside
-the worker so BLAS does not spawn additional threads.
-This pitfall stays invisible until timing is measured
-and the 'parallel' code turns out *slower* than
-serial.
+typical fix is to call
+`RhpcBLASctl::blas_set_num_threads(1)` inside the worker,
+so that BLAS does not spawn additional threads.
+Unfortunately, this pitfall stays invisible until we
+measure the timing and find the 'parallel' code *slower*
+than serial.
 
 ## When does parallelism help?
 
-Three categories of problem:
+But when does parallelism actually help? We distinguish
+three categories of problem.
 
 **Embarrassingly parallel.** Each task is independent of
-the others. Bootstrap resamples, Monte Carlo simulation
-replicates, fitting the same model to many strata. Speedup
-scales nearly linearly with the number of cores, up to
-overhead. This is the dominant case in statistical
-computing.
+the others. Examples are bootstrap resamples, Monte Carlo
+simulation replicates, and fitting the same model to many
+strata. Speedup scales nearly linearly with the number of
+cores, up to overhead. This is the dominant case in
+statistical computing.
 
 **Data parallel.** A single computation can be split
-across cores by partitioning the data: matrix
-multiplication, large-scale sum, distributed gradient
-descent. Useful but harder to implement; modern BLAS
-handles small-scale data parallelism automatically. For
-massive data, frameworks like Spark or `arrow` are
-typically more appropriate.
+across cores by partitioning the data. Examples are matrix
+multiplication, a large-scale sum, and distributed
+gradient descent. This form is useful but harder to
+implement, and modern BLAS handles small-scale data
+parallelism automatically. For massive data, frameworks
+such as Spark or `arrow` are typically more appropriate.
 
 **Inherently sequential.** Each step depends on the
-previous: a single MCMC chain, a stochastic gradient
-descent trajectory, a forward simulation of a dynamical
-system. No amount of parallel hardware can speed up a
-serial dependency.
+previous one. Examples are a single MCMC chain, a
+stochastic gradient descent trajectory, and a forward
+simulation of a dynamical system. No amount of parallel
+hardware can speed up a serial dependency.
 
-For sequential problems, you can sometimes parallelize *at
-a higher level*: run several MCMC chains in parallel
-(common). Or split the data into independent batches and
-fit separate models to each. Either approach requires
-finding the boundary where independence holds.
+For sequential problems we can sometimes parallelize *at
+a higher level*. A common case is to run several MCMC
+chains in parallel. Another is to split the data into
+independent batches and fit separate models to each.
+Either approach requires finding the boundary at which
+independence holds.
 
 ## The `future` framework
 
@@ -135,26 +147,26 @@ plan(cluster, workers = 4)
 plan(future.batchtools::batchtools_slurm)   # HPC cluster
 ```
 
-`multisession` is the cross-platform default. It starts $k$
-fresh R processes; each receives a copy of the workspace as
-needed.
+`multisession` is the cross-platform default. It starts
+$k$ fresh R processes, and each receives a copy of the
+workspace as needed.
 
 `multicore` (Linux/macOS only) uses operating-system
-forking. Faster startup than `multisession` and shared
-memory until a worker writes (copy-on-write). Does not
-work in RStudio because of fork-safety issues.
+forking. It has faster startup than `multisession` and
+shares memory until a worker writes (copy-on-write). It
+does not work in RStudio because of fork-safety issues.
 
-`cluster` lets you specify worker machines explicitly,
-useful for HPC.
+`cluster` lets us specify worker machines explicitly,
+which is useful for HPC.
 
-The 'plan' is set globally for the session. Code using
-the `future` API (or `future.apply`, or `furrr`) runs
+The 'plan' is set globally for the session. Code using the
+`future` API (or `future.apply`, or `furrr`) then runs
 according to the current plan without code changes.
 
 ## `future.apply` and `furrr`
 
-These packages re-implement the `apply` and `purrr` families
-on top of `future`:
+These packages re-implement the `apply` and `purrr`
+families on top of `future`:
 
 ```r
 library(future)
@@ -173,9 +185,9 @@ results <- future_sapply(1:1000,
 ```
 
 `future.seed = TRUE` activates the L'Ecuyer-CMRG generator
-internally, ensuring each worker uses an independent
-non-overlapping RNG stream. Without it, you may get
-correlated (or identical) sequences across workers.
+internally, which ensures that each worker uses an
+independent, non-overlapping RNG stream. Without it, we may
+get correlated (or identical) sequences across workers.
 
 `furrr` does the same for the `purrr` map functions:
 
@@ -192,8 +204,8 @@ results <- future_map_dbl(1:1000,
 ```
 
 For most modern code, `furrr` is the recommended choice
-because the API matches `purrr`; existing serial code
-using `map_dbl` becomes parallel by replacing it with
+because its API matches `purrr`. Existing serial code using
+`map_dbl` becomes parallel by replacing it with
 `future_map_dbl`.
 
 ::: {.callout-note icon=false collapse=true}
@@ -210,19 +222,19 @@ on?
 
 Without explicit parallel-safe RNG handling, each worker
 inherits the parent process's RNG state at the moment of
-forking (or starts with an undefined state, depending on
-backend). Two workers can end up using identical seeds
-and produce correlated or identical sequences. The
-solution is `furrr_options(seed = TRUE)` (or
-`future.seed = TRUE` for `future_*apply`), which
+forking. Depending on the backend, it may instead start
+with an undefined state. Two workers can therefore end up
+using identical seeds and produce correlated or identical
+sequences. The solution is `furrr_options(seed = TRUE)`
+(or `future.seed = TRUE` for `future_*apply`). This
 activates the L'Ecuyer-CMRG generator and assigns each
 worker an independent stream. The behavior is
 deterministic given the parent seed, so re-running with
 the same parent seed produces identical results across
 workers and across re-runs. Forgetting this option is
-among the most common bugs in parallel R code, partly
-because it produces results that look reasonable but are
-silently miscalibrated.
+among the most common bugs in parallel R code. Part of the
+reason is that it produces results that look reasonable
+but are silently miscalibrated.
 
 :::
 
@@ -238,12 +250,10 @@ Three quantities matter:
 - **Amdahl's law**: the maximum speedup is bounded by
   $1 / (s + (1 - s)/n)$, where $s$ is the serial fraction
   and $n$ is the number of workers. If 10% of the
-  computation is inherently serial, maximum speedup is 10×
-  no matter how many workers you have.
+  computation is inherently serial, the maximum speedup is
+  10× no matter how many workers we have.
 
 ```r
-library(microbenchmark)
-
 # serial
 t_serial <- system.time({
   results_serial <- purrr::map_dbl(1:1000, my_boot_fn)
@@ -261,7 +271,8 @@ efficiency <- speedup / 4
 c(speedup = speedup, efficiency = efficiency)
 ```
 
-Typical patterns for embarrassingly parallel code:
+Typical patterns for embarrassingly parallel code are as
+follows:
 
 - Tiny per-iteration work (microseconds): parallelism is
   net slower because of serialization overhead.
@@ -270,25 +281,27 @@ Typical patterns for embarrassingly parallel code:
 - Heavy per-iteration work (minutes): linear speedup up to
   saturation; possibly diminishing returns beyond.
 
-For the modest per-iteration work typical of bootstrap or
-simulation, expect 70 to 90% efficiency on 4 to 8 cores; lower
-on 16+ cores due to overhead and contention.
+For the modest per-iteration work typical of a bootstrap
+or simulation, we expect 70 to 90% efficiency on 4 to 8
+cores. Efficiency is lower on 16+ cores because of
+overhead and contention.
 
 ## Common pitfalls
 
-**RNG.** Already covered; `future.seed = TRUE` /
-`furrr_options(seed = TRUE)`.
+**RNG.** We covered this above; the remedy is
+`future.seed = TRUE` / `furrr_options(seed = TRUE)`.
 
 **Global state.** Workers receive a copy of the workspace
-needed to run the function. Variables not mentioned in
-the function body are not copied (saving time and memory),
-but variables hidden in environments may be missed. The
-modern `future` API tries to detect dependencies
-automatically; for unusual cases, use `furrr_options(globals = ...)`.
+needed to run the function. Variables not mentioned in the
+function body are not copied, which saves time and memory.
+However, variables hidden in environments may be missed.
+The modern `future` API tries to detect dependencies
+automatically, and for unusual cases we use
+`furrr_options(globals = ...)`.
 
-**BLAS oversubscription.** `RhpcBLASctl::blas_set_num_threads(1)`
-inside the worker prevents BLAS from spawning additional
-threads:
+**BLAS oversubscription.** Calling
+`RhpcBLASctl::blas_set_num_threads(1)` inside the worker
+prevents BLAS from spawning additional threads:
 
 ```r
 plan(multisession, workers = 4)
@@ -301,20 +314,21 @@ future_map_dbl(1:1000, function(i) {
 ```
 
 **Large data copies.** A 5 GB dataset replicated across 8
-workers consumes 40 GB. Three remedies:
+workers consumes 40 GB. There are three remedies:
 
 1. Load data inside the worker function rather than from
    the global environment.
-2. Use shared-memory backends (e.g., `bigmemory`,
-   `arrow`, `parquet` files read on demand).
+2. Use a shared-memory backend (e.g., `bigmemory`), or
+   keep the data on disk and read it on demand (e.g.,
+   Parquet files opened with `arrow`).
 3. Reduce the data: workers operate on a summary or a
    subset.
 
 **Oversubscription from over-parallelization.** Spawning
 more processes than cores is rarely useful and often
 counter-productive. `parallelly::availableCores()` reports
-the canonical 'how many cores can I use' value, respecting
-HPC scheduler limits.
+the canonical 'how many cores can I use' value, and it
+respects HPC scheduler limits.
 
 ## Worked example: parallel bootstrap
 
@@ -342,38 +356,38 @@ boot_means <- future_map_dbl(
 quantile(boot_means, c(0.025, 0.5, 0.975))
 ```
 
-For 10,000 bootstrap replicates each taking ~1 ms, this
-parallelizes cleanly across 4 cores: about 4× speedup
-compared to a serial version.
+For 10,000 bootstrap replicates, each taking ~1 ms, this
+parallelizes cleanly across 4 cores, with about a 4×
+speedup compared to a serial version.
 
 For the same data and a larger per-iteration cost (e.g.,
 fitting a model on each resample), the speedup approaches
-$n_\text{cores}$ exactly because the per-iteration cost
-dominates the per-iteration overhead.
+$n_\text{cores}$. The reason is precisely that the
+per-iteration cost dominates the per-iteration overhead.
 
 ## When *not* to parallelize
 
 - **Computation already fast.** Code that runs in 5 seconds
   is not worth the engineering effort.
-- **Sequential dependencies dominate.** A single MCMC
-  chain. A reduce/scan that mathematically requires
-  sequential evaluation.
+- **Sequential dependencies dominate.** Examples are a
+  single MCMC chain, or a reduce/scan that mathematically
+  requires sequential evaluation.
 - **Memory pressure.** If the data are large and the
-  per-iteration work is small, copying the data to
-  workers exceeds the work saved.
+  per-iteration work is small, the cost of copying the
+  data to workers exceeds the work saved.
 - **Many small tasks with serialization overhead.**
   `future_map_dbl(1:10000, function(i) i^2)` is slower
-  than the serial version because the overhead per task
+  than the serial version, because the overhead per task
   exceeds the work per task.
 
-The rule: parallelize when the per-iteration work is
-dominant, and the iterations are independent.
+The general rule is to parallelize when the per-iteration
+work is dominant and the iterations are independent.
 
 ## Collaborating with an LLM on parallel R
 
-LLMs handle the basic parallel APIs reasonably; the
-subtle correctness issues (RNG, BLAS, memory) are where
-they often fall short.
+LLMs handle the basic parallel APIs reasonably well. They
+often fall short, however, on the subtle correctness
+issues (RNG, BLAS, memory).
 
 **Prompt 1: parallelizing a serial loop.** Paste the
 serial loop and ask: 'parallelize this with `furrr` and
@@ -381,22 +395,23 @@ ensure reproducible random numbers.'
 
 *What to watch for.* The LLM should produce code with
 `furrr_options(seed = TRUE)`. If it does not, push back
-explicitly. The default behavior (no seed handling) is a
-silent correctness bug.
+explicitly, since the default behavior (no seed handling)
+is a silent correctness bug.
 
 *Verification.* Run twice with the same parent seed and
-verify identical results. If they differ, the seed
-handling is wrong.
+verify that the results are identical. If they differ, the
+seed handling is wrong.
 
 **Prompt 2: diagnosing poor speedup.** Describe the
 benchmark (e.g., '4 cores, expected 4× speedup, observed
 1.5×') and ask: 'what could be limiting parallel
 efficiency?'
 
-*What to watch for.* Standard suspects: BLAS
+*What to watch for.* The standard suspects are BLAS
 oversubscription, large data copies, small per-iteration
-work, hyperthreading limits. The LLM should mention
-several. If it fixates on one, push for the full list.
+work, and hyperthreading limits. The LLM should mention
+several of these. If it fixates on one, push for the full
+list.
 
 *Verification.* Apply each fix in turn and remeasure.
 Sometimes the fix is to give up and accept that this
@@ -412,17 +427,17 @@ Linux/macOS but does not work in RStudio. `cluster`
 backends require more setup. The LLM should know these
 trade-offs.
 
-*Verification.* Try the recommended plan and verify it
-runs on your platform. If it errors with 'not supported
+*Verification.* Try the recommended plan and verify that
+it runs on your platform. If it errors with 'not supported
 on Windows' or similar, switch to `multisession`.
 
 ## Principle in use
 
 Three habits define defensible parallel computation:
 
-1. **Profile before parallelizing.** Don't add parallel
+1. **Profile before parallelizing.** Do not add parallel
    overhead to code that is already fast enough.
-2. **Always use seed-aware parallel APIs.**
+2. **Always use seed-aware parallel APIs.** Use
    `future.seed = TRUE` or `furrr_options(seed = TRUE)`.
    Without them, results are silently miscalibrated.
 3. **Mind the BLAS.** For matrix-heavy parallel code, set
@@ -456,8 +471,8 @@ Three habits define defensible parallel computation:
 - [@bengtsson2021future], the JSS paper on `future`.
 - [@rizzo2019computing] Chapter 16, `parallel` and
   `foreach` in the context of simulation studies.
-- Eddelbuettel (2020), *Extending R*, Chapman and
-  Hall/CRC, Chapter 4, parallel R.
+- Eddelbuettel (2021), 'Parallel computing with R: a brief
+  review', *WIREs Computational Statistics* 13(2), e1515.
 
 ## Practice test {#sec-practice-test-parallel}
 
@@ -483,7 +498,7 @@ computing in R for statistical applications?
 ## Answer
 
 **B.** Parallel computing speeds up problems that
-decompose into independent tasks; it is not a universal
+decompose into independent tasks. It is not a universal
 speedup.
 :::
 
@@ -525,8 +540,8 @@ how many processor cores to use?
 ## Answer
 
 **C.** Saturating every core incurs overhead and degrades
-system responsiveness; the optimal worker count balances
-costs against gains.
+system responsiveness. The optimal worker count balances
+these costs against the gains.
 :::
 
 ### Question 4
@@ -545,8 +560,8 @@ consequence?
 ## Answer
 
 **B.** Without explicit parallel-safe RNG, the seed
-state across workers is undefined or correlated.
-Results are silently miscalibrated.
+state across workers is undefined or correlated, and the
+results are silently miscalibrated.
 :::
 
 ### Question 5
@@ -565,20 +580,20 @@ is:
 ::: {.callout-note collapse='true'}
 ## Answer
 
-**B.** Standard fix:
+**B.** The standard fix is to call
 `RhpcBLASctl::blas_set_num_threads(1)` inside each
-worker. The contention from competing BLAS threads
-often appears as 'parallel is barely faster than
-serial' on linear-algebra-heavy code.
+worker. Contention from competing BLAS threads often
+appears as 'parallel is barely faster than serial' on
+linear-algebra-heavy code.
 :::
 
 ## Prerequisites answers {#sec-quiz-answers-parallel}
 
 1. Parallel computing allows multiple independent
    computations to run simultaneously on multiple cores
-   or machines, reducing total wall-clock time for
-   suitable problems. It is not a universal speedup;
-   problems with strong serial dependencies cannot
+   or machines. This reduces total wall-clock time for
+   suitable problems. It is not a universal speedup,
+   since problems with strong serial dependencies cannot
    benefit.
 2. *Embarrassingly parallel* problems, whose work
    decomposes into fully independent tasks, are most
@@ -588,10 +603,10 @@ serial' on linear-algebra-heavy code.
    not. Multi-chain MCMC, however, is embarrassingly
    parallel at the chain level.
 3. Each parallel task incurs overhead (worker startup,
-   data serialization, result collection), so using
-   every core can slow a small computation rather than
-   speed it up. System responsiveness also degrades when
-   every core is saturated. For matrix-heavy code, BLAS
-   oversubscription compounds the problem: $k$ workers
-   each spawning $m$ BLAS threads is $km$ threads
-   competing on (typically) $k$ physical cores.
+   data serialization, result collection). Using every
+   core can therefore slow a small computation rather
+   than speed it up. System responsiveness also degrades
+   when every core is saturated. For matrix-heavy code,
+   BLAS oversubscription compounds the problem: $k$
+   workers each spawning $m$ BLAS threads is $km$
+   threads competing on (typically) $k$ physical cores.

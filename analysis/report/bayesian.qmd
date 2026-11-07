@@ -39,67 +39,78 @@ By the end of this chapter you should be able to:
 
 ## Orientation
 
-Bayesian inference answers: *given this data and what I
-believed before I saw it, what should I believe now?*
-Frequentist inference answers: *under repeated sampling,
-how would my procedure behave, for instance how often
-would its intervals cover the truth or its tests reject a
-true null?* Neither is universally correct; both
-are useful, and a biostatistician encounters both.
+Bayesian inference answers the question: *given these data
+and what I believed before I saw them, what should I
+believe now?* Frequentist inference answers a different
+question: *under repeated sampling, how would my procedure
+behave?* For instance, how often would its intervals cover
+the truth, or its tests reject a true null? Neither
+approach is universally correct. Both are useful, and a
+biostatistician encounters both.
 
 The computational tools to fit Bayesian models became
 accessible to non-specialists with the Stan ecosystem
 (2012-) and the tidy-Bayes R packages: `rstanarm`, `brms`,
-`bayestestR`, `posterior`. For most common models
+`bayestestR`, and `posterior`. For most common models
 (linear regression, GLMs, mixed-effects, survival), a
-Bayesian fit is now a one-liner that takes a minute or two
+Bayesian fit is now a one-liner. It takes a minute or two
 to run and produces output as easy to read as `summary(lm)`.
 
-This chapter teaches computation, not philosophy. For the
-philosophy, Gelman et al.'s *Bayesian Data Analysis* and
-McElreath's *Statistical Rethinking* are the canonical
-references. For the computation, Stan is the lingua franca
-and `rstanarm`/`brms` are the R wrappers that turn most
-common models into one-liners.
+This chapter is concerned with computation rather than
+philosophy. For the philosophy, Gelman et al.'s *Bayesian
+Data Analysis* [@gelman2013bda] and McElreath's
+*Statistical Rethinking* [@mcelreath2020rethinking] are
+the canonical references. For the computation, Stan is the
+lingua franca, and `rstanarm` and `brms` are the R wrappers
+that turn most common models into one-liners.
 
-A note on Stan backends. `rstan` is the original R
-interface and the default for `rstanarm` and (for many
-years) `brms`. `cmdstanr` is the contemporary alternative:
-it talks directly to the Stan command-line `cmdstan` and
-exposes new Stan features faster than `rstan` does.
-We would switch to `cmdstanr` (via
+In this chapter we shall proceed as follows. We begin with
+Bayes' theorem and a conjugate example, and then build a
+Metropolis-Hastings sampler from scratch. After a brief
+account of Hamiltonian Monte Carlo, we fit a Bayesian GLM
+with `rstanarm` and a hierarchical model with `brms`. We
+then turn to posterior summaries, posterior predictive
+checks, convergence diagnostics, and the choice of priors.
+
+A note on Stan backends is in order. `rstan` is the original
+R interface. It is the default for `rstanarm` and was, for
+many years, the default for `brms`. `cmdstanr` is the
+contemporary alternative. It talks directly to the Stan
+command-line `cmdstan` and exposes new Stan features faster
+than `rstan` does. We would switch to `cmdstanr` (via
 `brms::brm(..., backend = "cmdstanr")`) when a recent Stan
 feature is needed, or when shorter build times matter. For
-this chapter's coverage, the default `rstan` backend is fine.
+this chapter's coverage, the default `rstan` backend is
+adequate.
 
 ## The statistician's contribution {#sec-bayesian-human}
 
-Software supports Bayesian computation well. It does not
-make the judgments that matter: which prior, which model,
-whether the chain converged, and what the posterior
+Software supports Bayesian computation well. It does not,
+however, make the judgments that matter: which prior, which
+model, whether the chain converged, and what the posterior
 actually says.
 
-**Priors are not nuisance parameters.** A weakly informative
-default prior (`rstanarm`'s default for regression
-coefficients is `normal(0, 2.5)` on standardized scale) is
-fine for many applications and gives results numerically
-similar to a maximum-likelihood fit. Priors are not
+**Choose priors deliberately.** A weakly informative
+default prior is adequate for many applications, and it
+gives results numerically similar to a maximum-likelihood
+fit. (`rstanarm`'s default for regression coefficients is
+`normal(0, 2.5)` on the standardized scale.) Priors are not
 neutral, however, since they encode what was believed
 before the data arrived. For small samples, or for
-parameters with little
-information in the data, the prior dominates the
-posterior. The statistician's job is to choose priors
-deliberately, usually weakly informative, occasionally
-genuinely informative, and to do a sensitivity analysis
-when priors might matter.
+parameters with little information in the data, the prior
+dominates the posterior. The statistician's job is to
+choose priors deliberately, usually weakly informative and
+occasionally genuinely informative. It is also to carry out
+a sensitivity analysis when the priors might matter.
 
 **Establish convergence; do not assume it.** $\hat R$
-near 1.00 and adequate ESS are necessary, not sufficient.
-Trace plots, divergences (HMC), E-BFMI, and posterior
-predictive checks together build the case that the chain
-has converged to the right distribution. Any one of these
-failing is a problem; ignoring them and reporting the
-posterior mean as the answer is irresponsible.
+near 1.00 and adequate ESS are necessary but not
+sufficient. Trace plots, divergences (HMC), E-BFMI, and
+posterior predictive checks together build the case that
+the chain has converged to the right distribution. Any one
+of these failing is a problem. Ignoring them and reporting
+the posterior mean as the answer is
+irresponsible.
 
 **Credible intervals are not confidence intervals.** A
 95% credible interval is a probability statement about the
@@ -107,30 +118,32 @@ parameter: 'given the data and prior, the parameter has
 0.95 probability of being in this range'. A 95% confidence
 interval is a probability statement about the procedure:
 'in repeated sampling, this method captures the parameter
-95% of the time'. They have different interpretations and
-sometimes different numerical values. Reporting a credible
-interval as a 'CI' without qualification is a common error.
+95% of the time'. The two have different interpretations
+and sometimes different numerical values. Reporting a
+credible interval as a 'CI' without qualification is a
+common error.
 
 **Posterior predictive checks are not optional.** A model
 that fits its training data perfectly may still generate
 data that look nothing like the observed data on
 substantively important features (zero counts, extreme
-values, autocorrelation). `pp_check(fit)` overlays
+values, autocorrelation). `pp_check(fit)` overlays the
 observed data on simulated draws from the posterior
-predictive distribution; failures here are model-
-misspecification flags that no diagnostic of the
-parameters alone will catch.
+predictive distribution. Failures here flag model
+misspecification, and no diagnostic of the parameters alone
+will catch them.
 
 ## Bayes' theorem
 
-For a parameter $\theta$ and data $y$:
+We begin with the theorem itself. For a parameter $\theta$
+and data $y$,
 
 $$
 p(\theta \mid y) = \frac{p(y \mid \theta) \, p(\theta)}{p(y)}
 \quad \propto \quad p(y \mid \theta) \, p(\theta).
 $$
 
-The pieces:
+where the pieces are as follows.
 
 - $p(\theta)$: the **prior**, what you believe about
   $\theta$ before seeing the data.
@@ -143,25 +156,25 @@ The pieces:
   samples from the unnormalized posterior, so this
   integral is rarely computed in practice.
 
-The proportionality is the workable form. In closed form,
-when prior and likelihood are conjugate, the posterior has
-a known distributional form. In general, posterior
+The proportionality is the workable form. When prior and
+likelihood are conjugate, the posterior has a known
+distributional form. In general, however, posterior
 sampling is the route.
 
 ### A conjugate example: beta-binomial
 
-For $y \sim \mathrm{Binomial}(n, \theta)$ with prior
-$\theta \sim \mathrm{Beta}(\alpha, \beta)$:
+To illustrate, consider $y \sim \mathrm{Binomial}(n, \theta)$
+with prior $\theta \sim \mathrm{Beta}(\alpha, \beta)$. Then
 
 $$
 \theta \mid y \sim \mathrm{Beta}(\alpha + y, \beta + n - y).
 $$
 
-The posterior mean: $(\alpha + y) / (\alpha + \beta + n)$.
+The posterior mean is $(\alpha + y) / (\alpha + \beta + n)$.
 With a uniform prior $\mathrm{Beta}(1, 1)$ and data
 $y = 60$ successes out of $n = 100$, the posterior is
-$\mathrm{Beta}(61, 41)$ with mean $61/102 \approx 0.598$,
-just slightly shrunk from the MLE $0.6$ by the prior.
+$\mathrm{Beta}(61, 41)$. Its mean is $61/102 \approx 0.598$,
+shrunk only slightly from the MLE of $0.6$ by the prior.
 
 ```r
 n <- 100
@@ -175,14 +188,18 @@ qbeta(c(0.025, 0.975), alpha + y, beta + n - y)
 ```
 
 The 95% credible interval for $\theta$ comes directly from
-the beta quantile function. Compare to the Wald 95% CI for
-the same data: $0.6 \pm 1.96 \sqrt{0.6 \cdot 0.4 / 100} \approx (0.504, 0.696)$,
-nearly identical. With informative priors or smaller
-samples, the agreement weakens.
+the beta quantile function. The Wald 95% CI for the same
+data is
+$0.6 \pm 1.96 \sqrt{0.6 \cdot 0.4 / 100} \approx (0.504, 0.696)$,
+which is nearly identical. With informative priors or
+smaller samples, the agreement weakens.
 
 ## A Metropolis-Hastings sampler from scratch
 
-For a one-dimensional posterior $\pi(\theta) \propto p(y \mid \theta) p(\theta)$:
+Consider a one-dimensional posterior
+$\pi(\theta) \propto p(y \mid \theta) p(\theta)$. A
+Metropolis-Hastings sampler for it may be written as
+follows.
 
 ```r
 mh_sampler <- function(log_posterior, theta0, n_iter = 10000,
@@ -215,66 +232,70 @@ res <- mh_sampler(log_post, theta0 = 0.5, n_iter = 10000,
 res$accept_rate
 #> [1] 0.31
 
-# discard burn-in, summarise
+# discard burn-in, summarize
 samples <- res$samples[1001:10000]
 mean(samples)
 quantile(samples, c(0.025, 0.975))
 ```
 
-Three things matter for getting MH right:
+Three things matter for getting MH right.
 
-1. **Proposal distribution.** Symmetric (e.g., normal) is
-   the simplest case; the acceptance probability becomes
+1. **Proposal distribution.** A symmetric proposal (e.g.,
+   normal) is the simplest case, and the acceptance
+   probability becomes
    $\min(1, \pi(\theta_\text{prop})/\pi(\theta_\text{current}))$.
    Asymmetric proposals require the Metropolis-*Hastings*
    correction.
-2. **Tuning the proposal scale.** Too small → high
-   acceptance, slow exploration. Too large → low
-   acceptance, lots of rejections. The classic target is
-   acceptance around 0.234 in high dimensions, ~0.4--0.5
-   for one-dimensional problems.
+2. **Tuning the proposal scale.** Too small a scale gives
+   high acceptance but slow exploration. Too large a scale
+   gives low acceptance and many rejections. The classic
+   target is an acceptance rate of around 0.234 in high
+   dimensions and roughly 0.4 to 0.5 for one-dimensional
+   problems.
 3. **Burn-in and thinning.** The first samples depend on
-   the starting value; discard them. Thinning (keeping
-   every $k$th sample) is rarely useful with modern
-   diagnostics, ESS captures the relevant autocorrelation.
+   the starting value, so we discard them. Thinning
+   (keeping every $k$th sample) is rarely useful with
+   modern diagnostics, since ESS captures the relevant
+   autocorrelation.
 
-For high-dimensional posteriors, raw MH scales poorly:
-acceptance rates collapse, and chains move slowly through
-the posterior. Hamiltonian Monte Carlo (the engine in
-Stan) addresses this with momentum variables and gradient
-information, achieving much better mixing in high
-dimensions.
+Unfortunately, raw MH scales poorly to high-dimensional
+posteriors. Acceptance rates collapse, and chains move
+slowly through the posterior. Hamiltonian Monte Carlo (the
+engine in Stan) addresses this with momentum variables and
+gradient information. In this way it achieves much better
+mixing in high dimensions.
 
 ## Hamiltonian Monte Carlo, in one paragraph
 
-HMC augments the parameter space with momentum variables
-and uses the gradient of the log-posterior to propose
+HMC augments the parameter space with momentum variables.
+It then uses the gradient of the log-posterior to propose
 correlated steps that follow approximate Hamiltonian
-dynamics. The result: proposals are far from the current
-state but still in regions of high posterior density, so
-acceptance is high and effective sample size per iteration
-is much higher than MH. Stan implements an adaptive HMC
-variant called the No-U-Turn Sampler (NUTS) that tunes the
-trajectory length automatically. The cost per iteration is
-high (each requires multiple gradient evaluations), but
-the cost per effective sample is far lower than MH for
-problems with more than a handful of parameters. This is
-why `rstanarm` and `brms` work as well as they do on
-realistic models: NUTS can fit a hierarchical model in
+dynamics. As a result, proposals are far from the current
+state but still in regions of high posterior density. That
+is, acceptance is high, and the effective sample size per
+iteration is much higher than for MH. Stan implements an
+adaptive HMC variant called the No-U-Turn Sampler (NUTS),
+which tunes the trajectory length automatically. On the
+minus side, the cost per iteration is high, since each
+iteration requires multiple gradient evaluations. On the
+plus side, the cost per effective sample is far lower than
+for MH in problems with more than a handful of parameters.
+This is why `rstanarm` and `brms` work as well as they do
+on realistic models. NUTS can fit a hierarchical model in
 seconds when MH would take hours.
 
-You will not implement HMC by hand for this course;
-understanding why it dominates MH is enough.
+We shall not implement HMC by hand in this course. It is
+enough to understand why it dominates MH.
 
 ## Fitting a Bayesian GLM with `rstanarm`
 
-`rstanarm` mirrors base R's modeling functions:
+`rstanarm` mirrors base R's modeling functions. It offers
 `stan_lm` for linear regression, `stan_glm` for GLMs,
-`stan_lmer` and `stan_glmer` for mixed-effects, `stan_polr`
-for ordinal regression, `stan_betareg` for beta regression,
-and several others. Default priors are weakly informative
-on the standardized scale, which works for most regression
-problems out of the box.
+`stan_lmer` and `stan_glmer` for mixed-effects models,
+`stan_polr` for ordinal regression, `stan_betareg` for beta
+regression, and several others. The default priors are
+weakly informative on the standardized scale, which works
+for most regression problems without adjustment.
 
 ```r
 library(rstanarm)
@@ -297,25 +318,25 @@ summary(fit)
 broom.mixed::tidy(fit, conf.int = TRUE)
 ```
 
-`prior` controls the prior on slope coefficients;
-`prior_intercept` the prior on the intercept; `prior_aux`
-the prior on the residual standard deviation. The
-`autoscale = TRUE` flag rescales the prior to the standard
-deviation of each predictor, making default priors
-sensible across covariate scales.
+The argument `prior` controls the prior on the slope
+coefficients, `prior_intercept` the prior on the intercept,
+and `prior_aux` the prior on the residual standard
+deviation. The `autoscale = TRUE` flag rescales the prior
+to the standard deviation of each predictor. This makes the
+default priors sensible across covariate scales.
 
-The output:
+The output contains the following quantities.
 
 - **Median** posterior estimate per coefficient (the
   default; mean is also available).
 - **MAD_SD**: the median absolute deviation of the
   posterior, scaled to be comparable to a frequentist SE.
-- **Sample sizes**: ESS for each parameter; should be
-  several hundred minimum for reliable quantile-based
+- **Sample sizes**: ESS for each parameter. It should be
+  at least several hundred for reliable quantile-based
   summaries.
 - **$\hat R$**: should be < 1.01 for every parameter.
 
-Comparison to `lm()`:
+We may compare the fit to `lm()` as follows.
 
 ```r
 fit_lm <- lm(body_mass_g ~ flipper_length_mm + species, data = penguins)
@@ -326,8 +347,11 @@ cbind(
 ```
 
 Under weakly informative priors, the posterior medians
-should match the OLS coefficients to several decimal
-places, and the MAD_SDs should match the SEs. The match
+should agree closely with the OLS coefficients, and the
+MAD_SDs with the SEs. The remaining differences are of the
+order of the Monte Carlo error, which for a few thousand
+posterior draws is a small fraction of a standard error.
+The match
 becomes worse as priors become more informative, sample
 sizes shrink, or the model becomes more hierarchical.
 
@@ -340,18 +364,21 @@ maximum likelihood estimate?
 
 **Answer.**
 
-Three conditions, alone or in combination, drive the gap:
-(1) informative priors that pull the posterior away from
-the data; (2) small sample sizes, where prior weight
-relative to likelihood weight is large; (3) hierarchical
-structure, where the Bayesian model imposes shrinkage of
-group-level parameters toward the population mean while a
-frequentist mixed model does the same through its BLUPs
-but plugs in the estimated variance components rather
-than averaging over their uncertainty. With a weakly
-informative or uniform prior, a moderate sample size, and
-a non-hierarchical model, the two approaches will agree to about three significant
-digits, and reporting the Bayesian fit produces no
+Three conditions, alone or in combination, drive the gap.
+The first is an informative prior that pulls the posterior
+away from the data. The second is a small sample, in which
+the weight of the prior relative to the likelihood is
+large. The third is hierarchical structure. Here the
+Bayesian model shrinks group-level parameters toward the
+population mean. A frequentist mixed model does the same
+through its BLUPs, but it plugs in the estimated variance
+components rather than averaging over their uncertainty.
+With a weakly informative or uniform prior, a moderate
+sample size, and a non-hierarchical model, the two
+approaches will agree closely. The remaining differences
+are of the order of the Monte Carlo error, a small fraction
+of a standard error.
+In that case, reporting the Bayesian fit produces no
 substantive change to the conclusions.
 
 :::
@@ -359,9 +386,10 @@ substantive change to the conclusions.
 ## Fitting a Bayesian hierarchical model with `brms`
 
 `brms` translates a `lme4`-style formula into a Stan model
-and fits it. The interface is more flexible than
-`rstanarm` (custom likelihoods, censored outcomes, splines,
-mixture models) at the cost of slower compile times.
+and fits it. Its interface is more flexible than that of
+`rstanarm`, accommodating custom likelihoods, censored
+outcomes, splines, and mixture models. The cost of this
+flexibility is slower compile times.
 
 ```r
 library(brms)
@@ -382,34 +410,36 @@ plot(fit)
 posterior::summarise_draws(fit, default_summary_measures())
 ```
 
-Compare to `lme4::lmer(Reaction ~ Days + (Days | Subject), data = sleepstudy)`:
-the fixed-effect estimates should agree closely (weakly
-informative priors); the random-effect variance components
-should agree closely; the BLUPs from `lmer` and the
+We may compare this fit to
+`lme4::lmer(Reaction ~ Days + (Days | Subject), data = sleepstudy)`.
+Under weakly informative priors, the fixed-effect estimates
+should agree closely, and so should the random-effect
+variance components. The BLUPs from `lmer` and the
 posterior means of the subject-specific deviations from
-`brm` should also agree, with `brm` producing slightly
-more shrinkage when the data are sparse for a subject.
+`brm` should also agree. We would expect `brm` to produce
+slightly more shrinkage when the data for a subject are
+sparse.
 
 In a Bayesian model, random effects are parameters with
-a hierarchical prior. The prior's
-variance (the random-effects SD) is itself estimated. There
-is no philosophical distinction between fixed and random
-effects in a Bayesian model; both are parameters, and the
-hierarchical prior on the latter is what produces the
+a hierarchical prior. The variance of that prior (the
+random-effects SD) is itself estimated. There is no
+philosophical distinction between fixed and random effects
+in a Bayesian model. Both are parameters, and it is the
+hierarchical prior on the latter that produces the
 shrinkage.
 
 ## `cmdstanr` for advanced Stan use
 
 `cmdstanr` is the recommended interface to Stan for
 advanced users. It talks directly to the cmdstan
-executable, supports the latest Stan features fastest, and
-is one of the two backends `brms` can use. Use
-`cmdstanr::install_cmdstan()` once; subsequent
+executable and supports the latest Stan features soonest.
+It is also one of the two backends that `brms` can use. We
+run `cmdstanr::install_cmdstan()` once, and subsequent
 `brms::brm(... backend = "cmdstanr")` calls will use it.
 For most users, `brms` with the default `rstan` backend is
-fine; switch to `cmdstanr` when you need a Stan feature
-that `rstan` does not yet expose, or when build-time
-matters.
+adequate. We would switch to `cmdstanr` when we need a Stan
+feature that `rstan` does not yet expose, or when build
+time matters.
 
 ## Posterior summaries
 
@@ -428,72 +458,77 @@ summarise_draws(draws,
                 ess_tail)
 ```
 
-The columns:
+The columns are as follows.
 
 - `mean`, `2.5%`, `50%`, `97.5%`: posterior summaries.
-  The 95% credible interval is the 2.5th to 97.5th
-  percentile of the posterior; the median is often more
-  robust than the mean for skewed posteriors.
-- `rhat`: $\hat R$. Want < 1.01.
+  The 95% credible interval runs from the 2.5th to the
+  97.5th percentile of the posterior. The median is often
+  more robust than the mean for skewed posteriors.
+- `rhat`: $\hat R$. We want values < 1.01.
 - `ess_bulk`, `ess_tail`: bulk and tail effective sample
-  sizes. Want at least a few hundred each for reliable
+  sizes. We want at least a few hundred each for reliable
   posterior quantile summaries.
 
 `tidybayes` provides similar functionality with a more
 ggplot-friendly API. `bayesplot` produces standardized
-diagnostic plots: trace plots, autocorrelation,
-posterior interval plots.
+diagnostic plots, including trace plots, autocorrelation
+plots, and posterior interval plots.
 
 ## Posterior predictive checks
 
 `pp_check(fit)` overlays the observed data on draws from
-the posterior predictive distribution. Misfit is visible:
+the posterior predictive distribution, so that misfit
+becomes visible.
 
 ```r
 pp_check(fit, ndraws = 100)
 ```
 
-The default plot shows the observed outcome density vs.
-posterior predictive draws. A model whose posterior
-predictive draws differ systematically from the observed
-data (in mode, variance, range, or proportion of zeros)
-is misspecified on something the data are sensitive to.
+The default plot shows the observed outcome density
+against the posterior predictive draws. Suppose the draws
+differ systematically from the observed data, in mode,
+variance, range, or proportion of zeros. Then the model is
+misspecified on some feature to which the data are
+sensitive.
 
-PP checks are routinely overlooked. A posterior with
-$\hat R = 1.000$ and tight credible intervals can still
-come from a model that does not describe the data, and
-the parameter diagnostics will not reveal it.
+Unfortunately, PP checks are routinely overlooked. A
+posterior with $\hat R = 1.000$ and tight credible intervals
+can still come from a model that does not describe the
+data, and the parameter diagnostics will not reveal it.
 
 ## Convergence diagnostics
 
-Required:
+Three diagnostics are required for every fit.
 
 - **Trace plots.** Visual check for stationarity (no
   drift) and mixing (chains overlap, look like white
   noise).
-- **$\hat R$.** Want < 1.01 for every parameter. $\hat R$
-  compares within-chain variance to between-chain
-  variance; values near 1 mean the chains have all
-  converged to the same distribution.
-- **Effective sample size.** Want at least 400 in
-  `ess_bulk` and `ess_tail` per parameter. Lower ESS
-  means the chain is autocorrelated; quantile-based
-  summaries are noisy.
+- **$\hat R$.** We want values < 1.01 for every
+  parameter. $\hat R$ compares within-chain variance to
+  between-chain variance. Values near 1 mean that the
+  chains have all converged to the same distribution.
+- **Effective sample size.** We want at least 400 in
+  `ess_bulk` and `ess_tail` per parameter. A lower ESS
+  means that the chain is autocorrelated, and
+  quantile-based summaries are then noisy.
 
-For HMC (Stan-based fits, including `rstanarm` and `brms`):
+For HMC (Stan-based fits, including `rstanarm` and `brms`),
+two further diagnostics apply.
 
-- **Divergences.** Should be zero (or nearly). A divergent
-  transition is HMC failing to integrate the dynamics
-  faithfully. Even one divergence flags a problem; many
-  divergences typically mean the model is not as
-  identifiable as you thought, or the parameterization is
-  bad. Standard fix: non-centered parameterization
-  (especially for hierarchical scale parameters) and
+- **Divergences.** These should be zero, or nearly so. A
+  divergent transition is HMC failing to integrate the
+  dynamics faithfully. Even one divergence flags a
+  problem. Many divergences typically mean that the model
+  is not as identifiable as we thought, or that the
+  parameterization is poor. The standard remedy is a
+  non-centered parameterization (especially for
+  hierarchical scale parameters) together with
   `adapt_delta = 0.99` (the default is 0.8).
-- **E-BFMI.** Energy-based fraction of missing information.
-  Should be > 0.3. Low E-BFMI suggests the posterior has
-  funnel-like shape that HMC struggles with; usually a
-  reparameterization problem.
+- **E-BFMI.** This is the energy-based fraction of missing
+  information, and it should be > 0.3. A low E-BFMI
+  suggests that the posterior has a funnel-like shape that
+  HMC struggles with. This is usually a reparameterization
+  problem.
 
 ```r
 library(bayesplot)
@@ -511,17 +546,17 @@ posterior summary for that parameter?
 
 **Answer.**
 
-No. ESS = 80 means the effective number of independent
-samples for that parameter is only 80, so quantile-based
-summaries (the credible interval bounds especially) have
-substantial Monte Carlo error. The posterior median is
-probably accurate; the 2.5th and 97.5th percentiles
-might shift by 5--10% on a re-run. Standard fix: run
-more iterations (`iter = 4000` instead of the default
-2000), or improve mixing via reparameterization. The
-threshold of 400 ESS for reliable quantile summaries is
-the published guideline (Vehtari et al. 2021); below
-that, treat the credible-interval bounds as
+No. ESS = 80 means that the effective number of
+independent samples for that parameter is only 80. As a
+result, quantile-based summaries (the credible interval
+bounds especially) have substantial Monte Carlo error. The
+posterior median is probably accurate, but the 2.5th and
+97.5th percentiles might shift by 5 to 10% on a re-run. The
+standard remedy is to run more iterations (`iter = 4000`
+instead of the default 2000) or to improve mixing via
+reparameterization. @vehtari2021rhat give a threshold
+of 400 ESS for reliable quantile summaries. Below that
+threshold, we would treat the credible-interval bounds as
 approximate.
 
 :::
@@ -530,10 +565,11 @@ approximate.
 
 `rstanarm` and `brms` use weakly informative defaults.
 For most regression problems with reasonable sample sizes,
-these are fine. When are they not?
+these are adequate. But when are they not?
 
 - **Very small samples.** With $n = 20$, the prior may
-  shape the posterior more than the data do. Be deliberate.
+  shape the posterior more than the data do, and the
+  choice of prior must be deliberate.
 - **Strong prior knowledge.** When external evidence
   genuinely informs the parameter (e.g., a meta-analysis
   has pinned the treatment effect to a narrow range),
@@ -543,10 +579,10 @@ these are fine. When are they not?
   factor model) needs a prior that the data cannot
   fully overrule.
 
-For sensitivity analysis, refit with two alternative
-priors and report whether conclusions change. If they do,
-disclose; if they do not, the analysis is robust to the
-prior choice.
+For a sensitivity analysis, we refit with two alternative
+priors and report whether the conclusions change. If they
+do, we disclose the dependence. If they do not, the
+analysis is robust to the choice of prior.
 
 ```r
 fit_default <- stan_glm(y ~ x, data = d)
@@ -559,8 +595,8 @@ fit_optimistic <- stan_glm(y ~ x, data = d, prior = normal(2, 1))
 ## Collaborating with an LLM on Bayesian computation
 
 LLMs handle the syntax of `stan_glm` and `brm` reasonably
-well; they handle the diagnostics and prior choices much
-less reliably.
+well. They handle the diagnostics and the choice of priors
+much less reliably.
 
 **Prompt 1: translating a frequentist fit.** Paste the
 output of `glm(...)` and ask: 'fit the equivalent
@@ -569,41 +605,43 @@ priors. Compare the coefficients to the frequentist
 estimates and explain any differences.'
 
 *What to watch for.* The LLM should produce a fit with
-similar coefficients (under weakly informative priors,
-they will agree to several decimals on most data). If the
-LLM produces wildly different estimates, suspect that the
-priors are too informative or the chain has not converged.
+similar coefficients, since under weakly informative priors
+they will agree on most data up to Monte Carlo error. If the
+LLM produces wildly different estimates, we should suspect
+that the priors are too informative or that the chain has
+not converged.
 
-*Verification.* Run both fits. Print the coefficients side
-by side. Check $\hat R$ and ESS for the Bayesian fit. If
-either is bad, the comparison is meaningless.
+*Verification.* Run both fits and print the coefficients
+side by side. Check $\hat R$ and ESS for the Bayesian fit.
+If either is poor, the comparison is meaningless.
 
 **Prompt 2: diagnosing a non-converged chain.** Paste the
 warning ('There were N divergent transitions...') and the
 relevant trace plots, and ask: 'what is happening, and
 what should I try?'
 
-*What to watch for.* Standard remedies for divergences:
-non-centered parameterization for hierarchical scales,
-`adapt_delta = 0.99`, more informative priors on
-problematic parameters. The LLM should know these. If it
-suggests 'just ignore the warning', push back.
+*What to watch for.* The standard remedies for divergences
+are a non-centered parameterization for hierarchical
+scales, `adapt_delta = 0.99`, and more informative priors
+on problematic parameters. The LLM should know these. If
+it suggests 'just ignore the warning', we should push back.
 
-*Verification.* Implement the suggested fix and verify the
-divergences disappear. If they do not, escalate (a
-reparameterization that LLMs do not always identify is
-needed).
+*Verification.* Implement the suggested fix and verify
+that the divergences disappear. If they do not, the problem
+should be escalated, since it presumably needs a
+reparameterization that LLMs do not always identify.
 
 **Prompt 3: posterior predictive check interpretation.**
 Paste the `pp_check` plot description and ask: 'what does
 this say about the model?'
 
 *What to watch for.* LLMs can usually identify obvious
-mismatches (mode in wrong place, missing tail behavior,
-zero-inflation). They are weaker on subtle mismatches that
-require subject-matter knowledge. Trust the LLM's pattern-
-matching but verify the substantive judgment against
-your understanding of the data.
+mismatches, such as a mode in the wrong place, missing tail
+behavior, or zero-inflation. They are weaker on subtle
+mismatches that require subject-matter knowledge. We may
+trust the LLM's pattern-matching, but we should verify the
+substantive judgment against our own understanding of the
+data.
 
 ## Principle in use
 
@@ -635,8 +673,8 @@ Three habits define defensible Bayesian computation:
    0.4?
 3. Fit the `sleepstudy` random-slope model with both
    `lme4::lmer()` and `brms::brm()`. Compare the fixed
-   effects, the variance components, and the subject-
-   specific intercepts and slopes (BLUPs from lmer vs.
+   effects, the variance components, and the subject-specific
+   intercepts and slopes (BLUPs from lmer vs.
    posterior means from brm). Under what conditions would
    you expect them to disagree?
 4. Run a `stan_glm()` fit with three different priors on
@@ -651,17 +689,17 @@ Three habits define defensible Bayesian computation:
 
 ## Further reading
 
-- Gelman et al. (2013), *Bayesian Data Analysis*, 3rd
+- [@gelman2013bda], *Bayesian Data Analysis*, 3rd
   ed., Chapman and Hall/CRC, the canonical reference.
-- McElreath (2020), *Statistical Rethinking*, 2nd ed.,
-  accessible introduction paired with `brms` code.
+- [@mcelreath2020rethinking], *Statistical Rethinking*,
+  2nd ed., accessible introduction paired with `brms` code.
 - Stan Development Team documentation at
   `mc-stan.org/docs`, the ecosystem reference.
-- Vehtari et al. (2021), 'Rank-normalization, folding,
+- [@vehtari2021rhat], 'Rank-normalization, folding,
   and localization: an improved $\hat R$ for assessing
   convergence of MCMC', *Bayesian Analysis*, the
   modern guideline for $\hat R$ and ESS thresholds.
-- Bürkner (2017), 'brms: An R package for Bayesian
+- [@burkner2017brms], 'brms: An R package for Bayesian
   multilevel models using Stan', *JSS*, the brms paper.
 
 ## Practice test {#sec-practice-test-bayesian}
@@ -794,15 +832,18 @@ alone catches.
    densities. It requires only the ability to evaluate
    the posterior up to a constant. A Gibbs step samples
    each parameter (or block of parameters) from its
-   full conditional distribution. Gibbs is possible only
-   when the full conditionals are available in closed
-   form, typically via conjugacy. MH applies more
-   generally; Gibbs is more efficient when available.
+   full conditional distribution. Gibbs is possible
+   whenever each full conditional can be sampled. This is
+   simplest when the full conditionals have closed forms,
+   typically via conjugacy; otherwise a step such as
+   slice sampling or an MH step within Gibbs is needed.
+   MH applies more generally; Gibbs is more efficient
+   when available.
 3. Trace plots (visual check for stationarity and
    mixing), the Gelman-Rubin statistic $\hat R$ (want
    < 1.01), effective sample size (ESS; want more than
-   several hundred per parameter for reliable quantile-
-   based summaries), and, for HMC, the divergence count
+   several hundred per parameter for reliable quantile-based
+   summaries), and, for HMC, the divergence count
    (ideally zero) and E-BFMI (ideally > 0.3). $\hat R$
    compares within-chain and between-chain variance
    after discarding burn-in; values near 1 indicate

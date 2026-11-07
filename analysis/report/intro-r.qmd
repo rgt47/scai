@@ -32,49 +32,58 @@ By the end of this chapter you should be able to:
 R is the *lingua franca* of statistical computing in academic
 biostatistics. It is not the fastest language, nor the most
 elegant. It does, however, have by far the richest library of
-statistical methods and the largest community of statisticians
-reading, writing, and reviewing code. This chapter aims to get
-you fluent enough in R to read the rest of the book.
+statistical methods. It also has the largest community of
+statisticians reading, writing, and reviewing code. Our aim in
+this chapter is to make the reader fluent enough in R to read
+the rest of the book.
+
+We begin with the decisions that remain with the statistician,
+and then turn to installation and the organization of an R
+session. We then cover atomic vectors and coercion,
+subsetting, and vectorization. The chapter closes with the
+essentials of the tidyverse and a set of prompts for working
+with an LLM.
 
 ## The statistician's contribution {#sec-intro-r-human}
 
 Large language models can produce passable R code for almost
 any introductory task. We shall see, however, that three
-decisions still require the statistician's judgment.
+decisions still require the judgment of the statistician.
 
 **1. Type discipline.** R coerces silently between types in
 ways that can hide errors. `c(1, '2')` becomes
 `c('1', '2')` (character); `TRUE + 1` becomes `2` (double).
 An LLM will happily accept whatever types flow through its
-generated code. You must decide, before any computation runs,
-which types the data *should* carry, and assert them with
-`stopifnot(is.numeric(x))` where it matters.
+generated code. It is therefore necessary for you to decide,
+before any computation runs, which types the data *should*
+carry. Where it matters, you should assert them with
+`stopifnot(is.numeric(x))`.
 
 **2. Base R vs tidyverse framing.** The same transformation
 can be expressed in base R and in `dplyr`. An LLM will lean
-toward whichever style dominated its training data, usually
-`dplyr` for interactive work. The performance, dependency,
-and readability tradeoffs belong to you, and the project's
-needs should settle them.
+toward whichever style dominated its training data, which is
+usually `dplyr` for interactive work. The tradeoffs in
+performance, dependencies, and readability belong to you, and
+the needs of the project should settle them.
 
 **3. Edge cases in statistical data.** R's built-in functions
 handle `NA`, `NaN`, `Inf`, zero-length vectors, and
 length-mismatched vectors in different ways. The defaults
-are usually right for general-purpose data; they are often
-wrong for biomedical data where missingness is informative.
-An LLM will not check whether your data has the edge cases
-that would break its generated code, so that check falls to
-you.
+are usually right for general-purpose data. Unfortunately,
+they are often wrong for biomedical data, where missingness is
+informative. An LLM will not check whether your data have the
+edge cases that would break its generated code, and so that
+check falls to you.
 
 ## Installing R and RStudio
 
 R is a free and open-source implementation of the S
-programming language. Download the base R installer from the
-Comprehensive R Archive Network ([CRAN](https://cran.r-project.org/));
-Posit's RStudio Desktop, a free integrated development
-environment, is available at
-<https://posit.co/download/rstudio-desktop/>. Install R first,
-then RStudio.
+programming language. The base R installer may be downloaded
+from the Comprehensive R Archive Network
+([CRAN](https://cran.r-project.org/)). Posit's RStudio
+Desktop, a free integrated development environment, is
+available at <https://posit.co/download/rstudio-desktop/>.
+Install R first, then RStudio.
 
 On macOS, the `rig` command-line tool
 (<https://github.com/r-lib/rig>) lets you install and switch
@@ -86,16 +95,16 @@ rig add release        # installs the current stable R
 rig default release
 ```
 
-Verify the installation:
+We then verify the installation:
 
 ```sh
 R --version
 # R version 4.5.3 (2026-02-28) -- 'Single Candle'
 ```
 
-Launch RStudio. The default four-pane layout gives you a
-script editor, a console, an environment inspector, and a
-files/plots/help browser.
+When RStudio is launched, its default four-pane layout
+provides a script editor, a console, an environment
+inspector, and a files/plots/help browser.
 
 ## The R console, scripts, and projects
 
@@ -103,34 +112,37 @@ An R session is anchored to a working directory and a set of
 loaded packages. Two conventions make sessions reproducible.
 
 **Use RStudio projects.** A `.Rproj` file tells RStudio that
-the enclosing directory is a project; opening the file sets
+the enclosing directory is a project. Opening the file sets
 the working directory automatically and isolates the session
-from the rest of your filesystem. Always work inside a
-project, never from a stray session rooted in `~/`.
+from the rest of your filesystem. We recommend that you always
+work inside a project, never from a stray session rooted in
+`~/`.
 
 **Prefer scripts over the console.** The console is for quick
-exploration; scripts are for work that must be reproducible.
-A script is a `.R` or `.qmd` file you can rerun from top to
-bottom and obtain the same result. Analyses that live only in
-the console history evaporate when the session ends.
+exploration, and scripts are for work that must be
+reproducible. A script is a `.R` or `.qmd` file that you can
+rerun from top to bottom to obtain the same result. Analyses
+that live only in the console history are lost when the
+session ends.
 
 The `.Rprofile` file in a project runs automatically when you
-open a session. Use it to set session-wide options like the
-CRAN mirror or the preferred number of significant digits.
-`renv` extends this pattern to pin package versions; package
-and environment management is covered in detail in the
-practicum companion volume.
+open a session. It is the natural place to set session-wide
+options, such as the CRAN mirror or the preferred number of
+significant digits. The `renv` package extends this pattern to
+pin package versions. Package and environment management is
+covered in detail in the practicum companion volume.
 
 ## Atomic vectors and coercion
 
 Everything in R is built from vectors. Even a single number
 like `5` is a vector of length 1.
 
-R has five primary atomic types: `logical`, `integer`,
-`double`, `character`, and `complex`. All elements of an
-atomic vector share a type. If you try to combine mixed
-types, R silently coerces them to the most general type in
-the chain `logical → integer → double → character`.
+R has six atomic types: `logical`, `integer`, `double`,
+`character`, `complex`, and `raw`. The last two are rarely
+used in statistical work. All elements of an atomic vector
+share a type. When we combine mixed types, R
+silently coerces them to the most general type in the chain
+`logical → integer → double → character`.
 
 ```{.r}
 c(TRUE, 1L)         # -> integer: 1, 1
@@ -138,11 +150,11 @@ c(TRUE, 1L, 2.5)    # -> double:  1.0, 1.0, 2.5
 c(TRUE, 1L, 'x')    # -> character: 'TRUE', '1', 'x'
 ```
 
-Silent coercion is a common source of bugs. `sum(c(1, 2, NA))`
-returns `NA`, not `3`. `mean(c(TRUE, FALSE, TRUE))` returns
-`0.667` because the logicals coerce to `c(1, 0, 1)`, which is
-numerically correct and often useful but can surprise
-readers.
+Silent coercion is a common source of bugs. To illustrate,
+`sum(c(1, 2, NA))` returns `NA`, not `3`. Similarly,
+`mean(c(TRUE, FALSE, TRUE))` returns `0.667` because the
+logicals coerce to `c(1, 0, 1)`. That result is numerically
+correct and often useful, but it can surprise readers.
 
 **Lists** differ from atomic vectors in that their elements
 can each carry a different type:
@@ -152,8 +164,9 @@ list(1, 'a', TRUE)    # length-3 list, three distinct types
 ```
 
 Operations that work on atomic vectors often do not work on
-lists; reach for `lapply()`, `sapply()`, or `purrr::map_*()`
-when iterating over list elements (@sec-functional).
+lists. When iterating over list elements, the appropriate
+tools are `lapply()`, `sapply()`, or `purrr::map_*()`
+(@sec-functional).
 
 **Special values:**
 
@@ -208,8 +221,8 @@ x[c('a', 'b')]    # character: works only if x has names
 
 For data frames, `[row, col]` applies the subsetting rules
 along both dimensions. The expression `df[df$x > 0, ]` uses a
-logical row index (`df$x > 0`) to keep rows where `x` is
-positive and a missing column index to keep all columns.
+logical row index (`df$x > 0`) to keep the rows where `x` is
+positive. The missing column index keeps all columns.
 
 ```{.r}
 df <- data.frame(
@@ -223,16 +236,17 @@ df[df$grp == 'a', ]   # rows in group 'a'
 df[, c('id', 'x')]    # two columns, all rows
 ```
 
-A logical index built from a column that contains `NA`
-produces `NA` rows, not dropped rows. This surprises people.
-Use `which()` or `subset()` if you want `NA` rows dropped.
+We note that a logical index built from a column containing
+`NA` produces `NA` rows rather than dropping those rows, a
+behavior that surprises many users. If you want the `NA` rows
+dropped, use `which()` or `subset()`.
 
 ## Vectorization
 
-Vectorization is applying an operation to every element of a
-vector at once, rather than writing an explicit loop. It is
-the central design principle of R: nearly every built-in
-function is vectorized.
+Vectorization means applying an operation to every element of
+a vector at once, without an explicit loop. It is the central
+design principle of R, and nearly every built-in function is
+vectorized.
 
 ```{.r}
 x <- c(1, 2, 3, 4, 5)
@@ -248,10 +262,10 @@ shorter vector to match the longer:
 c(1, 2, 3, 4) + c(10, 20)    # 11 22 13 24  (recycled)
 ```
 
-Recycling without warning is convenient for scalar + vector
-arithmetic but dangerous when lengths mismatch by accident. R
-warns if the longer length is not a multiple of the shorter,
-but not otherwise.
+On the one hand, recycling without warning is convenient for
+scalar + vector arithmetic. On the other, it is dangerous when
+lengths mismatch by accident. R warns if the longer length is
+not a multiple of the shorter, but not otherwise.
 
 **Loop vs vectorized.** The following benchmark compares the
 two on the same computation:
@@ -276,10 +290,15 @@ bench::mark(
 )
 ```
 
-The vectorized version is typically 10 to 100× faster because
-the elementwise arithmetic happens in compiled C code, not in
-R's interpreter. For a vector of length 1 million the gap
-grows to 1000× or more.
+The vectorized version is faster because the elementwise
+arithmetic happens in compiled C code, not in R's
+interpreter. The size of the gap depends on the R version, the
+hardware, and the length of the vector. On one recent laptop
+running R 4.6, the vectorized version was roughly twice as
+fast for the 150 values of `iris$Sepal.Length`. For a vector
+of length 1 million it was roughly ten times as fast. R's
+byte-code compiler has narrowed the gap considerably for
+simple loops of this kind.
 
 ::: {.callout-tip collapse='true'}
 ## Check your understanding
@@ -296,17 +315,18 @@ actual arithmetic for simple operations.
 
 Not every algorithm vectorizes. Sequential updates (MCMC
 chains, sequential hypothesis tests, change-point detection)
-require each step to depend on the previous one and cannot be
-written as single elementwise expressions. For these cases,
-`Rcpp` (@sec-r-internals) lets you write a C++ loop that R
-calls as a single function.
+require each step to depend on the previous one. Such updates
+cannot be written as single elementwise expressions. For these
+cases, `Rcpp` (@sec-r-internals) lets us write a C++ loop that
+R calls as a single function.
 
 ## Tidyverse essentials
 
 The tidyverse is a coordinated set of packages (`dplyr`,
 `tidyr`, `ggplot2`, `purrr`, and others) that share a common
-grammar for data manipulation and visualization. `dplyr`
-provides six core verbs and a pipe operator that chains them.
+grammar for data manipulation and visualization. The `dplyr`
+package provides six core verbs and a pipe operator that
+chains them.
 
 The native R pipe `|>` (introduced in R 4.1, 2021) passes its
 left-hand side as the first argument to the right-hand side:
@@ -317,7 +337,7 @@ x |> round(digits = 2)  # same as round(x, digits = 2)
 ```
 
 Earlier tidyverse code uses the magrittr pipe `%>%`. The two
-are similar; this book uses the native pipe exclusively.
+are similar, and this book uses the native pipe exclusively.
 
 The six `dplyr` verbs apply to data frames:
 
@@ -330,7 +350,7 @@ The six `dplyr` verbs apply to data frames:
 | `arrange(df, col)`      | Sort rows |
 | `group_by(df, col)`     | Group for later verbs |
 
-A typical pipeline:
+To illustrate, consider a typical pipeline:
 
 ```{.r}
 library(dplyr)
@@ -346,11 +366,11 @@ ChickWeight |>
   arrange(Diet, Time)
 ```
 
-The pipe reads top-to-bottom like an analysis plan: start
-with `ChickWeight`, keep the first 14 days, group by diet and
-day, summarize, sort. The same computation in base R would
-fragment into intermediate variables and nested function
-calls; the pipe keeps the data flow visible.
+The pipe reads from top to bottom like an analysis plan. We
+start with `ChickWeight`, keep the first 14 days, group by diet
+and day, summarize, and sort. The same computation in base R
+would fragment into intermediate variables and nested function
+calls. The pipe, by contrast, keeps the data flow visible.
 
 ::: {.callout-tip collapse='true'}
 ## Check your understanding
@@ -366,10 +386,10 @@ to a single row.
 
 ## Collaborating with an LLM on R essentials
 
-Section @sec-intro-r-human named three decisions that require
-statistician judgment. The prompts below exercise each one.
-Treat the LLM's response as a hypothesis to verify, not a
-result to trust.
+In @sec-intro-r-human we named three decisions that require
+the judgment of the statistician. The prompts below exercise
+each one. As elsewhere in the book, the reader should treat
+the response of the LLM as a hypothesis to verify.
 
 ### Type coercion
 
@@ -380,15 +400,15 @@ strings and the literal string `'NA'`.
 **What to watch for.** `read.csv()` treats `'NA'` strings as
 the missing sentinel by default, but `readr::read_csv()` has
 different defaults depending on version. A `dose` column with
-mixed content can silently come in as `character`, and
-`mean()` on a character vector returns `NA` with a warning.
-An LLM may wrap the
-read in `as.numeric()` without warning you that values that
-fail to parse become `NA`.
+mixed content can silently come in as `character`. In that
+case `mean()` on the character vector returns `NA` with a
+warning. An LLM may also wrap the read in `as.numeric()`
+without warning you that values that fail to parse become
+`NA`.
 
 **Verification.** Inspect `str(df$dose)` after the read.
-Confirm the type is `numeric` and the count of `NA` values
-matches the count of non-parseable source strings.
+Confirm that the type is `numeric` and that the count of `NA`
+values matches the count of non-parseable source strings.
 
 ### Base R vs tidyverse
 
@@ -398,16 +418,17 @@ missing values.'
 
 **What to watch for.** An LLM will usually produce the
 `dplyr` form (`group_by` + `summarise(mean(x, na.rm = TRUE))`).
-It may not ask whether the project uses tidyverse at all.
-Production R code in some settings (pharma, legacy packages,
-FDA submissions via pharmaverse internals) runs on base R or
-`data.table` and imports no tidyverse.
+It may not ask whether the project uses the tidyverse at all.
+Production R code in some settings runs on base R or
+`data.table` and imports no tidyverse. Examples include
+pharma, legacy packages, and FDA submissions via pharmaverse
+internals.
 
-**Verification.** Confirm the project's dependency policy
-before accepting the suggestion. If tidyverse is permitted,
-keep the LLM's code. If not, ask for the base R equivalent
-(`aggregate(y ~ group, data = df, FUN = mean)`) or the
-`data.table` equivalent.
+**Verification.** Confirm the dependency policy of the project
+before accepting the suggestion. If the tidyverse is
+permitted, keep the code from the LLM. If not, ask for the base
+R equivalent (`aggregate(y ~ group, data = df, FUN = mean)`)
+or the `data.table` equivalent.
 
 ### Edge cases
 
@@ -416,23 +437,24 @@ columns in a data frame.'
 
 **What to watch for.** An LLM will typically write
 `df$x / df$y` without handling the cases that make the ratio
-undefined: zero denominators (produces `Inf`), negative
-denominators (changes sign), `NA` inputs (propagate), or
-zero-row inputs (returns a zero-length numeric). In a
-biomedical analysis each case signals a real data
-phenomenon: zero divisor as a structural zero, missing as a
-censored measurement, and so on.
+undefined. These are zero denominators (which produce
+`Inf`), negative denominators (which change the sign), `NA`
+inputs (which propagate), and zero-row inputs (which return a
+zero-length numeric). In a biomedical analysis each case
+signals a real data phenomenon. A zero divisor may be a
+structural zero, a missing value may be a censored
+measurement, and so on.
 
 **Verification.** Ask the LLM to list the inputs on which the
-function would produce unexpected output. Extend the function
-to raise an error (with an explanatory message) rather than
-silently returning `Inf` or `NaN` for cases that indicate
-broken data.
+function would produce unexpected output. Then extend the
+function to raise an error (with an explanatory message) in
+cases that indicate broken data, instead of silently returning
+`Inf` or `NaN`.
 
 ## Exercises
 
 1. Write a function `summarise_numeric(df)` that takes a data
-   frame and returns a tibble with one row per numeric column
+   frame and returns a data frame with one row per numeric column
    giving its mean, median, SD, and number of missing values.
    Do not use any package outside base R.
 2. Repeat exercise 1 using `dplyr::summarise()` across all

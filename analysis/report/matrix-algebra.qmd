@@ -42,65 +42,77 @@ By the end of this chapter you should be able to:
 Every model in this book, whether linear regression, GLM,
 mixed models, ridge, lasso, Cox, or factor analysis, reduces
 to a linear algebra computation on a carefully constructed
-matrix. This chapter develops the vocabulary and the
-numerical intuition needed for the rest of the book.
+matrix. In this chapter we shall develop the vocabulary and
+the numerical intuition needed for the rest of the book.
 
 Under the hood, `lm()` performs a QR decomposition on the
 design matrix, and `prcomp()` performs an SVD on a centered
 data matrix. Mixed models, GLMs, and penalized regression all
-reduce, in turn, to iterative linear algebra. Once you can
+reduce, in turn, to iterative linear algebra. Once we can
 think directly in matrices, without the cushion of formula
-syntax, you can see what these methods compute.
+syntax, we can see what these methods compute.
 
-The critical syntactic point, repeated on purpose: `*` is
-elementwise, `%*%` is matrix multiplication. Confusing them
-produces wrong answers rather than errors, and that class of
-bug is expensive to find.
+One syntactic point bears repeating at the outset. The
+operator `*` is elementwise, and `%*%` is matrix
+multiplication. Confusing them produces wrong answers rather
+than errors, and that class of bug is expensive to find.
+
+We begin with the judgment calls that fall to the
+statistician and then turn to the mechanics of creating,
+indexing, and multiplying matrices. We next consider the
+solution of linear systems, the specialized products
+`crossprod()` and `tcrossprod()`, vectorized reductions, and
+the BLAS libraries behind R's speed. The chapter closes with
+eigenvalues, sparse matrices, a worked OLS example, a
+troubleshooting guide, and the use of an LLM as a
+collaborator.
 
 ## The statistician's contribution {#sec-matrix-algebra-human}
 
-Matrix algebra is a domain where the mechanics, how to
-multiply, invert, decompose, are objective and lookupable.
-The judgment calls are elsewhere, and they separate correct
+Matrix algebra is a domain where the mechanics (how to
+multiply, invert, decompose) are objective and can be looked
+up. The judgment calls lie elsewhere. They separate correct
 numerical code from code that silently produces garbage.
 
 **What to compute, and what to avoid computing.** The
-canonical example: if you want $\beta = (X^T X)^{-1} X^T y$,
-the operation you actually perform is *not* an explicit
-inverse followed by a multiply. It is `solve(crossprod(X), crossprod(X, y))`,
-or, better, a QR decomposition, which is what `lm()`
-does. Explicit inverses are slower and numerically less
-stable. The statistician's judgment is to refuse to compute
-an inverse unless the inverse itself is the object of
-interest (a variance-covariance matrix, typically).
+canonical example is the least-squares estimate
+$\beta = (X^T X)^{-1} X^T y$. The operation we actually
+perform is *not* an explicit inverse followed by a multiply.
+It is `solve(crossprod(X), crossprod(X, y))` or, better, a
+QR decomposition, which is what `lm()` does. Explicit
+inverses are slower and numerically less stable. The
+statistician's judgment is to refuse to compute an inverse
+unless the inverse itself is the object of interest
+(typically a variance-covariance matrix).
 
-**Condition number as an early-warning signal.** A near-
-singular design matrix produces coefficients whose error
-bars are meaningless. `kappa(A)` returns the condition
-number; values above $10^{10}$ or so signal that the
-computation is walking on a knife edge. Instead of running
-it anyway and seeing what happens, diagnose the cause
-(redundant columns? collinearity? scaling issues?) and either
-fix the data or switch to a regularized method.
+**Condition number as an early-warning signal.** A
+near-singular design matrix produces coefficients whose
+error bars are meaningless. `kappa(A)` returns the condition
+number, and values above $10^{10}$ or so signal that the
+computation is walking on a knife edge. Rather than running
+it anyway and seeing what happens, we should diagnose the
+cause (redundant columns? collinearity? scaling issues?). We
+then either fix the data or switch to a regularized method.
 
-**Matrix vs. data frame.** Keep numeric data for linear
-algebra in matrices; keep mixed-type data for analysis in
-data frames. Converting back and forth is cheap; keeping
-numeric simulation output in a tibble through a million-
-iteration loop is expensive. The common failure mode is to
-leave data as a tibble because it was convenient to import,
-and then spend 100× more compute than necessary on the
-analysis. The reverse failure mode is to coerce a mixed-type
-data frame to a matrix and silently turn every numeric column
-into a character.
+**Matrix vs. data frame.** Numeric data for linear algebra
+belong in matrices, and mixed-type data for analysis belong
+in data frames. Converting back and forth is cheap. Keeping
+numeric simulation output in a tibble through a
+million-iteration loop, on the other hand, is expensive. The
+common failure mode is to leave data as a tibble because it
+was convenient to import. The analysis then spends 100× more
+compute than necessary. The reverse failure mode is to
+coerce a mixed-type data frame to a matrix, which silently
+turns every numeric column into a character.
 
 **Dimension hygiene.** The most common runtime failure in
-matrix code is 'non-conformable arguments', a dimension
-mismatch. The fix is the habit of checking `dim(A)` and
-`dim(B)` before multiplying, or writing the expected
-dimensions as a comment next to each matrix construction.
-When dimensions fail, the statistician knows what the
-matrices *should* be; the compiler does not.
+matrix code is 'non-conformable arguments', that is, a
+dimension mismatch. The remedy is the habit of checking
+`dim(A)` and `dim(B)` before multiplying. Writing the
+expected dimensions as a comment next to each matrix
+construction serves the same purpose. When dimensions fail,
+the statistician knows what the matrices *should* be; the
+compiler does not.
 
 ## Matrix fundamentals
 
@@ -110,7 +122,7 @@ statistical notation uses bold uppercase letters:
 $\mathbf{A}$, with entries $a_{ij}$ indexed as *row, column*.
 An $m \times n$ matrix has $m$ rows and $n$ columns.
 
-Special cases that will recur:
+We shall meet the following special cases repeatedly:
 
 - Row vector ($1 \times n$) and column vector ($n \times 1$).
 - Square matrix ($m = n$).
@@ -127,7 +139,8 @@ Special cases that will recur:
 - Positive definite matrix: symmetric, with
   $\mathbf{x}^T \mathbf{A} \mathbf{x} > 0$ for all nonzero
   $\mathbf{x}$. Covariance matrices of non-degenerate data
-  are positive definite; Cholesky decomposition applies.
+  are positive definite, and the Cholesky decomposition
+  applies to them.
 
 ## Creating matrices
 
@@ -157,23 +170,24 @@ M <- as.matrix(my_numeric_df)
 
 Column-major fill is the single most surprising behavior
 for users coming from Python (NumPy defaults to row-major)
-or from spreadsheet intuition. The consequence at the machine
-level is that column operations are cache-friendly in R; this
-is why `colSums()` is faster than `rowSums()` on large matrices.
+or from spreadsheet intuition. At the machine level, it
+makes column operations cache-friendly in R. This is why
+`colSums()` is faster than `rowSums()` on large matrices.
 
-The `as.matrix()` gotcha: if any column of the data frame is
-non-numeric (character, factor), the whole matrix silently
-coerces to character, a common bug. When in doubt, check
-`storage.mode(M)` after the coercion.
+The `as.matrix()` coercion has its own gotcha. If any column
+of the data frame is non-numeric (character, factor), the
+whole matrix silently coerces to character, a common bug.
+When in doubt, we check `storage.mode(M)` after the
+coercion.
 
-Dimnames via `dimnames(A) <- list(row_names, col_names)` or
-the `dimnames` argument to `matrix()` make downstream code
-far more readable when matrices carry semantic meaning
-(subject IDs, gene names, covariate labels).
+Dimnames may be set via `dimnames(A) <- list(row_names, col_names)`
+or through the `dimnames` argument to `matrix()`. They make
+downstream code far more readable when matrices carry
+semantic meaning (subject IDs, gene names, covariate labels).
 
 ## Indexing and subsetting
 
-R uses `A[i, j]` for matrix indexing, with three patterns
+R uses `A[i, j]` for matrix indexing, and three patterns are
 worth memorizing:
 
 ```r
@@ -184,7 +198,8 @@ A[i:k, j:l]     # submatrix
 
 The dimension drop is the source of the most common matrix
 bug in R. If downstream code expects a matrix and receives a
-vector, operations silently break. The fix:
+vector, operations silently break. The fix is the `drop`
+argument:
 
 ```r
 A[2, , drop = FALSE]    # 1 x ncol(A) matrix
@@ -198,11 +213,11 @@ A[A > 0]                     # vector of positive entries (loses shape)
 A[rowSums(A) > 0, ]          # rows with at least one positive entry
 ```
 
-Assignment uses the same syntax on the left-hand side. Watch
-for recycling on the right-hand side: `A[, j] <- 0` fills
-column `j` with zeros (recycling the scalar); if you assign a
-wrong-length vector, R will recycle and you will get a bug
-rather than an error.
+Assignment uses the same syntax on the left-hand side. We
+need to watch for recycling on the right-hand side, however.
+`A[, j] <- 0` fills column `j` with zeros by recycling the
+scalar. If we assign a wrong-length vector, R will recycle
+it as well, and we will get a bug rather than an error.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: dimension drop
@@ -218,15 +233,15 @@ matrix), and `rowMeans` refuses to operate on a vector. The
 fix is `X[i, , drop = FALSE]`, which preserves the matrix
 shape even when only one row is selected. This is among the
 most common dimension-drop bugs in R. In longer pipelines,
-the drop may happen far upstream of the error, which is why
-the habit of always writing `drop = FALSE` in matrix
+the drop may happen far upstream of the error. For that
+reason the habit of always writing `drop = FALSE` in matrix
 subsetting inside production code pays off.
 
 :::
 
 ## Elementwise vs. matrix operations
 
-The operators:
+The operators fall into two groups:
 
 - `+`, `-`, `*`, `/` are **elementwise** and require identical
   dimensions (or recycling against a scalar).
@@ -249,51 +264,53 @@ A %*% B      # matrix product
 #> [2,]   34   46
 ```
 
-Transpose is `t(A)`; the dimensions flip: if $A$ is
+Transpose is `t(A)`, and the dimensions flip: if $A$ is
 $m \times n$, then $A^T$ is $n \times m$. The essential
-identity:
+identity is
 
 $$
 (AB)^T = B^T A^T
 $$
 
-Scalar multiplication uses `*`: `2 * A` scales every element.
+Scalar multiplication uses `*`, so that `2 * A` scales every
+element.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: `*` vs. `%*%`
 
 **Question.** You multiply a $100 \times 5$ matrix by a
-$5 \times 1$ vector using `X * beta` and get 'non-
-conformable arrays' or an unexpected result. What is the
+$5 \times 1$ vector using `X * beta` and get
+'non-conformable arrays' or an unexpected result. What is the
 correct operator, and what would `X * beta` actually
 compute?
 
 **Answer.**
 
 The correct operator for the matrix-vector product is
-`%*%`: `X %*% beta` produces a $100 \times 1$ vector of
-linear predictions. `X * beta` is elementwise; for a
+`%*%`, and `X %*% beta` produces a $100 \times 1$ vector of
+linear predictions. `X * beta` is elementwise. For a
 $100 \times 5$ matrix and a length-5 vector, R recycles
-the vector column-by-column, multiplying each column of
-`X` by the corresponding element of `beta` without
-summing. That can happen silently without an error and
-produce a matrix that looks plausible but is not the
+the vector in column-major order. Because 100 is a
+multiple of 5, the rows of `X` are multiplied in turn by
+the elements of `beta`, cycling every five rows, and
+nothing is summed. That can happen silently, without an error, and
+it produces a matrix that looks plausible but is not the
 linear predictor. This confusion is the single most
-expensive bug in first-year applied R code. Hammer the
-distinction.
+expensive bug in first-year applied R code.
 
 :::
 
 ## Solving linear systems
 
-The central operation in statistical computing: solve
+The central operation in statistical computing is to solve
 $\mathbf{A}\mathbf{x} = \mathbf{b}$ for $\mathbf{x}$.
 
 **Wrong:** `solve(A) %*% b`. This computes the full inverse
-$\mathbf{A}^{-1}$, then multiplies. It is roughly twice as
-expensive as the right way and numerically worse: the inverse
-amplifies small errors, and intermediate steps lose precision
-on ill-conditioned $\mathbf{A}$.
+$\mathbf{A}^{-1}$ and then multiplies. It requires about
+three times the arithmetic of the right way, and it is
+numerically worse.
+The inverse amplifies small errors, and intermediate steps
+lose precision on ill-conditioned $\mathbf{A}$.
 
 **Right:** `solve(A, b)`. This calls LAPACK's LU solver
 directly, skipping the inverse.
@@ -305,33 +322,36 @@ x <- solve(A, b)
 A %*% x                # ≈ b
 ```
 
-The same pattern applies to $\mathbf{A}^{-1} \mathbf{B}$:
+The same pattern applies to $\mathbf{A}^{-1} \mathbf{B}$: we
 write `solve(A, B)`, not `solve(A) %*% B`.
 
-Use an explicit `solve(A)` only when the inverse itself is
-the object of interest. The canonical case in regression is
-the coefficient variance-covariance matrix
-$\sigma^2 (\mathbf{X}^T \mathbf{X})^{-1}$: you need the full
-inverse because you extract its diagonal for standard errors.
+An explicit `solve(A)` is warranted only when the inverse
+itself is the object of interest. The canonical case in
+regression is the coefficient variance-covariance matrix
+$\sigma^2 (\mathbf{X}^T \mathbf{X})^{-1}$. There we need the
+full inverse, because we extract its diagonal for standard
+errors.
 
-Condition number: `kappa(A)` (more precisely
-`kappa(A, exact = TRUE)`). A condition number above $10^{10}$
-means you are losing about 10 decimal digits of precision to
-the computation; above $10^{14}$, with double-precision
-arithmetic, you have essentially no precision left.
+The condition number is given by `kappa(A)` (more precisely
+`kappa(A, exact = TRUE)`). A condition number above
+$10^{10}$ means that we are losing about 10 decimal digits
+of precision to the computation. Above $10^{14}$, with
+double-precision arithmetic, essentially no precision is
+left.
 
 ```r
 kappa(A, exact = TRUE)
 ```
 
-Remedies for near-singular systems:
+The standard remedies for near-singular systems are the
+following:
 
 - **Drop redundant columns.** If two columns of `X` are
   exactly or nearly collinear, one of them carries no new
   information.
 - **Rescale.** Columns on wildly different scales inflate
-  condition number without reflecting a real problem. Center
-  and scale before solving.
+  the condition number without reflecting a real problem.
+  We center and scale before solving.
 - **Ridge regularization.** Replace $X^T X$ with $X^T X + \lambda I$
   for small $\lambda > 0$. This is mathematically equivalent
   to a prior on the coefficients and numerically equivalent
@@ -351,12 +371,17 @@ tcrossprod(X)        # X %*% t(X)
 crossprod(X, y)      # t(X) %*% y
 ```
 
-`crossprod(X)` is roughly twice as fast as
-`t(X) %*% X` because it exploits the symmetry of the result
-(it computes only the upper triangle and mirrors). This is a
-small optimization for small matrices and a substantial one
-for large ones. In any code that computes the normal
-equations, using `crossprod` is a free speedup.
+`crossprod(X)` exploits the symmetry of the result. That
+is, it calls the BLAS routine `dsyrk`, which computes only
+one triangle and mirrors it, so it does about half the
+arithmetic of the general product `t(X) %*% X`. It also
+avoids forming the transpose. Whether the halved
+arithmetic becomes a wall-clock gain, however, depends on
+the BLAS and on the shape of the matrix. With R 4.6.0 and
+the reference BLAS, for example, we found `crossprod(X)`
+slower than `t(X) %*% X` over seven replicates, on both a
+$10^5 \times 50$ and a $1500 \times 1500$ matrix. It is
+therefore worth benchmarking on the platform at hand.
 
 ## Vectorized reductions
 
@@ -371,24 +396,26 @@ colMeans(A)
 ```
 
 These dispatch to tight C loops. For these specific
-operations, always prefer them over `apply(A, 1, sum)` or
-`apply(A, 2, mean)`. The speedup is typically 10 to 50×.
+operations we should always prefer them over
+`apply(A, 1, sum)` or `apply(A, 2, mean)`, since the
+speedup is typically 10 to 50×.
 
 `apply(A, MARGIN, FUN)` remains useful when `FUN` is custom
-(e.g., `apply(A, 1, quantile, probs = 0.9)`). But avoid it
-for the standard reductions.
+(e.g., `apply(A, 1, quantile, probs = 0.9)`). For the
+standard reductions, however, it is best avoided.
 
 ## BLAS and why R's linear algebra is fast
 
-R delegates matrix multiplication, solves, and decompositions
-to BLAS (Basic Linear Algebra Subprograms) and LAPACK. These
-are Fortran/C libraries that have been optimized over decades
-with cache blocking, SIMD instructions, and multithreading.
+R delegates matrix multiplication, solves, and
+decompositions to BLAS (Basic Linear Algebra Subprograms)
+and LAPACK. These are Fortran/C libraries that have been
+optimized over decades with cache blocking, SIMD
+instructions, and multithreading.
 
-The practical consequence: `A %*% B` for 1000×1000 matrices
-runs in a fraction of a second on a laptop. A double `for`
-loop computing the same quantity runs in tens of seconds or
-more.
+The practical consequence is that `A %*% B` for 1000×1000
+matrices runs in a fraction of a second on a laptop. A
+double `for` loop computing the same quantity runs in tens
+of seconds or more.
 
 ```r
 n <- 500
@@ -407,17 +434,17 @@ system.time(C2 <- A %*% B)
 #>   0.140   0.010   0.050
 ```
 
-Typical speedup: 100× to 1000×, depending on BLAS
-configuration. Stock R ships with reference BLAS; installing
+The typical speedup is 100× to 1000×, depending on BLAS
+configuration. Stock R ships with reference BLAS. Installing
 OpenBLAS or Intel MKL often produces another 5× to 20× on
-matrix-heavy code with no code changes. `sessionInfo()`
+matrix-heavy code with no code changes, and `sessionInfo()`
 reports which BLAS is active.
 
-**Rule of thumb.** If you find yourself writing nested loops
-over matrix indices, pause. Almost always, the computation
-can be expressed as a matrix product, a reduction, or a
-broadcast, and almost always, doing so is 100× or more
-faster.
+**Rule of thumb.** If we find ourselves writing nested loops
+over matrix indices, it is time to pause. Almost always, the
+computation can be expressed as a matrix product, a
+reduction, or a broadcast. Almost always, too, doing so is
+100× or more faster.
 
 ## Eigenvalues and eigenvectors
 
@@ -438,13 +465,13 @@ e$values[1] * e$vectors[, 1]
 ```
 
 For **symmetric** matrices (e.g., covariance matrices),
-eigenvalues are real and eigenvectors are orthogonal. This is
-why PCA is clean: PCA is the eigendecomposition of the
-covariance matrix. The eigenvectors are the principal-
-component directions; the eigenvalues are the variances
-explained.
+eigenvalues are real and eigenvectors are orthogonal. This
+is why PCA is clean, since PCA is the eigendecomposition of
+the covariance matrix. The eigenvectors are the
+principal-component directions, and the eigenvalues are the
+variances explained.
 
-Other applications:
+Other applications include the following:
 
 - **Spectral clustering**: eigenvectors of a graph Laplacian.
 - **PageRank-style centrality**: dominant eigenvector of an
@@ -453,8 +480,8 @@ Other applications:
   Jacobian.
 
 The next chapter (decompositions) generalizes this idea to
-SVD, which works for non-square and non-symmetric matrices
-and underlies much of numerical linear algebra.
+the SVD, which works for non-square and non-symmetric
+matrices and underlies much of numerical linear algebra.
 
 ## Sparse matrices: the `Matrix` package
 
@@ -464,8 +491,8 @@ adjacency, design matrices with many dummy variables,
 genomic data), this wastes both memory and computation.
 
 The `Matrix` package provides sparse matrix classes that
-store only the nonzero entries and dispatch to specialized
-algorithms that skip zero blocks.
+store only the nonzero entries. These classes dispatch to
+specialized algorithms that skip zero blocks.
 
 ```r
 library(Matrix)
@@ -475,7 +502,7 @@ S[500, 500] <- 1
 object.size(S)
 ```
 
-Classes to know:
+The classes we are most likely to meet are these:
 
 - `dgCMatrix`: general sparse, column-compressed storage.
   The default for most computations.
@@ -484,8 +511,9 @@ Classes to know:
 - `dsCMatrix`: symmetric sparse.
 
 Many modeling packages accept or return `Matrix` objects
-natively: `glmnet`, `lme4`, `MatrixModels`. Work involving
-genomics, NLP, or networks will encounter these regularly.
+natively, among them `glmnet`, `lme4`, and `MatrixModels`.
+Work involving genomics, NLP, or networks will encounter
+these classes regularly.
 
 ## Worked example: OLS from the normal equations
 
@@ -495,7 +523,8 @@ $$
 \hat{\boldsymbol\beta} = (\mathbf{X}^T \mathbf{X})^{-1} \mathbf{X}^T \mathbf{y}
 $$
 
-Implementing this directly in R makes the formula concrete:
+To illustrate, we implement this formula directly in R,
+which makes it concrete:
 
 ```r
 set.seed(1)
@@ -503,7 +532,7 @@ n <- 100; p <- 3
 X <- cbind(1, matrix(rnorm(n * p), n, p))
 y <- rnorm(n)
 
-XtX <- crossprod(X)             # t(X) %*% X, faster
+XtX <- crossprod(X)             # t(X) %*% X, symmetric
 Xty <- crossprod(X, y)          # t(X) %*% y
 beta_hat <- solve(XtX, Xty)     # solve, not inverse
 
@@ -513,22 +542,25 @@ all.equal(as.vector(beta_hat), as.vector(beta_lm))
 #> [1] TRUE
 ```
 
-Note three choices in this code:
+The reader will note three choices in this code:
 
 - We used `crossprod` instead of `t(X) %*% X`. The results
-  are identical up to rounding; `crossprod` is about twice
-  as fast.
+  are identical up to rounding, and `crossprod` does about
+  half the arithmetic. The wall-clock gain depends on the
+  BLAS and the matrix shape.
 - We used `solve(XtX, Xty)` instead of
-  `solve(XtX) %*% Xty`. Same result, faster, more accurate.
+  `solve(XtX) %*% Xty`. The result is the same, and the
+  computation is faster and more accurate.
 - We did not invert $\mathbf{X}^T \mathbf{X}$. If we needed
   coefficient standard errors, we would compute the full
   inverse once for that purpose and extract its diagonal.
 
-`lm()` does not actually use this formula. It uses QR. The
-reason is numerical: the condition number of $X$ is the
+In fact, `lm()` does not use this formula; it uses QR. The
+reason is numerical. The condition number of $X$ is the
 square root of the condition number of $X^T X$, so the QR
 route is numerically stable by a factor of roughly the
-condition number. The next chapter unpacks this.
+condition number. We shall take up this argument in the
+next chapter.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: `solve(A, b)` vs. `solve(A) %*% b`
@@ -543,20 +575,20 @@ Roughly 2× faster in wall-clock time, with an even larger
 gap in arithmetic. `solve(A, b)` performs one LU
 factorization and a back-substitution, totaling about
 $\frac{2}{3} n^3$ floating-point operations. `solve(A) %*% b`
-performs the same LU, then builds the inverse from the
-factors (at least another $\frac{4}{3} n^3$ FLOPs), then
-multiplies by $b$ ($n^2$ FLOPs more). That is at least three
-times the arithmetic of the direct solve, plus one
+performs the same LU and then builds the inverse from the
+factors (at least another $\frac{4}{3} n^3$ FLOPs). It then
+multiplies by $b$ ($n^2$ FLOPs more). That is at least
+three times the arithmetic of the direct solve, plus one
 materialized dense matrix that the direct path avoids.
 
 The numerical harm is more important than the speed. The
 explicit inverse materializes a matrix whose entries can be
 large in magnitude even when the solve itself is well
-conditioned; those large entries are then multiplied by `b`
-and summed, amplifying rounding error. `solve(A, b)` avoids
-ever forming the inverse, so the intermediate quantities
-remain close in magnitude to the final answer, and
-precision is preserved.
+conditioned. Those large entries are then multiplied by `b`
+and summed, which amplifies rounding error. `solve(A, b)`
+never forms the inverse. The intermediate quantities
+therefore remain close in magnitude to the final answer,
+and precision is preserved.
 
 :::
 
@@ -566,20 +598,21 @@ Three errors account for perhaps 80% of the matrix bugs users
 hit:
 
 1. **Non-conformable arguments.** Dimensions do not match
-   for the operation requested. Always inspect `dim(A)` and
-   `dim(B)` before multiplying. In pipelines, print the
-   dimensions at each step until you find the mismatch.
+   for the operation requested. We should always inspect
+   `dim(A)` and `dim(B)` before multiplying. In pipelines,
+   printing the dimensions at each step will locate the
+   mismatch.
 2. **Computationally singular.** `solve(A)` fails because
-   $A$ is (near) singular. Diagnose with `kappa(A)`;
+   $A$ is (near) singular. We diagnose with `kappa(A)` and
    remedy with regularization ($+ \lambda I$) or with
    `MASS::ginv(A)` (Moore-Penrose pseudo-inverse).
 3. **Silent dimension drop.** `A[i, ]` becomes a vector and
-   downstream matrix operations misbehave. Use
+   downstream matrix operations misbehave. The remedy is
    `drop = FALSE`.
 
-Debugging habit: when something is wrong, print `dim()` of
-every matrix in the pipeline. The bug is almost always a
-dimension mismatch introduced upstream.
+A useful debugging habit, when something is wrong, is to
+print `dim()` of every matrix in the pipeline. The bug is
+almost always a dimension mismatch introduced upstream.
 
 ## Collaborating with an LLM on matrix algebra
 
@@ -587,24 +620,26 @@ Matrix algebra is an area where LLMs are generally reliable
 about formulas and generally unreliable about numerical
 pitfalls. Three patterns work well.
 
-**Prompt 1: translating math to R.** Paste the mathematical
-expression you want to compute and ask: 'translate this to
-idiomatic R, prefer `crossprod` over `t(X) %*% X`, and
-prefer `solve(A, b)` over explicit inverses.'
+**Prompt 1: translating math to R.** We paste the
+mathematical expression we want to compute and ask:
+'translate this to idiomatic R, prefer `crossprod` over
+`t(X) %*% X`, and prefer `solve(A, b)` over explicit
+inverses.'
 
 *What to watch for.* Without the nudge in the prompt, LLMs
-often produce `t(X) %*% X` and `solve(X'X) %*% X'y` because
+often produce `t(X) %*% X` and `solve(X'X) %*% X'y`, because
 those expressions match the visual form of the formula. The
-nudges in the prompt shift it toward numerically sound
-idioms. Read the output and check that the dimensions make
-sense.
+nudges in the prompt shift the output toward numerically
+sound idioms. We should still read the output and check
+that the dimensions make sense.
 
-*Verification.* Run the code on a small known example (e.g.,
-a $3 \times 2$ design matrix where you can compute the
-answer by hand) and compare. Then run on your real data and
-compare to `lm()` or the equivalent standard routine.
+*Verification.* We run the code on a small known example
+(e.g., a $3 \times 2$ design matrix where the answer can be
+computed by hand) and compare. We then run it on the real
+data and compare to `lm()` or the equivalent standard
+routine.
 
-**Prompt 2: diagnosing a numerical failure.** Paste the
+**Prompt 2: diagnosing a numerical failure.** We paste the
 failing code, the error message, and `kappa(A)`, and ask:
 'is this a conditioning problem, a dimension problem, or
 something else?'
@@ -613,34 +648,37 @@ something else?'
 correctly from `kappa(A)` output. They are less reliable at
 distinguishing 'your matrix is genuinely singular' from
 'your matrix is fine but your workflow has a bug upstream'.
-If the suggested fix involves heavy regularization, suspect
-that the diagnosis is wrong and the real problem is a bug,
-not conditioning.
+If the suggested fix involves heavy regularization, we
+should suspect that the diagnosis is wrong and that the
+real problem is a bug, not conditioning.
 
-*Verification.* Before applying any suggested regularization,
-check the data: are there duplicate rows, exactly collinear
-columns, or extreme outliers? Those often surface as
-'singular matrix' errors but are not fixed by regularization.
+*Verification.* Before applying any suggested
+regularization, we check the data. Are there duplicate
+rows, exactly collinear columns, or extreme outliers? Those
+often surface as 'singular matrix' errors, but
+regularization does not fix them.
 
-**Prompt 3: benchmarking.** Ask the LLM to set up a
+**Prompt 3: benchmarking.** We ask the LLM to set up a
 `bench::mark()` comparison between `solve(A, b)`,
 `solve(A) %*% b`, and `qr.solve(A, b)` on a $1000 \times 1000$
 matrix.
 
-*What to watch for.* The benchmark output itself is fine.
-The interpretation can mislead: LLMs sometimes attribute
-speed differences to the wrong cause (e.g., claiming
-`qr.solve` is faster because of 'less memory allocation'
-when the real reason is the specific LAPACK routine). Do
-not copy the explanation into a methods section without
-verifying.
+*What to watch for.* The benchmark output itself is fine,
+but the interpretation can mislead. LLMs sometimes
+attribute speed differences to the wrong cause. For
+example, they may claim that `qr.solve` is faster because
+of 'less memory allocation' when the real reason is the
+specific LAPACK routine. Such an explanation should not be
+copied into a methods section without verification.
 
-*Verification.* Run the benchmark. The ordering
-(`solve(A, b) < qr.solve(A, b) < solve(A) %*% b`) should be
-stable across runs and platforms. If your results differ
-substantially from published benchmarks, suspect BLAS
-configuration (reference BLAS vs. OpenBLAS vs. MKL) rather
-than an R-level difference.
+*Verification.* We run the benchmark. `solve(A, b)` should
+be the fastest of the three on any platform. The order of
+the other two is less stable. By default `qr.solve()` uses
+R's unblocked LINPACK-based QR, and with reference BLAS it
+can be slower than `solve(A) %*% b`. If our results differ
+substantially from published benchmarks, the likely cause
+is BLAS configuration (reference BLAS vs. OpenBLAS vs. MKL)
+rather than an R-level difference.
 
 ## Principle in use
 
@@ -652,9 +690,9 @@ Four habits define effective use of matrix algebra in R:
 2. **Solve systems, do not invert matrices.** Compute an
    inverse only when the inverse itself is the object of
    interest.
-3. **Use `crossprod` and vectorized reductions.** Free
-   speedups that also read more clearly once the idioms are
-   familiar.
+3. **Use `crossprod` and vectorized reductions.** They cut
+   arithmetic or loop overhead and also read more clearly
+   once the idioms are familiar.
 4. **Check dimensions and condition numbers.** Dimension
    mismatches and ill-conditioning are the two big silent
    failure modes. Make their diagnosis routine.
@@ -671,8 +709,8 @@ Four habits define effective use of matrix algebra in R:
    is faster and why. Is the difference a rounding error or
    a true performance gap?
 3. Construct a symmetric positive-definite matrix by
-   `A %*% t(A) + diag(n) * 1e-6`. Verify positive-
-   definiteness with `eigen()` or `chol()`. What does
+   `A %*% t(A) + diag(n) * 1e-6`. Verify
+   positive-definiteness with `eigen()` or `chol()`. What does
    `kappa()` return? What happens if you omit the ridge term?
 4. Implement OLS for `y ~ X` from scratch using
    `crossprod(X)` and `solve(...)`. Also compute the residual
@@ -693,8 +731,9 @@ Four habits define effective use of matrix algebra in R:
   computations.
 - [@gentle2024matrix], more recent, with stronger
   statistical orientation.
-- [@strang2016linalg], the MIT OpenCourseWare videos are
-  the canonical linear-algebra refresher.
+- [@strang2016linalg], the textbook behind the MIT
+  OpenCourseWare 18.06 lectures, a canonical linear-algebra
+  refresher.
 - [@petersen2012matrixcookbook], quick reference for the
   matrix identities that appear in statistics papers.
 
@@ -789,8 +828,8 @@ You extract a single row with `X[i, ]` and pass it to
 ## Answer
 
 **B.** Use `X[i, , drop = FALSE]` to preserve the matrix
-structure. This is among the most common silent-then-
-loud bugs in matrix code.
+structure. This is among the most common silent-then-loud
+bugs in matrix code.
 :::
 
 ## Prerequisites answers {#sec-quiz-answers-matrix-algebra}
@@ -798,8 +837,8 @@ loud bugs in matrix code.
 1. $(AB)^{-1} = B^{-1} A^{-1}$. The order reverses because
    you must undo $B$ before undoing $A$:
    $(AB)(B^{-1} A^{-1}) = A(BB^{-1})A^{-1} = AIA^{-1} = I$.
-2. $(AB)^T = B^T A^T$. Like the inverse identity, the order
-   reverses. The structural reason is the same:
+2. $(AB)^T = B^T A^T$. As with the inverse identity, the
+   order reverses. The structural reason is the same:
    transposition, like inversion, reverses the composition
    of linear maps. Algebraically, the proof is the same
    kind of telescoping.
@@ -807,6 +846,6 @@ loud bugs in matrix code.
    when multiplied by $A^T$, yields the identity. Inversion
    and transposition commute on invertible matrices, so
    either ordering produces the same result. One practical
-   use: in the OLS variance-covariance formula,
+   use arises in the OLS variance-covariance formula. There
    $(X^T X)^{-1}$ is symmetric, so its transpose equals
-   itself; this identity is what guarantees that.
+   itself, and this identity is what guarantees that.

@@ -1,16 +1,17 @@
 # Conventions {.unnumbered}
 
-This book uses a small set of visual conventions.
+This book uses a small set of visual conventions, which we
+summarize here for the reader's reference.
 
 ## In code blocks
 
 - Input lines carry no prefix.
-- Output lines are prefixed with `#>`. The whole block stays a
-  valid R script: paste it into a console and it runs without
-  error.
+- Output lines are prefixed with `#>`. The whole block therefore
+  remains a valid R script, so that it runs without error when
+  pasted into a console.
 - Numbered discs in the code gutter (1, 2, 3) are annotations.
-  Hover or tap them to read the annotation, or read the
-  numbered list below the block.
+  The reader may hover over or tap them to read the
+  annotation, or may read the numbered list below the block.
 
 A minimal example:
 
@@ -41,7 +42,8 @@ Clarification that is useful but not essential on first read.
 
 ::: {.callout-tip title='Verification'}
 A concrete check the reader should run. This is the book's
-signature callout and appears after every non-trivial example.
+signature callout, and it appears after every non-trivial
+example.
 :::
 
 ::: {.callout-warning title='Pitfall'}
@@ -55,7 +57,7 @@ with an explicit verification step.
 
 ## Mathematical notation
 
-Conventional notation throughout. Vectors are bold
+We use conventional notation throughout. Vectors are bold
 lower-case ($\mathbf{x}$); matrices are bold upper-case
 ($\mathbf{X}$); scalars and parameters are non-bold.
 Estimators carry hats ($\hat\theta$). Sample size is $n$;

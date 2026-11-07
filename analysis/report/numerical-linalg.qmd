@@ -12,8 +12,8 @@ By the end of this chapter you should be able to:
 - Choose between direct solvers (LU, Cholesky, QR) and
   iterative solvers (Conjugate Gradient, GMRES, BiCGSTAB)
   for a given linear system.
-- Reuse a single matrix factorization across many right-
-  hand sides instead of refactoring per solve.
+- Reuse a single matrix factorization across many right-hand
+  sides instead of refactoring per solve.
 - Reason about the BLAS layer: levels 1, 2, and 3 BLAS,
   what each level does, and which dominates the runtime
   of a given algorithm.
@@ -29,101 +29,105 @@ By the end of this chapter you should be able to:
 ## Orientation
 
 The linear algebra chapters of the first half, beginning with
-@sec-matrix-algebra, covered
-dense matrix operations: `%*%`, `solve`, `crossprod`, the
-basic decompositions, the OLS normal equations done
-correctly. That treatment assumed the matrices fit in RAM
-and that all entries were potentially nonzero. Real
-biostatistical work routinely violates one or both
-assumptions. Design matrices for mixed-effects models with
-hundreds of subjects can be sparse with most entries
-exactly zero. Genome-wide association matrices are large
-enough that direct factorization costs prohibitive memory.
-Matrices arising from PDE-based imaging methods have
-banded or block-banded structure that the dense algorithms
-ignore.
+@sec-matrix-algebra, covered dense matrix operations: `%*%`,
+`solve`, `crossprod`, the basic decompositions, and the OLS
+normal equations done correctly. That treatment assumed that
+the matrices fit in RAM and that all entries were
+potentially nonzero. Unfortunately, real biostatistical work
+routinely violates one or both assumptions. Design matrices
+for mixed-effects models with hundreds of subjects can be
+sparse, with most entries exactly zero. Genome-wide
+association matrices are large enough that direct
+factorization costs prohibitive memory. Matrices arising from
+PDE-based imaging methods have banded or block-banded
+structure, and the dense algorithms ignore it.
 
-This chapter teaches the tools for those cases: sparse
-storage and sparse algorithms, iterative solvers that
-never form the matrix factorization, and the BLAS layer
-that ultimately runs every dense algorithm beneath the
-R-language interface. The treatment is focused on the
-practical: which tool to reach for in which situation,
-and what the failure modes are when you reach for the
-wrong one.
+In this chapter we shall develop the tools for those cases.
+We begin with sparse storage and sparse algorithms. We then
+turn to iterative solvers, which never form the matrix
+factorization, and to the reuse of a factorization across
+many right-hand sides. Next we consider the BLAS layer that
+ultimately runs every dense algorithm beneath the R-language
+interface. Lastly, we treat specialized storage for
+structured matrices and work through a spatial smoothing
+example. Throughout, the emphasis is practical. That is, we
+ask which tool to reach for in which situation, and what the
+failure modes are when we reach for the wrong one.
 
 ## The statistician's contribution {#sec-numerical-linalg-human}
 
-The statistical question is the same whether you store $X$
-as a dense matrix or a sparse one, but the cost is not.
-The dense path may use 100 GB of RAM and run for a week,
-while the sparse path uses 100 MB and runs in an hour.
-Deciding which path your problem permits is the analyst's
-job, not the software's.
+The statistical question is the same whether we store $X$
+as a dense matrix or a sparse one. The cost, however, is
+not. The dense path may use 100 GB of RAM and run for a
+week, while the sparse path uses 100 MB and runs in an hour.
+Deciding which path a given problem permits is the analyst's
+job; the software does not make that decision for us.
 
 **Recognize the structure before forming the matrix.** A
 mixed-effects design matrix with subject-level random
 intercepts has a known sparsity pattern (one nonzero per
-row in the random-effects block) that you should
-exploit. Forming a dense $(n \times q)$ block where most
-entries are zero wastes orders of magnitude of memory and
-compute. The fix is upstream: build the matrix with
-`Matrix::sparseMatrix` from the start, not by densifying
-a sparse construction.
+row in the random-effects block), and we should exploit it.
+Forming a dense $(n \times q)$ block in which most entries
+are zero wastes orders of magnitude of memory and compute.
+The remedy lies upstream. That is, we build the matrix with
+`Matrix::sparseMatrix` from the start, rather than
+densifying a sparse construction.
 
-**Match solver to structure.** A symmetric positive-
-definite system should use Cholesky, not LU. A banded
-system should use a banded solver. A least-squares system
-should use QR. Reaching for the general-purpose
-`solve(A, b)` discards exploitable structure and produces
-solutions an order of magnitude slower than necessary.
+**Match solver to structure.** A symmetric positive-definite
+system should use Cholesky rather than LU. A banded
+system should use a banded solver, and a least-squares
+system should use QR. The general-purpose `solve(A, b)`
+discards this exploitable structure. As a result it produces
+solutions an order of magnitude more slowly than necessary.
 
 **Direct vs. iterative is a regime decision.** For
 $n < 10^4$ and dense, direct solvers (LU, Cholesky, QR)
-are almost always right. For $n > 10^5$ and sparse,
-iterative solvers (CG, GMRES) become competitive or
-necessary. The crossover depends on sparsity and
-conditioning as well as on size.
+are almost always the right choice. For $n > 10^5$ and
+sparse, iterative solvers (CG, GMRES) become competitive or
+necessary. We note that the crossover depends on sparsity
+and conditioning as well as on size.
 
 **The BLAS choice matters more than the R code.** A
 matrix multiplication that takes 30 seconds with the
 reference BLAS may take 3 seconds with OpenBLAS or 1
-second with MKL, with identical R code in all three
-cases. For matrix-heavy
-work, verifying the active BLAS via `sessionInfo()` is, in
-our experience, the single highest-leverage diagnostic.
+second with MKL. The R code is identical in all three
+cases. For matrix-heavy work, verifying the active BLAS via
+`sessionInfo()` is the single most
+useful diagnostic.
 
 ## Sparse linear algebra
 
 A matrix is **sparse** when most of its entries are zero
-and the zeros can be exploited by a specialized storage
-format. There is no fixed threshold; in practice, a
-matrix is worth treating as sparse when fewer than 10% of
-entries are nonzero and the matrix is large enough that
-ordinary dense storage is wasteful.
+and a specialized storage format can exploit the zeros.
+There is no fixed threshold. In practice, a matrix is worth
+treating as sparse when fewer than 10% of entries are
+nonzero and the matrix is large enough that ordinary dense
+storage is wasteful.
 
 ### Sparse storage formats
 
-Three formats appear repeatedly. Each represents only
+Three formats appear repeatedly, and each represents only
 the nonzero entries.
 
-**COO (coordinate list).** A list of triples `(i, j, x)`
-giving the row, column, and value of each nonzero. The
-simplest format; convenient for construction from a
-data frame; not efficient for matrix operations.
+**COO (coordinate list).** This format is a list of triples
+`(i, j, x)` giving the row, column, and value of each
+nonzero. It is the simplest of the three and is convenient
+for construction from a data frame. It is not, however,
+efficient for matrix operations.
 
-**CSR (compressed sparse row).** Three arrays: the
-nonzero values in row-major order, the column indices of
-those values, and a row-pointer array indicating where
-each row starts. Efficient for row-wise operations and
-for sparse matrix-vector products $A \mathbf{x}$.
-
-**CSC (compressed sparse column).** The transpose of CSR:
-nonzero values in column-major order, row indices, and
-a column-pointer array. Efficient for column-wise
+**CSR (compressed sparse row).** This format uses three
+arrays: the nonzero values in row-major order, the column
+indices of those values, and a row-pointer array indicating
+where each row starts. It is efficient for row-wise
 operations and for sparse matrix-vector products
-$A^T \mathbf{x}$. This is the default in R's `Matrix`
-package.
+$A \mathbf{x}$.
+
+**CSC (compressed sparse column).** This format is the
+transpose of CSR. That is, it stores the nonzero values in
+column-major order, their row indices, and a column-pointer
+array. It is efficient for column-wise operations and for
+sparse matrix-vector products $A^T \mathbf{x}$. It is also
+the default in R's `Matrix` package.
 
 ```r
 library(Matrix)
@@ -148,7 +152,7 @@ b <- runif(5)
 solve(A, b)                     # uses sparse LU
 ```
 
-The `Matrix` package class hierarchy:
+The `Matrix` package organizes its classes as follows.
 
 | Class       | Properties                                       |
 |-------------|--------------------------------------------------|
@@ -159,26 +163,28 @@ The `Matrix` package class hierarchy:
 | `lgCMatrix` | General sparse, logical, column-compressed       |
 | `nsCMatrix` | Pattern (nonzero structure only), symmetric      |
 
-The `d` prefix is double precision, `l` is logical, `n`
-is pattern. The next letter is the structural property:
-`g` general, `s` symmetric, `t` triangular. The last
-letter is the storage: `C` column, `R` row, `T` triplet.
-For most user code, `dgCMatrix` is the default.
+The reader will note that the class names follow a simple
+code. The `d` prefix denotes double precision, `l` logical,
+and `n` pattern. The next letter gives the structural
+property: `g` general, `s` symmetric, `t` triangular. The
+last letter gives the storage: `C` column, `R` row, `T`
+triplet. For most user code, `dgCMatrix` is the default.
 
 ### Sparse matrix-vector and matrix-matrix products
 
-Sparse matrix-vector ($A \mathbf{x}$) is the workhorse
-operation in iterative solvers. Cost is proportional to
-the number of nonzero entries, not to $n^2$. For a sparse
-matrix with $k$ nonzeros, $A\mathbf{x}$ is $O(k)$ rather
-than $O(n^2)$.
+The sparse matrix-vector product ($A \mathbf{x}$) is the
+workhorse operation in iterative solvers. Its cost is
+proportional to the number of nonzero entries rather than to
+$n^2$. In symbols, for a sparse matrix with $k$ nonzeros,
+$A\mathbf{x}$ is $O(k)$ rather than $O(n^2)$.
 
 Sparse matrix-matrix products ($A B$) generally produce
 denser output than either input. A sparse-times-sparse
-that fills in many entries (high *fill-in*) loses the
-sparsity advantage; in such cases, the operation may be
-slower than its dense equivalent. Compute the result
-sparsity before assuming sparse multiplication is faster.
+product that fills in many entries (high *fill-in*) loses
+the sparsity advantage. In such cases the operation may be
+slower than its dense equivalent. It is therefore advisable
+to compute the sparsity of the result before assuming that
+sparse multiplication is faster.
 
 ### When to use sparse storage
 
@@ -194,7 +200,7 @@ sparsity before assuming sparse multiplication is faster.
   with continuous covariates and no factor-encoded
   predictors.
 - **Maybe sparse:** large design matrices where the
-  sparsity is moderate (10--40%); benchmark to decide.
+  sparsity is moderate (10 to 40%); benchmark to decide.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: when sparsity helps
@@ -209,18 +215,18 @@ Should you use sparse storage?
 
 The full design matrix has 10 fixed-effect columns plus
 5{,}000 random-intercept columns, giving 5{,}010
-columns total. Each row has nonzero entries in the 10
+columns in total. Each row has nonzero entries in the 10
 fixed-effect columns plus exactly 1 of the 5{,}000
-random-intercept columns. So there are 11 nonzeros per
-row out of 5{,}010 entries, a sparsity of about 0.22%.
+random-intercept columns. That is, there are 11 nonzeros
+per row out of 5{,}010 entries, a sparsity of about 0.22%.
 
-Yes, definitely use sparse storage. The dense matrix
+Clearly, sparse storage is warranted here. The dense matrix
 would be $100{,}000 \times 5{,}010$, requiring about
-4 GB at double precision, while the sparse matrix
-requires only the storage for $11 \times 100{,}000 = 1.1$
-million nonzeros, about 13 MB. The dense form is
-unworkable for fitting; the sparse form is routine.
-This is exactly the problem `lme4` solves internally
+4 GB at double precision. The sparse matrix, on the other
+hand, requires storage only for $11 \times 100{,}000 = 1.1$
+million nonzeros, or about 13 MB. The dense form is
+unworkable for fitting, while the sparse form is routine.
+This is precisely the problem that `lme4` solves internally
 using sparse linear algebra.
 
 :::
@@ -228,26 +234,27 @@ using sparse linear algebra.
 ## Iterative solvers
 
 Direct methods (LU, Cholesky, QR) compute the
-factorization explicitly and use it to solve. They are
-exact up to floating-point error and predictable in
-runtime. They are also $O(n^3)$ in time and $O(n^2)$ in
-memory for dense matrices. For large sparse problems,
-the factorization often produces fill-in that destroys
-the sparsity, making the direct method impractical.
+factorization explicitly and use it to solve the system.
+On the plus side, they are exact up to floating-point error
+and predictable in runtime. On the minus side, they are
+$O(n^3)$ in time and $O(n^2)$ in memory for dense matrices.
+For large sparse problems the factorization often produces
+fill-in that destroys the sparsity. In that case the direct
+method becomes impractical.
 
-Iterative solvers compute an approximation to the
-solution by repeatedly applying the matrix to a sequence
-of vectors, never forming a factorization. Each iteration
-involves one or two matrix-vector products and a few
-inner products. Convergence is governed by the matrix's
-spectrum, not by its dimension.
+Iterative solvers, by contrast, never form a factorization.
+They compute an approximation to the solution by repeatedly
+applying the matrix to a sequence of vectors. Each iteration
+involves one or two matrix-vector products and a few inner
+products. We note that convergence is governed by the
+matrix's spectrum rather than by its dimension.
 
 ### Conjugate gradient (CG)
 
 For symmetric positive-definite systems, the conjugate
 gradient method finds the exact solution in at most $n$
-iterations and the approximate solution in far fewer when
-the eigenvalues are clustered. Each iteration costs one
+iterations. When the eigenvalues are clustered, it finds an
+approximate solution in far fewer. Each iteration costs one
 matrix-vector product plus $O(n)$ work.
 
 ```r
@@ -272,39 +279,40 @@ cg <- function(A, b, x0 = rep(0, length(b)),
 ```
 
 CG is the standard tool for SPD systems whose
-factorization would be too expensive. Common applications:
-covariance-matrix solves in Bayesian models, normal
-equations in penalized regression, kernel-method linear
-systems.
+factorization would be too expensive. Common applications
+include covariance-matrix solves in Bayesian models, the
+normal equations in penalized regression, and kernel-method
+linear systems.
 
 ### GMRES
 
 For general (non-symmetric) systems, the Generalized
 Minimal Residual method (GMRES) is the analog of CG.
-It is more expensive per iteration (memory grows linearly
-in the iteration count) and typically restarted every $m$
-iterations to bound the memory.
+Unfortunately, it is more expensive per iteration, since its
+memory grows linearly in the iteration count. For this
+reason it is typically restarted every $m$ iterations to
+bound the memory.
 
-R packages: `Rlinsolve` provides CG, GMRES, BiCGSTAB, and
-others.
+In R, the `Rlinsolve` package provides CG, GMRES, BiCGSTAB,
+and others.
 
 ### BiCGSTAB and other variants
 
 Biconjugate Gradient Stabilized (BiCGSTAB) is a popular
-choice for non-symmetric systems where GMRES's memory
-growth is a problem. Convergence is less predictable but
-the per-iteration cost is fixed.
+choice for non-symmetric systems in which the memory growth
+of GMRES is a problem. Its convergence is less predictable,
+but its per-iteration cost is fixed.
 
 ### Preconditioning
 
 The convergence rate of an iterative method depends on
 the condition number of the matrix. For poorly-conditioned
-systems, a *preconditioner* $M$ is applied so that
-$M^{-1} A \mathbf{x} = M^{-1} \mathbf{b}$ has a better-
-conditioned coefficient matrix. The preconditioner $M$
+systems, we apply a *preconditioner* $M$ so that
+$M^{-1} A \mathbf{x} = M^{-1} \mathbf{b}$ has a better-conditioned
+coefficient matrix. The preconditioner $M$
 should approximate $A$ but be much cheaper to invert.
 
-Common preconditioners:
+Three preconditioners are in common use.
 
 - **Diagonal (Jacobi).** $M = \text{diag}(A)$.
   Cheap; mild improvement.
@@ -315,8 +323,9 @@ Common preconditioners:
   from PDEs on grids; complex but very effective.
 
 For most biostatistical applications, diagonal
-preconditioning is sufficient if needed at all; complex
-preconditioners are domain expertise.
+preconditioning is sufficient, if it is needed at all. The
+more complex preconditioners belong to specialist domain
+expertise.
 
 ### Direct vs. iterative regime decision
 
@@ -333,9 +342,10 @@ preconditioners are domain expertise.
 
 ## Reusing factorizations
 
-A common antipattern: solving $A \mathbf{x}_i = \mathbf{b}_i$
-for many right-hand sides $\mathbf{b}_i$ by calling
-`solve(A, b_i)` in a loop. Each call refactorizes $A$.
+A common antipattern is to solve
+$A \mathbf{x}_i = \mathbf{b}_i$ for many right-hand sides
+$\mathbf{b}_i$ by calling `solve(A, b_i)` in a loop. The
+difficulty is that each call refactorizes $A$.
 
 ```r
 # bad: O(n^3) per call
@@ -344,7 +354,7 @@ for (i in seq_len(100)) {
   results[[i]] <- solve(A, B[, i])
 }
 
-# good: factorise once, solve many times
+# good: factorize once, solve many times
 A_factor <- chol(A)             # for SPD; use lu() / qr() otherwise
 results <- matrix(0, nrow(A), 100)
 for (i in seq_len(100)) {
@@ -352,13 +362,14 @@ for (i in seq_len(100)) {
 }
 ```
 
-The factorization cost is paid once; each subsequent
-solve is $O(n^2)$ (back-substitution), not $O(n^3)$.
-For 100 right-hand sides on a $1000 \times 1000$ matrix,
-the saving is two orders of magnitude.
+In the second version the factorization cost is paid once.
+Each subsequent solve is then $O(n^2)$ (back-substitution)
+rather than $O(n^3)$. For 100 right-hand sides on a
+$1000 \times 1000$ matrix, the saving is two orders of
+magnitude.
 
 The same pattern applies to QR for least squares with
-many response vectors:
+many response vectors.
 
 ```r
 qrA <- qr(A)
@@ -367,26 +378,27 @@ betas <- qr.coef(qrA, Y)        # solves for all columns of Y at once
 
 ## The BLAS layer
 
-R's matrix operations dispatch to BLAS (Basic Linear
-Algebra Subprograms) underneath. BLAS is organized in
-three levels:
+Beneath the R interface, R's matrix operations dispatch to
+BLAS (Basic Linear Algebra Subprograms). BLAS is organized
+in three levels.
 
 - **Level 1 BLAS.** Vector-vector operations: dot
   product, scalar-vector multiply (`axpy`). Cost $O(n)$.
-- **Level 2 BLAS.** Matrix-vector operations: matrix-
-  vector multiply (`gemv`). Cost $O(n^2)$.
-- **Level 3 BLAS.** Matrix-matrix operations: matrix-
-  matrix multiply (`gemm`). Cost $O(n^3)$.
+- **Level 2 BLAS.** Matrix-vector operations: matrix-vector
+  multiply (`gemv`). Cost $O(n^2)$.
+- **Level 3 BLAS.** Matrix-matrix operations: matrix-matrix
+  multiply (`gemm`). Cost $O(n^3)$.
 
-Level 3 BLAS is where high-performance implementations
-shine. A naive triple loop for $C = AB$ is $O(n^3)$ but
-runs at perhaps 5--10% of theoretical peak performance
-because it suffers from poor cache utilization. Optimized
-BLAS implementations (OpenBLAS, MKL, vecLib on macOS)
-use cache blocking, SIMD instructions, and threading to
-reach 60--90% of peak performance.
+It is at level 3 that high-performance implementations
+make the largest difference. A naive triple loop for
+$C = AB$ is $O(n^3)$, but it runs at perhaps 5 to 10% of
+theoretical peak performance because of poor cache
+utilization. Optimized BLAS implementations (OpenBLAS, MKL,
+vecLib on macOS) use cache blocking, SIMD instructions, and
+threading. In this way they reach 60 to 90% of peak
+performance.
 
-Check which BLAS R is using:
+We may check which BLAS R is using as follows.
 
 ```r
 sessionInfo()
@@ -396,42 +408,43 @@ sessionInfo()
 #> LAPACK: /usr/lib/x86_64-linux-gnu/openblas-pthread/liblapack.so.3
 ```
 
-The reference BLAS that ships with stock R on Linux is
-slow. OpenBLAS and MKL produce 5--20× speedups on
+Unfortunately, the reference BLAS that ships with stock R on
+Linux is slow. OpenBLAS and MKL produce 5 to 20× speedups on
 matrix-heavy code with no R-level changes. On macOS, R
-typically uses Apple's vecLib (Accelerate framework),
-which is optimized.
+typically uses Apple's vecLib (Accelerate framework), which
+is already optimized.
 
-To switch BLAS implementations on Linux:
+On Linux, we may switch BLAS implementations as follows.
 
 ```bash
 sudo apt install libopenblas-dev
 sudo update-alternatives --config libblas.so.3-x86_64-linux-gnu
 ```
 
-The change is transparent to R code; benchmarks improve
+The change is transparent to R code, and benchmarks improve
 immediately.
 
 For matrix-heavy production work, verifying the BLAS is
-the single highest-leverage performance check. The
-practical cost of poor BLAS choice is a 5--20× slowdown
-on every numerical operation, persistent across the life
-of the code, with no diagnostic.
+the single most effective performance check. A poor BLAS
+choice costs a 5 to 20× slowdown on every numerical
+operation. That cost persists across the life of the code,
+and nothing in the output signals it.
 
 ## Specialized storage and solvers
 
-For matrices with exploitable structure beyond
-sparsity, specialized storage and matched solvers offer
+Some matrices have exploitable structure beyond sparsity.
+For these, specialized storage and matched solvers offer
 further gains.
 
 ### Banded matrices
 
 A matrix is **banded** if all nonzero entries lie within
-a narrow diagonal band. Banded matrices arise in time-
-series analysis (autoregressive structure), spline
+a narrow diagonal band. Banded matrices arise in time-series
+analysis (autoregressive structure), spline
 smoothing (B-spline basis), and finite-difference
-methods. Banded LU factorization is $O(n b^2)$ where $b$
-is the bandwidth, much faster than general $O(n^3)$.
+methods. Banded LU factorization is $O(n b^2)$, where $b$
+is the bandwidth. This is much faster than the general
+$O(n^3)$.
 
 ```r
 library(Matrix)
@@ -448,9 +461,9 @@ solve(A, runif(n))              # uses banded solver
 
 ### Symmetric positive-definite matrices
 
-Cholesky decomposition $A = L L^T$ exists for SPD
-matrices. The factorization is roughly half the cost of
-a general LU; the back-substitution is similar.
+Recall that the Cholesky decomposition $A = L L^T$ exists
+for SPD matrices. The factorization is roughly half the
+cost of a general LU, and the back-substitution is similar.
 
 ```r
 A_chol <- chol(A)               # upper triangular R such that A = R'R
@@ -459,45 +472,48 @@ x <- backsolve(A_chol,          # solve R x = ...
                     b))
 ```
 
-For sparse SPD, the same idea applies via
-`Matrix::Cholesky()`, which uses a fill-reducing
-permutation (typically AMD or METIS) to reduce
-fill-in during factorization.
+For sparse SPD matrices the same idea applies via
+`Matrix::Cholesky()`. This function uses a fill-reducing
+permutation (typically AMD or METIS) to reduce fill-in
+during factorization.
 
 ### Symmetric indefinite
 
 Symmetric matrices that are not positive definite (e.g.,
 KKT systems in constrained optimization) use the LDLT
-decomposition: $A = L D L^T$ with $D$ block-diagonal.
-LAPACK's `dsytrf` provides this.
+decomposition. In symbols, $A = L D L^T$, where $D$ is
+block-diagonal. LAPACK's `dsytrf` provides this
+decomposition.
 
 ### Toeplitz and circulant
 
-Toeplitz matrices have constant diagonals (every
-$T_{i,j}$ depends only on $i - j$). They arise in time-
-series analysis and signal processing. Circulant
+Toeplitz matrices have constant diagonals. That is, every
+$T_{i,j}$ depends only on $i - j$. They arise in time-series
+analysis and signal processing. Circulant
 matrices are diagonalized by the discrete Fourier
-transform; matrix-vector multiplication is $O(n \log n)$
-via FFT.
+transform, so matrix-vector multiplication is
+$O(n \log n)$ via FFT.
 
-For most biostatistics, banded and sparse-SPD are the
-two structural specializations that matter most.
+For most biostatistical work, banded and sparse-SPD
+matrices are the two structural specializations that
+matter most. We now illustrate both in a single example.
 
 ## Worked example: GMRF for spatial smoothing
 
-A Gaussian Markov random field (GMRF) prior on a regular
-grid produces a sparse precision matrix $Q$ with banded
-structure. Given observations $y$ and the GMRF prior,
-the posterior mean is the solution to
+To illustrate, consider a Gaussian Markov random field
+(GMRF) prior on a regular grid. Such a prior produces a
+sparse precision matrix $Q$ with banded structure. Given
+observations $y$ and the GMRF prior, the posterior mean is
+the solution to
 
 $$
 (Q + \tau I) \boldsymbol\mu = \tau \mathbf{y}
 $$
 
 where $\tau$ is the observation precision. For a
-$100 \times 100$ grid, $Q$ is $10{,}000 \times 10{,}000$
-and sparse with about 50{,}000 nonzeros (each cell has
-4 neighbors plus itself).
+$100 \times 100$ grid, $Q$ is $10{,}000 \times 10{,}000$.
+It is sparse, with about 50{,}000 nonzeros, since each cell
+has 4 neighbors plus itself.
 
 ```r
 library(Matrix)
@@ -517,7 +533,7 @@ y   <- rnorm(n)
 
 # dense path: too expensive for n = 10000+
 # system <- as.matrix(Q + tau * Diagonal(n))
-# solve(system, tau * y)        # would refactorise general LU
+# solve(system, tau * y)        # would refactorize general LU
 
 # sparse Cholesky path
 M       <- Q + tau * Diagonal(n)
@@ -526,82 +542,84 @@ mu      <- solve(M_chol, tau * y)
 
 # can also solve for many y at once
 Y       <- matrix(rnorm(n * 100), n, 100)
-mu_mat  <- solve(M_chol, tau * Y)     # one factorisation, 100 solves
+mu_mat  <- solve(M_chol, tau * Y)     # one factorization, 100 solves
 ```
 
 The `Cholesky` factor is reused across all 100
-right-hand sides; the cost is one factorization plus
-100 cheap back-substitutions, instead of 100 separate
+right-hand sides. The cost is therefore one factorization
+plus 100 cheap back-substitutions, instead of 100 separate
 factorizations.
 
 ## Collaborating with an LLM on numerical linear algebra
 
 LLMs handle the syntactic translation between dense and
 sparse storage well. They are weaker at the structural
-recognition step (deciding whether to use sparse at all,
-choosing the right solver) and at BLAS-related
-diagnostics.
+recognition step, that is, deciding whether to use sparse
+storage at all and choosing the right solver. They are
+also weaker at BLAS-related diagnostics.
 
 **Prompt 1: choosing the right representation.** Describe
-your matrix (dimensions, structural properties, sparsity
+the matrix (dimensions, structural properties, sparsity
 pattern, frequency of operations) and ask: 'should I use
 dense or sparse storage? If sparse, which `Matrix` class?
 Justify the choice in terms of memory and operation cost.'
 
-*What to watch for.* The LLM should consider whether
-operations against this matrix produce dense intermediate
-results (which would defeat the sparse representation),
-whether structural properties like symmetry or positive-
-definiteness are exploitable, and the ratio of
-construction cost to solve cost. If the LLM gives a
-generic 'use sparse if more than 80% zeros' rule, push
-for the structural specifics of your problem.
+*What to watch for.* The LLM should consider three
+questions. First, do operations against this matrix produce
+dense intermediate results, which would defeat the sparse
+representation? Second, are structural properties such as
+symmetry or positive-definiteness exploitable? Third, what
+is the ratio of construction cost to solve cost? If the LLM
+offers a generic 'use sparse if more than 80% zeros' rule,
+we should press for the structural specifics of the problem.
 
 *Verification.* Build the matrix both ways on a small
-test case; benchmark a representative operation. The
-sparse path should be faster *and* lower memory if the
-choice is correct.
+test case and benchmark a representative operation. If the
+choice is correct, the sparse path should be faster *and*
+use less memory.
 
 **Prompt 2: factorization reuse.** Paste a function that
 calls `solve(A, b)` repeatedly with the same $A$ and ask:
 'rewrite to factorize once and reuse the factorization
 across the loop, and explain the asymptotic improvement.'
 
-*What to watch for.* The rewrite should use one of
+*What to watch for.* The rewrite should call one of
 `chol`, `lu`, `qr`, or `Cholesky` (for sparse) at the
-top of the loop and `backsolve`/`forwardsolve` or
-`qr.coef`/`solve(factor, b)` inside. The asymptotic
-improvement depends on whether $A$ is general
-($O(n^3) \to O(n^2)$ per solve), SPD (Cholesky has
-half-cost factorization), or sparse with low fill-in
-(potentially much larger improvement).
+top of the loop, and `backsolve`/`forwardsolve` or
+`qr.coef`/`solve(factor, b)` inside it. The asymptotic
+improvement depends on the structure of $A$. If $A$ is
+general, the gain is $O(n^3) \to O(n^2)$ per solve. If $A$
+is SPD, Cholesky offers a half-cost factorization. If $A$ is
+sparse with low fill-in, the improvement is potentially
+much larger.
 
 *Verification.* Benchmark both versions on a moderately
-large $A$ and many right-hand sides. The factorization-
-reuse version should be substantially faster.
+large $A$ and many right-hand sides. The factorization-reuse
+version should be substantially faster.
 
 **Prompt 3: BLAS diagnosis.** Paste the output of
 `sessionInfo()` plus a benchmark showing slow matrix
 multiplication and ask: 'is the BLAS the bottleneck?
 Recommend a faster alternative for this platform.'
 
-*What to watch for.* Reference BLAS (no link mentioned in
-the BLAS line, or `libblas.so` without OpenBLAS or MKL)
-is slow. The LLM should recommend OpenBLAS or MKL on
-Linux, and identify Apple's vecLib on macOS as already
-fast. If the BLAS is already optimized, the bottleneck
-is elsewhere; the LLM should pivot to other diagnostics.
+*What to watch for.* The reference BLAS is slow. It shows
+up as no link mentioned in the BLAS line, or as
+`libblas.so` without OpenBLAS or MKL. On Linux the LLM
+should recommend OpenBLAS or MKL, and on macOS it should
+identify Apple's vecLib as already fast. If the BLAS is
+already optimized, the bottleneck lies elsewhere, and the
+LLM should turn to other diagnostics.
 
-*Verification.* Switch the BLAS, restart R, re-run the
-benchmark. A 5--20× improvement on dense matrix multiply
-confirms the BLAS was the bottleneck. If the improvement
-is small, the bottleneck was something else.
+*Verification.* Switch the BLAS, restart R, and re-run the
+benchmark. A 5 to 20× improvement on dense matrix multiply
+confirms that the BLAS was the bottleneck. If the
+improvement is small, the bottleneck was something else.
 
-A numerical linear algebra problem can sit in any of
-three layers, and each is diagnosed separately: the
-R-level code, the BLAS that determines performance, and
-the matrix structure that determines which algorithm is
-appropriate.
+We note that a numerical linear algebra problem can sit in
+any of three layers, and each is diagnosed separately. The
+first is the R-level code. The second is the BLAS, which
+determines performance. The third is the matrix structure,
+which determines which algorithm is appropriate.
 
 ## Principle in use
 
@@ -616,7 +634,7 @@ Three habits define defensible numerical linear algebra:
    converts $O(kn^3)$ into $O(n^3 + kn^2)$, a large gain
    for $k$ even moderately large.
 3. **Verify the BLAS.** A fast BLAS is the single
-   highest-leverage performance change. `sessionInfo()`
+   most effective performance change. `sessionInfo()`
    tells you what is installed; benchmarks tell you
    whether it is fast.
 
@@ -649,7 +667,7 @@ Three habits define defensible numerical linear algebra:
 
 ## Further reading
 
-- [@golub2013matrix] Chapters 4--7, the canonical
+- [@golub2013matrix] Chapters 4 to 7, the canonical
   reference for direct methods, including sparse direct.
 - [@saad2003iterative], *Iterative Methods for Sparse
   Linear Systems*. Free PDF at `www-users.cse.umn.edu/~saad`.

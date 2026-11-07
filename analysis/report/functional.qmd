@@ -32,85 +32,91 @@ By the end of this chapter you should be able to:
 - Use `purrr::reduce()` and `purrr::accumulate()` to collapse
   a list into a single value.
 - Apply `purrr::safely()` and `purrr::possibly()` to iterate
-  robustly over messy input that includes failures.
+  over messy input that includes failures without aborting.
 
 ## Orientation
 
 A recurring question in applied work is how to apply the same
-operation across many elements of a data structure. The
-answer is to write the computation once as a function, then
+operation across many elements of a data structure. The answer
+is to write the computation once as a function, and then to
 pass it to an iteration tool that handles the mechanics. Once
-you can write functions, you can write functions that take
-functions as arguments. That, in turn, is what lets you
-change the operation without rewriting the loop around it.
+we can write functions, we can write functions that take
+functions as arguments. That, in turn, is what lets us change
+the operation without rewriting the loop around it.
 
-R is a functional language: almost everything done in R can
-be expressed as a composition of functions applied to data. The
-two common iteration
-toolkits are base R's `apply` family (`lapply`, `sapply`,
-`vapply`, `tapply`, `apply`) and the tidyverse's `purrr`. Both
-do the same core job. `purrr` does it with more consistent
-naming and type guarantees, while `apply` is ubiquitous and
-has no dependencies. This chapter covers both and recommends
-`purrr` for most work.
+R is a functional language. That is, almost everything done in
+R can be expressed as a composition of functions applied to
+data. The two common iteration toolkits are base R's `apply`
+family (`lapply`, `sapply`, `vapply`, `tapply`, `apply`) and
+the tidyverse's `purrr`. Both do the same core job. On the one
+hand, `purrr` does it with more consistent naming and type
+guarantees. On the other, `apply` is ubiquitous and has no
+dependencies. In this chapter we shall cover both, and we
+recommend `purrr` for most work.
+
+We begin with the decisions that iteration leaves to the
+statistician, and with functions as objects. We then present
+the `apply` family, the `purrr` toolkit and its variants for
+parallel and indexed iteration, and the tools for reduction and
+error handling. A worked example of fitting one model per
+stratum precedes the prompts for working with an LLM.
 
 ## The statistician's contribution {#sec-functional-human}
 
-`map`, `lapply`, and friends are mechanics that anyone can
-look up. The questions that need judgment are about what you
-iterate over, what the function returns, and what you do when
-things go wrong. These shape whether an analysis scales, whether
-failures are loud or silent, and whether the code is honest
-about what it computed.
+`map`, `lapply`, and related functions are mechanics that
+anyone can look up. The questions that need judgment concern
+what we iterate over, what the function returns, and what we do
+when things go wrong. These choices determine whether an
+analysis scales, whether failures are loud or silent, and
+whether the code is honest about what it computed.
 
 **What does the iteration unit represent?** A bootstrap
 resample, a patient stratum, a simulation parameter
 combination, a file of raw data. The iteration unit is a
-statistical object, not just a loop index. Naming it well in
-code (`resample`, `stratum`, `params`, `file_path`) is
-worth the minute it takes, because the same code will be read
-dozens of times over a project's life.
+statistical object, and naming it well in code (`resample`,
+`stratum`, `params`, `file_path`) is worth the minute it takes.
+The reason is that the same code will be read dozens of times
+over the life of a project.
 
 **What type should the function return?** A single number, a
 logical, a character, a tibble with one row per group, a
-fitted model object. The statistician's judgment is to pick
-the type that makes downstream work easy, not the type that
-was convenient to produce. If every iteration returns a
-tibble, `map()` followed by `list_rbind()` gives a tidy
-result in one step. If iterations return mixed types, the
-downstream code has to re-sort the zoo.
+fitted model object. The judgment of the statistician is to
+pick the type that makes downstream work easy, not the type
+that was convenient to produce. If every iteration returns a
+tibble, `map()` followed by `list_rbind()` gives a tidy result
+in one step. If iterations return mixed types, the downstream
+code has to sort out the mixture.
 
-**What happens when an iteration fails?** Raw iteration
-aborts on the first failure and returns nothing. For a
-simulation study with 10,000 parameter combinations, one
-failing combination should not destroy the other 9,999
-results. `safely()` and `possibly()` are the right tools here,
-but they force a judgment: do you want to record the error
-and continue (so the failure is visible later), substitute a
-default value (so the downstream code does not need to
-special-case missing results), or abort (because the failure
-indicates a bug in the computation)? Choosing well separates
-a defensible analysis from one that either silently drops
-half the data or aborts mysteriously on a corner case.
+**What happens when an iteration fails?** Raw iteration aborts
+on the first failure and returns nothing. For a simulation
+study with 10,000 parameter combinations, one failing
+combination should not destroy the other 9,999 results.
+`safely()` and `possibly()` are the right tools here, but they
+force a judgment. We may record the error and continue (so
+that the failure is visible later). We may substitute a default
+value (so that the downstream code does not need to
+special-case missing results). Or we may abort (because the
+failure indicates a bug in the computation). Choosing well
+separates a defensible analysis from one that either silently
+drops half the data or aborts mysteriously on a corner case.
 
 **When to resist the refactor.** A straightforward `for` loop
 with a clear loop body is perfectly acceptable R code. The
 right reason to replace it with `map_*()` is that the
-functional version is clearer or safer, not 'because loops
-are bad'. Dogmatic vectorization that compresses a readable
-loop into an unreadable chain of `|>`-threaded anonymous
-functions is a cost without a benefit.
+functional version is clearer or safer, not 'because loops are
+bad'. Dogmatic vectorization that compresses a readable loop
+into an unreadable chain of `|>`-threaded anonymous functions
+is a cost without a benefit.
 
 These are judgment calls, and an LLM cannot look up the
-answers. Getting them right keeps functional code readable as
-statistics instead of merely clever.
+answers.
 
 ## Functions as objects
 
-In R, functions are ordinary objects. You can assign a
-function to a variable, store it in a list, pass it as an
-argument, and return it from another function. This is what
-'functional programming' means in practice.
+In R, functions are ordinary objects. We can assign a function
+to a variable, store it in a list, pass it as an argument, and
+return it from another function. This is what 'functional
+programming' means in practice.
 
 ```r
 square <- function(x) x^2
@@ -125,15 +131,16 @@ funs$cb(2)
 #> [1] 8
 ```
 
-This flexibility underlies every iteration pattern in this
-chapter. `map(x, f)` works because `f` is just another object
-that can be named and passed.
+This flexibility underlies every iteration pattern in the
+chapter. That is, `map(x, f)` works because `f` is just another
+object that can be named and passed.
 
 ## Anonymous functions: three ways
 
-For short functions you use only once, defining them inline
-avoids cluttering your namespace with single-use names. R
-offers three forms; they are equivalent for most purposes.
+For short functions that are used only once, defining them
+inline avoids cluttering the namespace with single-use names.
+R offers three forms, and they are equivalent for most
+purposes.
 
 ```r
 # classic anonymous function (verbose)
@@ -146,42 +153,43 @@ map_dbl(my_list, \(x) mean(x, na.rm = TRUE))
 map_dbl(my_list, ~ mean(.x, na.rm = TRUE))
 ```
 
-The `\(x) ...` form is the modern recommendation and is
-easier to read when the argument name matters (`\(patient)`,
+The `\(x) ...` form is the modern recommendation. It is easier
+to read when the argument name matters (`\(patient)`,
 `\(fold)`, `\(params)`). The `~ .x` form is more compact for
-single-line expressions and is ubiquitous in older tidyverse
-code. Neither is wrong; consistency within a file matters
-more than which one you pick.
+single-line expressions, and it is ubiquitous in older
+tidyverse code. Neither is wrong, and consistency within a file
+matters more than which one we pick.
 
-`.x` is only meaningful inside `~` formulas. Inside `\(x)`,
-the argument is whatever you named it. This is a small gotcha
-that catches people moving code between the two forms.
+We note that `.x` is meaningful only inside `~` formulas.
+Inside `\(x)`, the argument is whatever we named it. This small
+point catches people who move code between the two forms.
 
 ## The base R `apply` family
 
 The base R iteration tools predate `purrr` and remain widely
-used. A quick tour:
+used. We give a brief tour:
 
 - **`lapply(X, FUN)`** applies `FUN` to each element of `X`
-  and always returns a list. Predictable but often
-  inconvenient when you wanted a vector.
+  and always returns a list. It is predictable but often
+  inconvenient when a vector was wanted.
 - **`sapply(X, FUN)`** is `lapply` with an attempt to
   'simplify' the result into a vector or matrix when
-  possible. Convenient interactively, dangerous in scripts:
-  its return type depends on the input (empty list returns
-  `list()`, not a numeric vector). Avoid in production code.
+  possible. It is convenient interactively but dangerous in
+  scripts, because its return type depends on the input (an
+  empty list returns `list()`, not a numeric vector). We
+  recommend avoiding it in production code.
 - **`vapply(X, FUN, FUN.VALUE)`** is the safe alternative to
   `sapply`. You declare the expected return type
-  (`numeric(1)`, `character(1)`) and `vapply` errors if the
+  (`numeric(1)`, `character(1)`), and `vapply` errors if the
   function returns something else. This is the recommended
   base R idiom for scripts.
 - **`tapply(X, INDEX, FUN)`** applies `FUN` to subgroups
-  defined by the factor `INDEX`. Conceptually similar to
+  defined by the factor `INDEX`. It is conceptually similar to
   `group_by |> summarise` in dplyr.
 - **`apply(X, MARGIN, FUN)`** works on matrices and arrays.
-  `MARGIN = 1` iterates over rows, `MARGIN = 2` iterates
-  over columns. Note that `apply` on a data frame coerces to
-  a matrix first, which is usually not what you want.
+  `MARGIN = 1` iterates over rows, and `MARGIN = 2` iterates
+  over columns. Note that `apply` on a data frame coerces it to
+  a matrix first, which is usually not what we want.
 
 ```r
 my_list <- list(a = 1:10, b = 11:20, c = 21:30)
@@ -195,19 +203,19 @@ apply(mat, 2, sum)                 # column sums
 apply(mat, 1, sum)                 # row sums
 ```
 
-The biggest practical wart in the `apply` family is `sapply`.
-Its return type depends on the run-time shape of the result.
-If every element happens to be a length-1 numeric, you get a
-vector. If they vary in length, you get a matrix or a list,
-sometimes silently. In a script that runs on new data, this
-difference between runs can produce errors far from the
-`sapply` call.
+The largest practical problem in the `apply` family is
+`sapply`, whose return type depends on the run-time shape of
+the result. If every element happens to be a length-1 numeric,
+we get a vector. If the elements vary in length, we get a
+matrix or a list, sometimes silently. In a script that runs on
+new data, this difference between runs can produce errors far
+from the `sapply` call.
 
 ## The `purrr` toolkit
 
 `purrr` reorganizes the same operations under a consistent
-naming scheme. The core principle: **the function name tells
-you the output type.**
+naming scheme. The core principle is that **the function name
+tells you the output type.**
 
 ```r
 library(purrr)
@@ -222,20 +230,21 @@ map_chr(my_list, ~ paste("mean:", round(mean(.x), 2)))
 map_lgl(my_list, ~ all(.x > 5))
 ```
 
-The typed variants check the return type element-by-element
+The typed variants check the return type element by element
 and error immediately if something is wrong. This is the main
 reason to prefer them over `sapply`:
 
 ```r
-# errors immediately: "result must be length 1"
-map_dbl(list(1:3, "a"), mean)
+# errors immediately: "Result must be length 1, not 2."
+map_dbl(list(1:3, 4:6), range)
 ```
 
-The same call with `sapply` would silently coerce or return a
-list, producing a downstream bug that is hard to trace.
+The same call with `sapply` would silently return a matrix.
+That is, it would produce a downstream bug that is hard to
+trace.
 
-Rule of thumb: if you know what type you expect, use the
-typed variant. Use `map()` only when you genuinely need a
+As a rule of thumb, if we know what type to expect, we use the
+typed variant. We use `map()` only when we genuinely need a
 list back (for example, when each iteration produces a fitted
 model object).
 
@@ -247,26 +256,25 @@ scripts and packages?
 
 **Answer.**
 
-`sapply()`'s return type depends on the run-time shape of
-the output. For a normal case it may return a numeric
-vector; for an edge case (empty input, one element
-returning a different length, mixed types) it silently
-returns a list, a matrix, or something else. Downstream
-code that expected a vector then fails or silently coerces.
-`map_dbl()` declares the expected output type up front:
-each element must be a length-1 numeric, or the call errors
-loudly at the point of failure. Loud errors at the source
-are cheaper to debug than silent type changes that surface
-later.
+The return type of `sapply()` depends on the run-time shape of
+the output. For a normal case it may return a numeric vector.
+For an edge case (empty input, one element returning a
+different length, mixed types) it silently returns a list, a
+matrix, or something else. Downstream code that expected a
+vector then fails or silently coerces. `map_dbl()`, by
+contrast, declares the expected output type up front. Each
+element must be a length-1 numeric, or the call errors loudly
+at the point of failure. Loud errors at the source are cheaper
+to debug than silent type changes that surface later.
 
 :::
 
 ## `map2()` and `pmap()`: parallel iteration
 
 `map()` iterates over one input. Real analyses often iterate
-over parallel inputs: a vector of sample sizes and a matching
-vector of means, a tibble of simulation parameters with one
-row per combination.
+over parallel inputs, such as a vector of sample sizes with a
+matching vector of means, or a tibble of simulation parameters
+with one row per combination.
 
 ```r
 # map2: two parallel inputs
@@ -282,7 +290,7 @@ length(samples)
 iterating in lockstep. Typed variants exist: `map2_dbl`,
 `map2_chr`, `map2_lgl`, `map2_int`.
 
-For three or more parallel inputs, use `pmap()`:
+For three or more parallel inputs, we use `pmap()`:
 
 ```r
 params <- list(
@@ -296,11 +304,12 @@ samples <- pmap(params, \(n, mean, sd) rnorm(n, mean, sd))
 
 `pmap` matches arguments by name when the input list is named
 (which makes the call site readable), or by position
-otherwise. The input list is conceptually a tibble: each
-element is a column, each row is one parameter combination.
+otherwise. The input list is conceptually a tibble, in which
+each element is a column and each row is one parameter
+combination.
 
-For simulation studies, `pmap` on a tibble of parameters is
-the canonical pattern. Each row is one simulation scenario;
+For simulation studies, `pmap` on a tibble of parameters is the
+canonical pattern. Each row is one simulation scenario, and
 each column is a tuning parameter.
 
 ## `imap()`: iteration with an index or name
@@ -314,16 +323,16 @@ imap_chr(my_list, \(x, nm) paste(nm, ":", mean(x)))
 #>   "a : 5.5" "b : 15.5" "c : 25.5"
 ```
 
-Useful when the iteration needs to know which element it is
-processing (for example, labeling plots or files by group
-name).
+It is useful when the iteration needs to know which element it
+is processing (for example, when labeling plots or files by
+group name).
 
 ## `walk()` for side effects
 
-`map()` and its typed variants are for iteration that
-produces a value. Iteration that exists only for its side
-effect (printing, saving a file, drawing a plot) is
-cleaner with `walk()`:
+`map()` and its typed variants are for iteration that produces
+a value. Iteration that exists only for its side effect
+(printing, saving a file, drawing a plot) is cleaner with
+`walk()`:
 
 ```r
 walk2(
@@ -333,9 +342,9 @@ walk2(
 )
 ```
 
-`walk()` returns its input invisibly, so the call does not
-clutter the console when used interactively, and so it
-composes nicely inside a pipe.
+`walk()` returns its input invisibly. The call therefore does
+not clutter the console when used interactively, and it
+composes well inside a pipe.
 
 ## `reduce()` and `accumulate()`
 
@@ -352,24 +361,24 @@ reduce(list(c(1,2), c(2,3), c(3,4)), union)
 
 `reduce2()` takes two parallel lists. `accumulate()` is like
 `reduce()` but returns all the intermediate values, not just
-the final one, which is useful for running totals, cumulative
-products, and anything else whose history you want to keep.
+the final one. It is useful for running totals, cumulative
+products, and anything else whose history we want to keep.
 
 For most statistical work, `reduce()` is used for combining
-results: merging a list of data frames into one, unioning a
-list of sets, collapsing a list of summary statistics into an
-aggregate.
+results. Examples include merging a list of data frames into
+one, taking the union of a list of sets, and collapsing a list
+of summary statistics into an aggregate.
 
 ## Error handling: `safely()` and `possibly()`
 
 Iteration that aborts on the first failure is fragile. In a
-simulation with 10,000 runs, one failing run should not
-destroy the other 9,999. `purrr` offers two wrappers that
-convert a function into one that handles its own errors.
+simulation with 10,000 runs, one failing run should not destroy
+the other 9,999. `purrr` offers two wrappers that convert a
+function into one that handles its own errors.
 
-**`safely(f)`** returns a function that always returns a
-list with two components: `result` (the output, or `NULL` on
-failure) and `error` (`NULL` on success, or the error object
+**`safely(f)`** returns a function that always returns a list
+with two components. These are `result` (the output, or `NULL`
+on failure) and `error` (`NULL` on success, or the error object
 on failure).
 
 ```r
@@ -387,8 +396,8 @@ map(results, "result") |> compact()
 ```
 
 **`possibly(f, otherwise = NA)`** returns a function that
-returns `otherwise` on error instead of aborting. Simpler
-than `safely` when you do not need the error object:
+returns `otherwise` on error instead of aborting. It is simpler
+than `safely` when the error object is not needed:
 
 ```r
 maybe_log <- possibly(log, otherwise = NA_real_)
@@ -396,13 +405,15 @@ map_dbl(x, maybe_log)
 #> [1] 0.0000000 0.6931472        NA 1.3862944
 ```
 
-The judgment call: `safely()` preserves information about
-why each iteration failed, at the cost of a more complex
-return structure. `possibly()` substitutes a default value,
-losing diagnostic information but producing a clean numeric
-vector. For one-off exploratory work, `possibly()` often
-suffices. For a production simulation where failures carry
-information, use `safely()` and inspect the errors.
+The choice between them is a trade-off. On the one hand,
+`safely()` preserves information about why each iteration
+failed, at the cost of a more complex return structure. On the
+other, `possibly()` substitutes a default value, losing
+diagnostic information but producing a clean numeric vector.
+For one-off exploratory work, `possibly()` often suffices. For
+a production simulation where failures carry information, we
+recommend `safely()` together with an inspection of the
+errors.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: `safely` vs. `possibly`
@@ -412,25 +423,27 @@ information, use `safely()` and inspect the errors.
 
 **Answer.**
 
-Use `safely()` when the error messages matter, when you
-need to inspect later which iterations failed and why, or
-when the pattern of failures is itself informative about
-the data (e.g., 'every run with n > 10,000 ran out of
-memory'). Use `possibly()` when you know the fallback
-behavior is appropriate and you do not need the
-diagnostic information. `possibly()` returns a clean vector
-of the same type as the successful cases; `safely()`
-returns a list of success/error pairs that must be
-post-processed. For polished, reproducible simulation
-code, `safely()` is usually the right choice: the small
-extra complexity is worth the diagnostic richness.
+Use `safely()` when the error messages matter, when you need
+to inspect later which iterations failed and why, or when the
+pattern of failures is itself informative about the data (e.g.,
+'every run with n > 10,000 ran out of memory'). Use
+`possibly()` when you know the fallback behavior is
+appropriate and you do not need the diagnostic information.
+`possibly()` returns a clean vector of the same type as the
+successful cases. `safely()`, by contrast, returns a list of
+success/error pairs that must be post-processed. For polished,
+reproducible simulation code, `safely()` is usually the right
+choice, since the small extra complexity is worth the
+diagnostic detail.
 
 :::
 
 ## Worked example: fitting multiple models
 
-The 'fit the same model to each stratum' pattern is a daily
-occurrence in biostatistics. `purrr` makes it a one-liner.
+Fitting the same model to each stratum is a daily occurrence in
+biostatistics, and `purrr` reduces it to a single pipeline. To
+illustrate, consider fitting a linear model to each cylinder
+group of `mtcars`.
 
 ```r
 library(dplyr)
@@ -449,18 +462,18 @@ map_dbl(models, \(m) summary(m)$r.squared)
 map_dfr(models, \(m) as_tibble(t(coef(m))), .id = "cyl")
 ```
 
-The `.id = "cyl"` argument of `map_dfr` (or, in newer
-`purrr`, `map(...) |> list_rbind(names_to = "cyl")`) inserts
-the list names as a new column, so the grouping variable
+The `.id = "cyl"` argument of `map_dfr` (or, in newer `purrr`,
+`map(...) |> list_rbind(names_to = "cyl")`) inserts the list
+names as a new column. In this way the grouping variable
 travels with the results.
 
-A related pattern iterates over bootstrap resamples, cross-
-validation folds, or Monte Carlo replicates. In each case,
-the iteration unit is a statistical object, and the function
-returns a summary (coefficient, R², AUC, ...) per iteration.
-Collecting them with `map_dfr` or `map(...) |> list_rbind()`
-gives a tidy tibble ready for downstream plotting or
-summarization.
+A related pattern iterates over bootstrap resamples,
+cross-validation folds, or Monte Carlo replicates. In each
+case the iteration unit is a statistical object, and the
+function returns a summary (coefficient, R², AUC, ...) per
+iteration. Collecting the summaries with `map_dfr` or
+`map(...) |> list_rbind()` gives a tidy tibble that is ready for
+downstream plotting or summarization.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: fitting models per group
@@ -473,43 +486,43 @@ result naturally a list rather than a data frame?
 
 Each fitted model is a complex object with dozens of
 components (coefficients, residuals, fitted values, model
-frame, call, terms, ...). It does not fit neatly into a
-single column of a data frame. A list preserves each model
-as a first-class object and lets downstream code extract
-whatever components matter for the analysis (R²,
-coefficients, predicted values, diagnostic plots). Once you
-have extracted a summary *per model*, that summary (often a
-tibble or a scalar) does fit into a data frame, and
-`map_dfr` or `list_rbind` produces the tidy result. The
-list-of-models → tibble-of-summaries pattern is the
-canonical functional shape for this kind of analysis.
+frame, call, terms, ...). It does not fit neatly into a single
+column of a data frame. A list preserves each model as a
+first-class object. It lets downstream code extract whatever
+components matter for the analysis (R², coefficients,
+predicted values, diagnostic plots). Once you have extracted a
+summary *per model*, that summary (often a tibble or a scalar)
+does fit into a data frame, and `map_dfr` or `list_rbind`
+produces the tidy result. The list-of-models →
+tibble-of-summaries pattern is the canonical functional shape
+for this kind of analysis.
 
 :::
 
 ## Collaborating with an LLM on iteration
 
-LLMs are good at producing first drafts of `purrr` code; they
+LLMs are good at producing first drafts of `purrr` code. They
 are less good at diagnosing why a pipeline produced unexpected
-output. Three patterns are worth learning explicitly.
+output. We consider three patterns that are worth learning
+explicitly.
 
 **Prompt 1: rewriting a loop.** Paste a `for` loop and ask:
 'rewrite this using `purrr` so the output is a tibble, one
 row per iteration. Preserve the iteration index as a
 column.'
 
-*What to watch for.* The rewrite will probably use
-`map_dfr()` or `map() |> list_rbind()`. Verify the column
-types are what you expect: LLMs sometimes emit code that
-implicitly coerces a factor to character, or a Date to
-numeric, because each iteration returns a slightly different
-structure. Check with `dplyr::glimpse()` on both the original
-loop's output and the rewritten version.
+*What to watch for.* The rewrite will probably use `map_dfr()`
+or `map() |> list_rbind()`. Verify that the column types are
+what you expect. LLMs sometimes emit code that implicitly
+coerces a factor to character, or a Date to numeric, because
+each iteration returns a slightly different structure. Check
+with `dplyr::glimpse()` on both the output of the original loop
+and that of the rewritten version.
 
 *Verification.* Run both versions on at least three inputs
-(normal case, edge case, one empty iteration) and compare
+(normal case, edge case, one empty iteration) and compare them
 with `waldo::compare(original, rewritten)`. Treat any
-difference, no matter how trivial-looking, as a bug to
-investigate.
+difference, however trivial it looks, as a bug to investigate.
 
 **Prompt 2: choosing between `map` variants.** Describe the
 shape of your input (a list of vectors, a named list of
@@ -518,17 +531,18 @@ you want the output to take, and ask: 'which `purrr`
 function is appropriate, and why?'
 
 *What to watch for.* LLMs sometimes default to `map()` and
-`map_dfr()` even when a typed variant would catch bugs
-earlier. If you know the output is numeric, ask explicitly
-for `map_dbl()`; if the iteration is over a tibble of
-parameters, ask for `pmap()`. A second common pattern: LLMs
-sometimes suggest `map2()` when a plain `map()` over one
-input would do, or vice versa.
+`map_dfr()` even when a typed variant would catch bugs earlier.
+If you know the output is numeric, ask explicitly for
+`map_dbl()`. If the iteration is over a tibble of parameters,
+ask for `pmap()`. A second common pattern is that LLMs
+sometimes suggest `map2()` when a plain `map()` over one input
+would do, or vice versa.
 
 *Verification.* Trace through the call mentally. `map2(a, b, f)`
-requires `a` and `b` to have the same length; `pmap(list(a, b), f)`
-is equivalent. `map_dbl` requires every element to be a length-1
-numeric. Check these constraints against your real data.
+requires `a` and `b` to have the same length, and
+`pmap(list(a, b), f)` is equivalent. `map_dbl` requires every
+element to be a length-1 numeric. Check these constraints
+against your real data.
 
 **Prompt 3: error handling.** Describe a function that
 sometimes fails and ask: 'wrap this with `safely()` so I can
@@ -536,31 +550,31 @@ iterate over 10,000 inputs without losing the successful
 results when one fails. Return a tibble with columns for the
 result and the error message.'
 
-*What to watch for.* The main risks are shape mismatches:
+*What to watch for.* The main risks are shape mismatches.
 `safely(f)` returns a list with `result` and `error`
-components, so the downstream tibble assembly needs to
-flatten that structure carefully. LLMs sometimes produce
-code that silently discards the error component, making
-failures invisible.
+components, so the downstream tibble assembly needs to flatten
+that structure carefully. LLMs sometimes produce code that
+silently discards the error component, which makes failures
+invisible.
 
 *Verification.* Run the pipeline on inputs that are known to
-include failures (for example, divide by zero, pass a
-negative number to `sqrt`, pass a missing file path to
-`read_csv`). Confirm that the output tibble has the expected
-number of rows, that the error column is populated for the
-known-failing inputs, and that the result column is
-non-`NULL` only for inputs you expect to succeed.
+include failures (for example, divide by zero, pass a negative
+number to `sqrt`, pass a missing file path to `read_csv`).
+Confirm that the output tibble has the expected number of rows
+and that the error column is populated for the known-failing
+inputs. Confirm also that the result column is non-`NULL` only
+for inputs you expect to succeed.
 
 Because `purrr` code is short, it is tempting to accept LLM
-output at a glance, but brevity is no evidence of
-correctness. Read every `map_*()` choice and every
-anonymous function with the same care you would give a named
-function.
+output at a glance. Brevity, however, is no evidence of
+correctness. We recommend reading every `map_*()` choice and
+every anonymous function with the same care one would give a
+named function.
 
 ## Principle in use
 
-Three habits separate effective functional code from clever
-functional code:
+Three habits separate effective functional code from merely
+clever functional code:
 
 1. **Pick the iteration unit deliberately.** Name it.
    `map(resamples, fit_model)` reads better than `map(x, f)`.
@@ -572,11 +586,12 @@ functional code:
    failures in iteration are the silent failures most likely
    to reach production.
 
-Combine these three habits and `purrr` code becomes the
-clearest way to express a large class of statistical
-computations. Ignore them and it becomes another source of
-subtle bugs, just at a higher level of abstraction than a
-`for` loop would have been.
+When these habits are followed, `purrr` code is the clearest
+way to express a large class of statistical computations. When
+they are ignored, it becomes another source of subtle bugs,
+only at a higher level of abstraction than a `for` loop. In
+@sec-matrix-algebra we turn from iteration to the matrix
+computations on which much of statistical computing rests.
 
 ## Exercises
 
@@ -684,8 +699,8 @@ in scripts and packages?
 ::: {.callout-note collapse='true'}
 ## Answer
 
-**B.** This is the core problem `vapply()` (in base R) and
-the typed `map_*()` variants (in `purrr`) were designed to
+**B.** This is the core problem that `vapply()` (in base R)
+and the typed `map_*()` variants (in `purrr`) were designed to
 fix.
 :::
 
@@ -707,8 +722,8 @@ their error messages. Which tool is appropriate?
 **C.** `safely()` preserves both the result (for successful
 strata) and the error (for failing strata), which is what
 you need when you want to report *which* strata failed and
-*why*. `possibly()` discards the error; plain `map()`
-aborts at the first failure; `walk()` is for side effects.
+*why*. `possibly()` discards the error, plain `map()` aborts
+at the first failure, and `walk()` is for side effects.
 :::
 
 ## Prerequisites answers {#sec-quiz-answers-functional}

@@ -17,9 +17,9 @@ chapter. You can find the answers at the end of the chapter in
 
 By the end of this chapter you should be able to:
 
-- State the three components of a GLM: random (exponential-
-  family distribution), systematic (linear predictor), and
-  link function.
+- State the three components of a GLM: random
+  (exponential-family distribution), systematic (linear
+  predictor), and link function.
 - Fit binomial, Poisson, quasi-Poisson, and negative
   binomial models with `glm()` / `MASS::glm.nb()` and
   interpret the output on both the link and response scales.
@@ -41,73 +41,82 @@ Most outcomes in biomedical research are not continuous and
 normal. We see binary outcomes (treatment success, disease
 status), counts (adverse events, hospital visits),
 proportions, and time-to-event data far more often than a
-tidy Gaussian variable. GLMs extend linear models to all of
-these within a single unified likelihood-based framework.
+tidy Gaussian variable. GLMs extend linear models to the
+binary, count, and proportion outcomes within a single
+unified likelihood-based framework. Censored time-to-event
+data require the further methods of @sec-survival.
 
-Nelder and Wedderburn introduced the framework in 1972, and
-it has become standard enough that `glm()` now feels like a
-minor extension of `lm()`. The conceptual leap is real
-nonetheless. Least squares gives way to maximum likelihood,
-the normal distribution gives way to the exponential family,
-and a *link function* intervenes between the linear
-predictor $\eta = X\beta$ and the mean response $\mu$.
+Nelder and Wedderburn introduced the framework in 1972. It
+has since become standard enough that `glm()` now feels
+like a minor extension of `lm()`. The conceptual leap is
+nonetheless real. Least squares gives way to maximum
+likelihood, and the normal distribution gives way to the
+exponential family. In addition, a *link function*
+intervenes between the linear predictor $\eta = X\beta$ and
+the mean response $\mu$.
 
-We build the machinery by hand on logistic regression first,
-since it is the most common GLM in biostatistics, and then
-hand off to `glm()` for production use. Poisson regression
-and overdispersion get equally careful treatment, because
-ignoring overdispersion is among the most common GLM
-mistakes we see in applied research.
+We shall build the machinery by hand on logistic regression
+first, since it is the most common GLM in biostatistics. We
+then hand off to `glm()` for production use. Poisson
+regression and overdispersion receive equally careful
+treatment. Ignoring overdispersion is
+among the most common GLM mistakes in applied research. The
+chapter closes with diagnostics, predictions and contrasts
+via `emmeans`, collaboration with an LLM, and a worked
+example.
 
 ## The statistician's contribution {#sec-glm-human}
 
 GLMs turn categorical and count outcomes into regression
-problems, but they do *not* turn them into
+problems. They do *not*, however, turn them into
 normal-distribution problems. This opens new modeling
-territory, and it also means that coefficients mean new
-things and assumptions must be checked differently.
+territory. It also means that coefficients mean new things
+and that assumptions must be checked differently.
 
-**Which family, which link.** Binary outcome, logit link.
-Count outcome with variance near the mean, Poisson with a
-log link. Count with variance much larger than the mean,
-quasi-Poisson or negative binomial. Positive continuous
-outcomes (costs, times) call for gamma with a log link.
-Proportions of successes out of a known denominator call for
-binomial with the denominator as weights. The choice depends
-on the data-generating process. Count
-data with structural excess zeros (many patients who do not
-use the health service at all) calls for a zero-inflated
-model, not a Poisson.
+**Which family, which link.** A binary outcome calls for
+the logit link. A count outcome with variance near the mean
+calls for Poisson with a log link. A count with variance
+much larger than the mean calls for quasi-Poisson or
+negative binomial. Positive continuous outcomes (costs,
+times) call for gamma with a log link. Proportions of
+successes out of a known denominator call for binomial with
+the denominator as weights. The choice depends on the
+data-generating process. For example, count data with
+structural excess zeros (many patients who do not use the
+health service at all) call for a zero-inflated model, not
+a Poisson.
 
-**Interpretation on which scale.** A logistic coefficient of
-0.693 is 'a log-odds ratio of 0.693', or 'an odds ratio of
-2', or 'a change in probability from 0.5 to 0.67'. All three
-are numerically identical, yet they convey very different
-impressions to non-statistical readers. It falls to the
-statistician to pick the scale that matches the audience and
-the question. For clinical communication, predicted
-probabilities or risk differences at clinically meaningful
-covariate values are usually clearer than odds ratios.
+**Interpretation on which scale.** A logistic coefficient
+of 0.693 may be described as 'a log-odds ratio of 0.693',
+as 'an odds ratio of 2', or as 'a change in probability
+from 0.5 to 0.67'. All three are numerically identical.
+Nevertheless, they convey very different impressions to
+non-statistical readers. It falls to the statistician to
+pick the scale that matches the audience and the question.
+For clinical communication, predicted probabilities or risk
+differences at clinically meaningful covariate values are
+usually clearer than odds ratios.
 
 **Overdispersion is a conditional error.** In Poisson
 regression, if $\mathrm{Var}(Y) > E(Y)$, the standard errors
 printed by `glm()` understate uncertainty. P-values and CIs
-become over-confident. `glm()` does not flag this; the
-analyst has to check for it. The fix is quasi-Poisson (same
-coefficients, corrected SEs) or negative binomial (a
+then become over-confident. `glm()` does not flag this, so
+the analyst has to check for it. The fix is quasi-Poisson
+(same coefficients, corrected SEs) or negative binomial (a
 different likelihood, usually with a better AIC).
 
-**Separation in logistic regression.** When a predictor
+**Separation in logistic regression.** Suppose a predictor
 perfectly separates the outcome (all $y = 1$ for $x > 0$,
-all $y = 0$ otherwise), the MLE does not exist. The
+all $y = 0$ otherwise). The MLE then does not exist. The
 algorithm converges to coefficients that are numerically
 huge and technically undefined. R will produce a warning and
 a 'fit' with infinite-like coefficients and standard errors.
 The right responses are Firth penalized likelihood
-(`brglm2::brglm()` or `logistf::logistf()`), informative
-priors (Bayesian logistic regression), or acknowledging that
-the data cannot support the analysis. Do not ignore the
-warning.
+(`glm(..., method = brglm2::brglmFit)` or
+`logistf::logistf()`), informative
+priors (Bayesian logistic regression), or an acknowledgment
+that the data cannot support the analysis. We should not
+ignore the warning.
 
 ## The GLM framework
 
@@ -127,11 +136,11 @@ A GLM has three components:
    $\mu_i = g^{-1}(\eta_i)$.
 
 Standard linear models are the special case of a Gaussian
-family with the identity link. GLMs add two things: the
-freedom to choose a distribution matching the outcome type,
-and a link function that lets the linear predictor vary over
-the real line even when $\mu_i$ is constrained to $[0, 1]$
-or $(0, \infty)$.
+family with the identity link. GLMs add two things. The
+first is the freedom to choose a distribution matching the
+outcome type. The second is a link function that lets the
+linear predictor vary over the real line even when $\mu_i$
+is constrained to $[0, 1]$ or $(0, \infty)$.
 
 The *canonical* link for a family arises naturally from its
 exponential-family structure:
@@ -145,15 +154,15 @@ exponential-family structure:
 | inverse Gauss. | $1/\mu^2$      | positive continuous      |
 
 Canonical links are computationally convenient, since they
-simplify the IRLS algorithm, and they are often clinically
+simplify the IRLS algorithm. They are often clinically
 interpretable as well. Non-canonical links (probit for
 binomial, identity for Poisson) are occasionally used but
-rarely the default.
+are rarely the default.
 
 Parameter estimation proceeds by maximum likelihood, not
 least squares. Except in the Gaussian case, no closed form
-exists, so `glm()` relies on iteratively re-weighted least
-squares (IRLS).
+exists. For this reason `glm()` relies on iteratively
+re-weighted least squares (IRLS).
 
 ## Logistic regression
 
@@ -177,7 +186,7 @@ summary(fit)
 ```
 
 The `family = binomial` argument alone defaults to the logit
-link; we add the explicit `link = "logit"` here for clarity.
+link. We add the explicit `link = "logit"` here for clarity.
 
 ### Interpreting coefficients
 
@@ -187,19 +196,21 @@ $x_j$, holding the other predictors fixed.
 
 We translate between three scales:
 
-- **Log-odds.** The coefficient itself. Convenient for the
+- **Log-odds.** The coefficient itself. It is convenient for
   arithmetic, since a sum of coefficients equals the total
-  log-odds change, but rarely clinically interpretable.
+  log-odds change, but it is rarely clinically
+  interpretable.
 - **Odds ratio.** $\exp(\beta_j)$. A one-unit change in
   $x_j$ multiplies the odds of $Y = 1$ by this factor. An
-  odds ratio of 2 doubles the odds; an OR of 0.5 halves
+  odds ratio of 2 doubles the odds, and an OR of 0.5 halves
   them. This is the conventional reporting scale in
   epidemiology.
 - **Probability.** $p = \mathrm{expit}(\mathbf{x}^T \boldsymbol\beta)$.
-  This scale is nonlinear: the effect of a fixed change in
-  $x$ on $p$ depends on the starting value of $p$. For two
-  typical patients with different baseline risks, the same
-  OR implies different absolute risk differences.
+  This scale is nonlinear. That is, the effect of a fixed
+  change in $x$ on $p$ depends on the starting value of
+  $p$. For two typical patients with different baseline
+  risks, the same OR implies different absolute risk
+  differences.
 
 ```r
 broom::tidy(fit, conf.int = TRUE, exponentiate = TRUE)
@@ -240,11 +251,11 @@ new probability = 2/3 ≈ 0.667. Change: 0.50 → 0.667, a
 risk increase of 16.7 percentage points.
 
 The same OR of 2 produces a risk difference of 4.5 points
-in group A and 16.7 points in group B. This is why
+in group A and 16.7 points in group B. For this reason,
 reporting only the OR is misleading for clinical
-interpretation: the clinical impact depends on the
+interpretation, since the clinical impact depends on the
 baseline risk. For common outcomes, odds ratios
-substantially overstate relative risk; for rare outcomes,
+substantially overstate relative risk. For rare outcomes,
 OR and RR converge.
 
 :::
@@ -265,19 +276,20 @@ The symptoms are huge coefficient estimates (30 or more for
 a covariate on a reasonable scale), huge standard errors,
 and a warning. The remedies are as follows.
 
-- **Firth penalized likelihood.** `brglm2::brglm()` or
+- **Firth penalized likelihood.**
+  `glm(..., method = brglm2::brglmFit)` or
   `logistf::logistf()` adds a small penalty that makes the
   MLE exist and finite. This is usually the right default
   for small-sample logistic regression.
 - **Bayesian logistic regression.** A weakly-informative
-  prior on coefficients regularizes the fit.
+  prior on the coefficients regularizes the fit.
   `rstanarm::stan_glm()` is convenient.
-- **Exact conditional logistic regression.** Appropriate
-  for very small samples.
+- **Exact conditional logistic regression.** This is
+  appropriate for very small samples.
 - **Admit the data cannot support the analysis.** If a
-  covariate perfectly predicts outcome, we cannot separate
-  its effect from the outcome itself; no statistical method
-  will rescue this.
+  covariate perfectly predicts the outcome, we cannot
+  separate its effect from the outcome itself. No
+  statistical method will rescue this.
 
 ## IRLS from scratch
 
@@ -325,8 +337,8 @@ cbind(irls = drop(beta_irls), glm = beta_glm)
 The two implementations produce the same coefficients to
 roughly machine precision. `glm()` includes additional
 bookkeeping (deviance, null deviance, AIC) and numerical
-safeguards (step halving, convergence diagnostics), but the
-core algorithm is what the snippet above does.
+safeguards (step halving, convergence diagnostics).
+However, the core algorithm is what the snippet above does.
 
 ## Poisson regression
 
@@ -341,11 +353,11 @@ fit <- glm(count ~ age + condition + insurance,
 summary(fit)
 ```
 
-Coefficients represent changes in log expected count.
-Exponentiating gives **incidence rate ratios (IRRs)**:
-$\exp(\beta_j)$ is the multiplicative change in expected
-count per unit increase in $x_j$. An IRR of 1.5 means the
-expected count increases by 50%.
+The coefficients represent changes in the log expected
+count. Exponentiating gives **incidence rate ratios
+(IRRs)**. That is, $\exp(\beta_j)$ is the multiplicative
+change in expected count per unit increase in $x_j$. An IRR
+of 1.5 means that the expected count increases by 50%.
 
 When counts are rates (events per person-year, per 1000
 patients, and so on), we include the log of the exposure as
@@ -356,24 +368,24 @@ glm(events ~ treatment + age + offset(log(person_years)),
     family = poisson, data = trial)
 ```
 
-The offset forces a coefficient of 1 on `log(person_years)`,
-which turns the linear predictor into a log-rate rather than
-a log-count. Coefficients on other predictors then represent
-rate ratios.
+The offset forces a coefficient of 1 on `log(person_years)`.
+This turns the linear predictor into a log-rate in place of
+a log-count. The coefficients on the other predictors then
+represent rate ratios.
 
 ### Overdispersion
 
 The Poisson distribution is defined by the single parameter
 $\mu$, with $\mathrm{Var}(Y) = \mu$. Real count data often
-shows $\mathrm{Var}(Y) > \mu$, a condition called
-overdispersion, usually driven by unmeasured heterogeneity,
-clustering, or contagion effects.
+show $\mathrm{Var}(Y) > \mu$, a condition called
+overdispersion. It is usually driven by unmeasured
+heterogeneity, clustering, or contagion effects.
 
-Overdispersion does not bias the point estimates, but it
-makes standard errors too small, p-values too small, and CIs
-too narrow.
+Overdispersion does not bias the point estimates.
+Unfortunately, it makes standard errors too small, p-values
+too small, and CIs too narrow.
 
-The Pearson dispersion statistic:
+The Pearson dispersion statistic is
 
 $$
 \hat\phi = \frac{1}{n - p} \sum_i \frac{(y_i - \hat\mu_i)^2}{\hat\mu_i}.
@@ -391,32 +403,33 @@ $\phi < 1$, also occurs but is much less common.)
 
 The remedies fall into two camps.
 
-**Quasi-Poisson.** Same coefficients, but standard errors
-scaled by $\sqrt{\hat\phi}$:
+**Quasi-Poisson.** The coefficients are the same, but the
+standard errors are scaled by $\sqrt{\hat\phi}$:
 
 ```r
 fit_q <- glm(count ~ age + condition, family = quasipoisson,
              data = visits)
 ```
 
-This is easy, but quasi-Poisson is a quasi-likelihood
-model, so AIC is not defined in the usual sense, which makes
-model comparison awkward.
+On the plus side, this is easy. On the minus side,
+quasi-Poisson is a quasi-likelihood model, so AIC is not
+defined in the usual sense. This makes model comparison
+awkward.
 
-**Negative binomial.** A full likelihood that accommodates
-overdispersion through an extra dispersion parameter
-$\theta$:
+**Negative binomial.** This is a full likelihood that
+accommodates overdispersion through an extra dispersion
+parameter $\theta$:
 
 ```r
 library(MASS)
 fit_nb <- glm.nb(count ~ age + condition, data = visits)
 ```
 
-Coefficients differ slightly from Poisson and quasi-Poisson,
-and standard errors reflect the overdispersion properly. AIC
-and likelihood ratio tests work here. For most applications
-with overdispersed counts, we prefer negative binomial as
-the default.
+The coefficients differ slightly from Poisson and
+quasi-Poisson, and the standard errors reflect the
+overdispersion properly. AIC and likelihood ratio tests
+work here. For most applications with overdispersed counts,
+we prefer negative binomial as the default.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: diagnosing overdispersion
@@ -430,35 +443,37 @@ indicate, and what would you do?
 The residual variance is roughly 3.2 times the mean, so the
 Poisson's equidispersion assumption fails strongly. The
 coefficients from this Poisson fit are still roughly
-unbiased, but the standard errors, p-values, and CIs are too
-narrow by a factor of about $\sqrt{3.2} \approx 1.8$. We
+unbiased, but the standard errors are too small by a factor
+of about $\sqrt{3.2} \approx 1.8$. As a result, the CIs are
+too narrow and the p-values too small. We
 would re-fit with either `quasipoisson` (which keeps the
 coefficients and scales SEs by $\sqrt{\hat\phi}$) or,
-preferably, `MASS::glm.nb()` for a proper negative binomial
-likelihood that handles overdispersion and supports
-AIC-based model comparison. Reporting the over-confident
-Poisson SEs without correction is a methodological error.
+preferably, `MASS::glm.nb()`. The latter gives a proper
+negative binomial likelihood that handles overdispersion
+and supports AIC-based model comparison. Reporting the
+over-confident Poisson SEs without correction is a
+methodological error.
 
 :::
 
 ## GLM diagnostics
 
 `plot(fit)` on a `glm` object produces adapted versions of
-the linear-model diagnostic plots, but the interpretation
-differs in important ways.
+the linear-model diagnostic plots. However, the
+interpretation differs in important ways.
 
 **Residual types:**
 
 - **Response residuals** ($y_i - \hat\mu_i$) correspond to
-  raw residuals in linear models but have non-constant
-  variance for GLMs, so they carry limited diagnostic
+  raw residuals in linear models. For GLMs they have
+  non-constant variance, so they carry limited diagnostic
   value.
 - **Pearson residuals** $(y_i - \hat\mu_i) / \sqrt{V(\hat\mu_i)}$
-  rescale by the estimated standard deviation and are
-  approximately constant in variance under a
-  well-specified model.
+  rescale by the estimated standard deviation. They are
+  approximately constant in variance under a well-specified
+  model.
 - **Deviance residuals** are the signed square roots of
-  per-observation contributions to the deviance. These
+  per-observation contributions to the deviance. They
   approximate $N(0, 1)$ for a correctly-specified model and
   form the basis for GLM diagnostic plots.
 - **Working residuals** arise from IRLS and are useful for
@@ -468,18 +483,19 @@ We recommend calling `residuals(fit, type = "deviance")` or
 `residuals(fit, type = "pearson")` explicitly.
 
 **Binned residual plots** are often more informative than
-raw residuals for GLMs, especially in logistic regression,
-where raw residuals are heavily constrained by the binary
-outcome. `arm::binnedplot()` provides these.
+raw residuals for GLMs. This is especially so in logistic
+regression, where raw residuals are heavily constrained by
+the binary outcome. `arm::binnedplot()` provides these.
 
 **Hosmer-Lemeshow test** assesses calibration for logistic
-regression by comparing observed and predicted event counts
-within risk deciles. It is available via
+regression. It compares observed and predicted event counts
+within risk deciles and is available via
 `ResourceSelection::hoslem.test()`. We find it a somewhat
-controversial test, since it can fail to reject for
-badly-calibrated models with small $n$, and reject for
-well-calibrated models with large $n$; it is better used as
-a diagnostic plot than as a significance test.
+controversial test. It can fail to reject for
+badly-calibrated models with small $n$, and it can reject
+for well-calibrated models with large $n$. It is
+better used as a diagnostic plot than as a significance
+test.
 
 ## Predictions, contrasts, and `emmeans`
 
@@ -505,82 +521,86 @@ emmeans(fit, "smoke", type = "response") |> pairs()
 ```
 
 `emmeans` computes the adjusted predictions at specific
-covariate values (or averaged over them), on the response
-scale if `type = "response"`, and applies the delta method
-for standard errors. For categorical predictors, pairwise
-contrasts on the link scale (risk ratios, odds ratios) or
-response scale (risk differences) are one function call
-away.
+covariate values (or averaged over them). It works on the
+response scale if `type = "response"`, and it applies the
+delta method for standard errors. For categorical
+predictors, pairwise contrasts on the link scale (risk
+ratios, odds ratios) or on the response scale (risk
+differences) are one function call away.
 
 We find this substantially more useful for clinical
-reporting than raw coefficient tables, and more trustworthy
-than hand-computing contrast SEs with the delta method.
+reporting than raw coefficient tables. It is also more
+trustworthy than hand-computing contrast SEs with the delta
+method.
 
-For more flexible marginal-effects computation across model
-classes (GLMs, GAMs, Bayesian models, machine learning
-models, custom likelihoods), the `marginaleffects` package
-by Vincent Arel-Bundock is a general-purpose alternative
-to `emmeans`. It supports a
-wider model-class menu and a clean API for predictions,
-comparisons, and slopes; we would consider it whenever
-`emmeans` does not directly handle a given model.
+The `marginaleffects` package by Vincent Arel-Bundock is a
+general-purpose alternative to `emmeans`. It offers more
+flexible marginal-effects computation across model classes
+(GLMs, GAMs, Bayesian models, machine learning models,
+custom likelihoods). It supports a wider menu of model
+classes and a clean API for predictions, comparisons, and
+slopes. We would consider it whenever `emmeans` does not
+directly handle a given model.
 
 ## Collaborating with an LLM on GLMs
 
-LLMs handle GLM code well; they handle GLM interpretation
+LLMs handle GLM code well. They handle GLM interpretation
 less reliably.
 
-**Prompt 1: fitting and interpreting.** Describe the data
-and question, and ask: 'fit an appropriate GLM, report
+**Prompt 1: fitting and interpreting.** We describe the
+data and question, and ask: 'fit an appropriate GLM, report
 coefficients on the clinically relevant scale (odds ratio /
 rate ratio / predicted probability), and interpret each
 effect in plain language.'
 
-*What to watch for.* Reference-level confusion, in both
-directions: the LLM may mis-identify which factor level is
-the reference, or may confuse log-odds with odds with
+*What to watch for.* Reference-level confusion may arise in
+both directions. The LLM may mis-identify which factor level
+is the reference, or it may confuse log-odds with odds with
 probability. We would read any interpretation using the
-word 'odds' with particular care; every sentence should
-clarify whether it is talking about odds, odds *ratio*, or
+word 'odds' with particular care. Every sentence should make
+clear whether it is talking about odds, odds *ratio*, or
 probability.
 
-*Verification.* For a sample covariate pattern, compute the
-predicted probability by hand using `plogis(xb)` and compare
-it to what the LLM claims the coefficients imply. If the
-LLM's narrative disagrees with the arithmetic, the narrative
-is wrong.
+*Verification.* For a sample covariate pattern, we compute
+the predicted probability by hand using `plogis(xb)`. We
+then compare it to what the LLM claims the coefficients
+imply. If the LLM's narrative disagrees with the
+arithmetic, the narrative is wrong.
 
-**Prompt 2: diagnosing overdispersion.** Paste the Pearson
-residuals or the dispersion statistic and ask: 'is this
-overdispersed, and what should I do?'
+**Prompt 2: diagnosing overdispersion.** We paste the
+Pearson residuals or the dispersion statistic and ask: 'is
+this overdispersed, and what should I do?'
 
 *What to watch for.* A correct diagnosis uses a threshold of
 roughly $\phi > 1.5$. A common weak suggestion is 'add more
-covariates' (this may help if overdispersion is due to
-omitted variables, but often does not). The standard answers
-are quasi-Poisson, negative binomial, or sandwich (robust)
-standard errors, which remain valid for the mean
+covariates'. This may help if the overdispersion is due to
+omitted variables, but often it does not. The standard
+answers are quasi-Poisson, negative binomial, or sandwich
+(robust) standard errors, which remain valid for the mean
 parameters under overdispersion.
 
-*Verification.* Fit both Poisson and negative binomial. If
-the coefficients are similar and the NB's dispersion
+*Verification.* We fit both Poisson and negative binomial.
+If the coefficients are similar and the NB's dispersion
 parameter is finite, the NB is the defensible model.
 
-**Prompt 3: handling separation.** Describe the symptom
+**Prompt 3: handling separation.** We describe the symptom
 (huge coefficients, convergence warning, one predictor
-perfectly classifying outcome) and ask: 'what is going on and
-how should I fit the model?'
+perfectly classifying the outcome) and ask: 'what is going
+on and how should I fit the model?'
 
-*What to watch for.* The correct answer is Firth penalized
-likelihood (`brglm2::brglm()` or `logistf::logistf()`), not
-'drop the problem predictor' or 'increase the sample size'.
+*What to watch for.* A standard remedy is Firth penalized
+likelihood (`glm(..., method = brglm2::brglmFit)` or
+`logistf::logistf()`), and
+a Bayesian fit with a stated prior is another. Advice to
+'drop the problem predictor' or 'increase the sample size'
+is not the right response.
 If the LLM suggests ridge regression or adds an arbitrary
 prior without explaining the purpose, we would ask it to be
 more specific.
 
-*Verification.* Fit both the plain `glm` and the Firth
-variant, and compare coefficients. The Firth version should
-produce finite coefficients with reasonable SEs.
+*Verification.* We fit both the plain `glm` and the Firth
+variant and compare the coefficients. The Firth version
+should produce finite coefficients with reasonable SEs.
 
 ## Worked example: birthweight study
 
@@ -610,8 +630,9 @@ which.max(cooks.distance(fit))
 
 We would focus the interpretation on odds ratios (or
 predicted probabilities) for the clinically relevant
-predictors, with CIs, and note any observations with high
-Cook's distance that materially affected the estimate.
+predictors, with CIs. We would also note any observations
+with high Cook's distance that materially affected the
+estimate.
 
 ## Principle in use
 
@@ -619,14 +640,15 @@ Three habits define defensible GLM practice:
 
 1. **Match the family to the outcome, and the link to the
    family.** Binary maps to binomial with a logit link.
-   Count maps to Poisson with a log link, or negative
+   Count maps to Poisson with a log link, or to negative
    binomial if overdispersed. Positive continuous outcomes
    map to gamma with a log link. Deviating from these
    defaults requires a specific reason.
-2. **Report on the clinically relevant scale.** Odds
-   ratios, rate ratios, or predicted probabilities, whichever
-   a clinical reader can use. Raw coefficient tables on the
-   link scale belong in the supplement, not the paper.
+2. **Report on the clinically relevant scale.** We report
+   odds ratios, rate ratios, or predicted probabilities,
+   whichever a clinical reader can use. Raw coefficient
+   tables on the link scale belong in the supplement, not
+   the paper.
 3. **Always check the dispersion for Poisson fits.**
    Overdispersion is the commonest silent failure mode we
    see in count-data analysis.
@@ -659,9 +681,9 @@ Three habits define defensible GLM practice:
 
 - [@legler2019bysh] Chapters 4 and 5, the most readable
   book-length GLM introduction.
-- [@faraway2016extending], Faraway's extending-the-linear-
-  model is a comfortable level for practicing
-  biostatisticians.
+- [@faraway2016extending], Faraway's
+  extending-the-linear-model is a comfortable level for
+  practicing biostatisticians.
 - [@mccullagh1989glm], the canonical reference. Dense
   but definitive.
 - [@uwmadison-glm], short GLM tutorial with R code.
@@ -748,7 +770,7 @@ response is:
 
 **B.** Dispersion ≫ 1 invalidates the Poisson standard
 errors. Quasi-Poisson corrects the SEs without changing
-coefficients; negative binomial provides a proper
+the coefficients, and negative binomial provides a proper
 likelihood with AIC support.
 :::
 
@@ -768,9 +790,9 @@ new risk after a one-unit increase in the predictor is:
 
 **C.** Baseline odds = 1; new odds = 2; new probability =
 2/3 ≈ 0.667. The same OR applied to a baseline of 0.05
-gives a new probability of only about 0.095, an
-illustration of why OR alone is misleading without
-baseline risk context.
+gives a new probability of only about 0.095. This
+illustrates why the OR alone is misleading without the
+context of baseline risk.
 :::
 
 ## Prerequisites answers {#sec-quiz-answers-glm}
@@ -779,9 +801,9 @@ baseline risk context.
    exponential family (binomial, Poisson, gamma, inverse
    Gaussian, etc.), not just Gaussian. They introduce a
    link function relating the linear predictor to the mean
-   response. We estimate parameters by maximum likelihood
-   (via iteratively re-weighted least squares) rather than
-   least squares.
+   response. We estimate the parameters by maximum
+   likelihood (via iteratively re-weighted least squares)
+   in place of least squares.
 2. The link function $g$ connects the linear predictor
    $\eta = X\beta$ to the expected value of the response:
    $g(\mu) = \eta$. The canonical link for a binomial

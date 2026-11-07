@@ -1,73 +1,81 @@
 # Introduction to the Second Half {#sec-intro-advanced .unnumbered}
 
+In this introduction we shall describe what the second half of
+the book contains and what we mean by calling it advanced. We
+then set out the two commitments that the subtitle places on
+every chapter, the dependencies that govern reading order, and
+the topics we have chosen to leave aside.
+
 ## What the second half is
 
 The first half of this book covers programming, numerical
 linear algebra, optimization, simulation, the bootstrap, the
 standard frequentist models, and statistical graphics. It is
 written for the first quarter of a two-quarter graduate
-sequence. The second half, which begins here, is written for
-the second quarter and begins where the first leaves off. In
-print it is Volume II.
+sequence. The second half begins here, where the first leaves
+off, and is written for the second quarter. In print it is
+Volume II.
 
 ## What 'advanced' means here
 
 The word 'advanced' carries three meanings in the second half,
-in increasing strength.
+which we take in increasing strength.
 
 The first is a deeper treatment of foundational topics.
 @sec-numerical-stability and @sec-numerical-linalg, on
 numerical stability and numerical linear algebra, revisit
-material the first half touches but does not treat in depth.
-Floating-point arithmetic, condition numbers, sparse and
-iterative solvers, and BLAS-level performance are the
-fundamentals that everything after them depends on.
+material that the first half touches but does not treat in
+depth. Floating-point arithmetic, condition numbers, sparse and
+iterative solvers, and BLAS-level performance are fundamentals.
+Everything after them depends on them.
 
 The second is topics that exceed introductory scope.
 @sec-advanced-optimization through @sec-modern-bayesian take
 up advanced optimization, the EM algorithm and its extensions,
 Monte Carlo in depth, Bayesian computation, MCMC in depth, and
 modern Bayesian computation. Each chapter extends the
-first-half treatment of its topic into the territory needed
-for current methodological research and for applied practice
-with modern tools.
+first-half treatment of its topic. The aim is to reach the
+territory needed for current methodological research and for
+applied practice with modern tools.
 
-The third is topics that did not appear in the first half
-at all. @sec-parallel through @sec-interactive-viz take up
+The third is topics that did not appear in the first half at
+all. @sec-parallel through @sec-interactive-viz take up
 parallel and high-performance computing, high-dimensional
 methods, machine learning, R package development and testing,
 software engineering for statisticians, reproducible
 computational environments, and interactive applications and
-dashboards. This is ground the first half deliberately sets
-aside. Each is the kind of topic a practicing biostatistician
-meets mid-career, and that graduate training ought to prepare
-them for.
+dashboards. The first half deliberately sets this ground aside.
+Each of these is the kind of topic a practicing biostatistician
+meets mid-career, and graduate training ought to prepare the
+reader for it.
 
 ## What 'in the Age of AI' commits the second half to
 
 The subtitle commits every chapter to two named sections.
 
 The first, **The statistician's contribution**, is placed
-early: it is an explicit articulation of the judgments at the
-center of the chapter that no large language model can make on
-the reader's behalf. Advanced material is exactly where the
-human-LLM division of labor matters most. A careless prompt in
-an introductory bootstrap chapter produces a bug that a re-run
-will catch. A careless prompt in a Hamiltonian Monte Carlo or a
-high-dimensional chapter produces results that look plausible
-and are wrong. The stakes rise further once the prompt is
-handed to a coding agent that edits the analysis code and
-reruns the pipeline unattended, rather than typed into a chat
-window. In that case nothing forces a human to see the
-intermediate step where the mistake was made.
+early. It states explicitly the judgments at the center of the
+chapter that no large language model can make on the reader's
+behalf. Advanced material is exactly where the
+division of labor between human and LLM matters most. To
+illustrate, a careless prompt in an introductory bootstrap
+chapter produces a bug that a rerun will catch. A careless
+prompt in a Hamiltonian Monte Carlo or a high-dimensional
+chapter produces results that look plausible and are wrong.
+The stakes rise further when the prompt is handed to a coding
+agent rather than typed into a chat window, since the agent
+edits the analysis code and reruns the pipeline unattended. In
+that case nothing forces a human to see the intermediate step
+where the mistake was made.
 
 The second, **Collaborating with an LLM on the topic at
-hand**, comes at the end of the chapter: specific prompts,
-each paired with what to watch for and how to verify. Each
-prompt is structured as a triple, the prompt itself, the
-failure modes the model may exhibit, and a verification step
-the reader runs to catch them. We apply the framework
-uniformly across the second half, as in the first.
+hand**, comes at the end of the chapter. It offers specific
+prompts, each paired with what to watch for and how to verify
+the result. That is, each prompt is structured as a triple:
+the prompt itself, the failure modes the model may exhibit,
+and a verification step the reader runs to catch them. We
+apply the framework uniformly across the second half, as in
+the first.
 
 ## Reading order
 
@@ -97,9 +105,9 @@ the following dependencies.
   with one exception: @sec-machine-learning uses the
   optimization tools of @sec-advanced-optimization.
 
-A reader who follows the dependencies in order treats the
-second half as a course; a reader who picks topics ad hoc
-treats it as a reference.
+A reader who follows the dependencies in order will treat the
+second half as a course. A reader who picks topics as needed
+will treat it as a reference.
 
 ## What this book does not cover
 
@@ -113,13 +121,14 @@ curriculum:
 - Missing-data computing in depth.
 - Meta-analysis.
 
-We point to the standard references for each as they arise.
+We point the reader to the standard references for each as
+they arise.
 
 ## Software environment
 
 The second half assumes a current R installation, a current
-Quarto, and the package set used in the first half. New
-software is named in the chapter that uses it. The companion
+Quarto, and the package set used in the first half. We name
+new software in the chapter that uses it. The companion
 *Biostatistics Practicum* documents the workflow, the
-infrastructure, and the deployment conventions assumed
+infrastructure, and the deployment conventions that we assume
 throughout.
