@@ -38,27 +38,31 @@ By the end of this chapter you should be able to:
 ## Orientation
 
 A good plot conveys a single message quickly and
-truthfully. A bad plot does neither: it either decorates
-without communicating or communicates a wrong impression
-of the data.
+truthfully. A bad plot does neither. Either it decorates
+without communicating, or it communicates a wrong
+impression of the data.
 
-The Grammar of Graphics, codified by Leland Wilkinson and
-implemented for R by Hadley Wickham as `ggplot2`, makes the
-*structure* of a plot explicit. Every plot is a composition
-of seven kinds of element: data, aesthetic mappings, geoms,
-stats, scales, a coordinate system, and facets. Once we
-think in these pieces, the universe of statistical
-graphics becomes a small set of swappable parts, rather than
-a zoo of named chart types.
+Leland Wilkinson codified the Grammar of Graphics, and
+Hadley Wickham implemented it for R as `ggplot2`. The
+grammar makes the *structure* of a plot explicit. Every
+plot is a composition of seven kinds of element: data,
+aesthetic mappings, geoms, stats, scales, a coordinate
+system, and facets. Once we think in these pieces, the
+universe of statistical graphics becomes a small set of
+swappable parts rather than a zoo of named chart types.
 
-This chapter teaches the grammar conceptually and applies
-it through `ggplot2`. The next chapter goes deeper on
-advanced ggplot techniques (themes, extensions,
+In this chapter we shall present the grammar conceptually
+and then apply it through `ggplot2`. We begin with the
+judgments that remain with the analyst, and then take the
+seven components in turn, with sections on geoms, stats,
+scales, and facets. We close with common mistakes, themes
+and labels, and saving plots. The next chapter goes deeper
+on advanced ggplot techniques (themes, extensions,
 interactivity).
 
 ## The statistician's contribution {#sec-viz-grammar-human}
 
-Software can produce a plot from any data; software cannot
+Software can produce a plot from any data. It cannot
 choose what plot to make.
 
 **Pick the right encoding.** Continuous values map well to
@@ -66,37 +70,40 @@ position (x, y, length). Categorical values map well to
 color, shape, or facets. Mapping a many-level categorical
 variable to shape (10 different shapes for 10 levels)
 creates an unreadable plot, and `ggplot2` refuses to map a
-continuous variable to shape at all. Mapping a categorical variable to a
-sequential color scale implies an ordering that may not
-exist. The grammar makes these mistakes structurally
-visible because each aesthetic has a natural variable type.
+continuous variable to shape at all. Mapping a categorical
+variable to a sequential color scale implies an ordering
+that may not exist. The grammar makes these mistakes
+structurally visible, because each aesthetic has a natural
+variable type.
 
 **One plot, one message.** A figure that crams in three
-relationships is harder to read than three figures each
-showing one. The temptation to combine is strong; the
-clarity gained by separating is usually worth more than the
-space saved.
+relationships is harder to read than three figures that
+each show one. The temptation to combine is strong.
+Nevertheless, the clarity gained by separating is usually
+worth more than the space saved.
 
 **Truthful axes.** Truncating a y-axis to make a small
 difference look large is dishonest. Logarithmic axes
 without a clear visual cue mislead readers who do not
-notice. Axes should encode what they appear to encode.
+notice the transformation. Axes should encode what they
+appear to encode.
 
-**Accessible color.** Roughly 8% of men and 0.5% of women have
-some form of color vision deficiency. Default `ggplot2`
-palettes (and most journal defaults) are not color-blind-
-safe. The `viridis`, `RColorBrewer`, and `ggthemes` palettes
-include accessible options. Picking one is a thirty-second
-fix that keeps the plot legible to a substantially larger
-audience.
+**Accessible color.** Roughly 8% of men and 0.5% of women
+have some form of color vision deficiency. The default
+`ggplot2` palettes (and most journal defaults) are not
+color-blind-safe. The `viridis`, `RColorBrewer`, and
+`ggthemes` palettes include accessible options. Choosing
+one takes about thirty seconds, and it keeps the plot
+legible to a substantially larger audience.
 
 These judgments are not automatable. The grammar makes
 them easier to think about by structuring the plot into
-separable decisions.
+separable decisions, which we now take up one at a time.
 
 ## The grammar of graphics: seven components
 
-A plot is the composition of:
+A plot is the composition of the following seven
+components.
 
 1. **Data.** A data frame (or tibble). The plot is a view
    of these data.
@@ -117,9 +124,13 @@ A plot is the composition of:
    subplots conditioned on a categorical variable.
 
 Every `ggplot()` call is some combination of these. Most
-calls touch only a few; the others have sensible defaults.
+calls touch only a few, and the others take sensible
+defaults.
 
 ## A minimum-viable example
+
+To illustrate, consider the Palmer penguins data and the
+relationship between flipper length and body mass.
 
 ```r
 library(ggplot2)
@@ -140,7 +151,7 @@ p <- penguins |>
 p
 ```
 
-What each piece does:
+We may read off each piece of the grammar from the call.
 
 - `penguins |> na.omit()` is the **data**.
 - `aes(x = ..., y = ..., colour = ...)` is the **aesthetic
@@ -158,14 +169,15 @@ What each piece does:
 - No **facet** because we are showing all data in one
   panel.
 
-The plot is built by adding layers with `+`. Each layer can
-override the inherited mapping, change the geom, add a
+The plot is built by adding layers with `+`. Each layer
+may override the inherited mapping, change the geom, add a
 stat, or modify the appearance.
 
 ## Geoms by variable types
 
 The choice of geom is largely determined by the types of
-the x and y variables.
+the x and y variables. The table below gives the common
+choices.
 
 | x type      | y type      | Common geoms                                  |
 |-------------|-------------|-----------------------------------------------|
@@ -177,7 +189,8 @@ the x and y variables.
 | (1 var)     | (1 var)     | `geom_histogram`, `geom_density`, `geom_bar`   |
 
 For two-variable scatterplots with thousands of points,
-overlap obscures the pattern. Solutions:
+overlap obscures the pattern. There are three standard
+remedies.
 
 ```r
 geom_point(alpha = 0.05)               # transparency
@@ -185,17 +198,17 @@ geom_hex(bins = 50)                    # hexagonal binning
 geom_density_2d_filled()                # 2D density contours
 ```
 
-For violin and boxplot combinations:
+Violins and boxplots combine naturally.
 
 ```r
 ggplot(penguins, aes(x = species, y = body_mass_g)) +
-  geom_violin(fill = "lightgrey") +
+  geom_violin(fill = "lightgray") +
   geom_boxplot(width = 0.1) +
   geom_jitter(width = 0.1, alpha = 0.4)
 ```
 
-Layer geoms freely; the order matters (later layers paint
-over earlier ones).
+Geoms may be layered freely. However, the order matters,
+since later layers paint over earlier ones.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: choosing a geom
@@ -207,24 +220,25 @@ blob in the middle of the plot. What are your options?
 
 **Answer.**
 
-The blob is overplotting. Standard remedies, roughly in
-order: (1) `alpha = 0.05` makes individual points
-semi-transparent, so density translates to visual
-darkness; (2) `geom_hex()` bins observations into
-hexagonal cells colored by count; (3)
+The blob is overplotting. The standard remedies, roughly
+in order, are three. First, `alpha = 0.05` makes
+individual points semi-transparent, so that density
+translates to visual darkness. Second, `geom_hex()` bins
+observations into hexagonal cells colored by count. Third,
 `geom_density_2d()` or `geom_density_2d_filled()` shows
-the joint density as contours rather than points.
-For pure scatterplots with very large $n$, `geom_hex` is
-usually clearest. For showing *both* the density and any
-individual outliers, combine `geom_hex` with
-`geom_point` for outliers only.
+the joint density as contours rather than points. For
+pure scatterplots with very large $n$, `geom_hex` is
+usually clearest. To show *both* the density and any
+individual outliers, we would combine `geom_hex` with
+`geom_point` for the outliers only.
 
 :::
 
 ## Statistical transformations
 
-Geoms can summarize the data before drawing. The summary is
-controlled by the `stat` argument or by the geom itself.
+Geoms may summarize the data before drawing. The summary
+is controlled by the `stat` argument or by the geom
+itself.
 
 ```r
 # raw points (stat_identity, the default)
@@ -254,13 +268,14 @@ ggplot(penguins, aes(body_mass_g)) +
 (if the aesthetic includes `colour` or `group`) and plots
 the fitted line with a confidence band. For regression
 visualization, this single line of code does what would
-take many in base R.
+take many lines in base R.
 
 ## Scales
 
 Scales control how aesthetic values map to visual
 properties. The defaults are reasonable but rarely
-optimal.
+optimal. We give the common forms for continuous axes,
+discrete axes, and color.
 
 **Continuous axes:**
 
@@ -282,27 +297,30 @@ scale_x_discrete(limits = c("placebo", "low", "high"))   # custom order
 **Color:**
 
 ```r
-scale_colour_brewer(palette = "Dark2")    # colour-blind safe, qualitative
-scale_colour_viridis_d()                  # colour-blind safe, ordered
+scale_colour_brewer(palette = "Dark2")    # color-blind safe, qualitative
+scale_colour_viridis_d()                  # color-blind safe, ordered
 scale_colour_manual(values = c("a" = "red", "b" = "blue"))
 scale_colour_gradient(low = "white", high = "darkblue")  # continuous
 ```
 
 `viridis` and ColorBrewer's qualitative palettes (Dark2,
 Set1, Set2) are the standard color-blind-safe defaults.
-Avoid the rainbow scale (jet, `rainbow()`) for continuous
-data: it is not perceptually uniform and is unreadable for
-many readers.
+We would avoid the rainbow scale (jet, `rainbow()`) for
+continuous data. It is not perceptually uniform, and many
+readers find it unreadable.
 
-For discrete fills with no natural order, qualitative.
-For ordered discrete or continuous, viridis or sequential
-ColorBrewer (Blues, Reds, etc.). For diverging data
-(positive vs. negative), diverging palettes (RdBu, PuOr).
+The choice of palette follows the structure of the data.
+For discrete fills with no natural order, a qualitative
+palette is appropriate. For ordered discrete or continuous
+data, viridis or a sequential ColorBrewer palette (Blues,
+Reds, etc.) is the usual choice. For diverging data
+(positive vs. negative), we use a diverging palette (RdBu,
+PuOr).
 
 ## Faceting
 
 Facets split the plot into a grid of small multiples by
-one or two variables:
+one or two variables.
 
 ```r
 # rows = species, columns = sex
@@ -316,39 +334,42 @@ ggplot(penguins, aes(flipper_length_mm, body_mass_g)) +
   facet_wrap(~ species, ncol = 1)
 ```
 
-Faceting lets you condition on a third (or fourth)
+Faceting lets us condition on a third (or fourth)
 variable without losing the underlying plot's design. It
 is particularly useful for displaying group-specific
-patterns when groups are too many or too small for
+patterns when the groups are too many or too small for
 color-coding to be readable.
 
 ## Common mistakes
+
+A small number of mistakes account for most misleading
+statistical graphics. We list them here.
 
 **Truncated axes.** Setting `ylim()` to exclude zero on a
 bar chart exaggerates differences. Setting it to exclude
 the data range entirely is misleading.
 
 **Dual y-axes.** Two y-axes on different scales nearly
-always mislead. Readers cannot tell which trace
-corresponds to which axis at a glance. Better: split into
-two facets.
+always mislead. Readers cannot tell at a glance which
+trace corresponds to which axis. Two facets are a better
+choice.
 
 **Pie charts beyond two categories.** Humans read angles
 poorly. A bar chart of the same data is universally
 clearer.
 
-**Default color for ordered categories.** `ggplot2`'s
-default `scale_colour_discrete` is *unordered*. If your
-categories are ordered (e.g., low/medium/high), use
-`scale_colour_viridis_d()` or a sequential ColorBrewer
+**Default color for ordered categories.** The `ggplot2`
+default `scale_colour_discrete` is *unordered*. If the
+categories are ordered (e.g., low/medium/high), we would
+use `scale_colour_viridis_d()` or a sequential ColorBrewer
 palette to encode the ordering visually.
 
-**3D plots.** Almost always worse than 2D plus a color or
-size encoding.
+**3D plots.** A 3D plot is almost always worse than a 2D
+plot with a color or size encoding.
 
 **Over-the-top legends.** A legend that explains 10
 categories with 10 colors and 10 shapes triple-encodes
-the same information. Pick one.
+the same information. One encoding is enough.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: a misleading plot
@@ -361,45 +382,49 @@ the visual lie?
 
 **Answer.**
 
-The truncated y-axis. The actual difference is 3
-percentage points; the visual difference suggests roughly
-fourfold. For bar charts, the y-axis should start at 0
-(or, for negative values, span both directions
-symmetrically). For showing small differences honestly,
-either show them as a line on a true-to-scale y-axis, or
-report them as differences directly (a bar chart of the
-3-point gap with its CI). Truncated y-axes are among the
-most common ways scientific papers visually mislead, and
-the grammar of graphics makes the issue visible: the
-scale is encoding pixels-per-unit, and a truncated scale
-encodes pixels-per-relative-difference, which is not what
-the reader expects.
+The visual lie is the truncated y-axis. The actual
+difference is 3 percentage points, but the visual
+difference suggests roughly fourfold. For bar charts, the
+y-axis should start at 0 (or, for negative values, span
+both directions symmetrically). To show small differences
+honestly, we may show them as a line on a true-to-scale
+y-axis. Alternatively, we may report them as differences
+directly (a bar chart of the 3-point gap with its CI).
+Truncated y-axes are among the most common ways in which
+scientific papers visually mislead. The grammar of
+graphics makes the issue visible. That is, the scale
+encodes pixels-per-unit, whereas a truncated scale encodes
+pixels-per-relative-difference, which is not what the
+reader expects.
 
 :::
 
 ## Themes and labels
 
-Themes control non-data appearance: backgrounds, grids,
-fonts. Built-in themes include `theme_grey()` (the
-default), `theme_minimal()`, `theme_bw()`, `theme_classic()`.
-Pick one and use it consistently across a paper or report.
+Themes control the non-data appearance of a plot, such as
+backgrounds, grids, and fonts. The built-in themes include
+`theme_grey()` (the default), `theme_minimal()`,
+`theme_bw()`, and `theme_classic()`. We recommend choosing
+one and using it consistently across a paper or report.
 
 ```r
 ggplot(penguins, aes(flipper_length_mm, body_mass_g)) +
   geom_point() +
   labs(title = "Body mass vs. flipper length",
-       subtitle = "Palmer Archipelago penguins, 2007--2009",
+       subtitle = "Palmer Archipelago penguins, 2007-2009",
        x = "Flipper length (mm)",
        y = "Body mass (g)",
        caption = "Source: palmerpenguins package") +
   theme_minimal()
 ```
 
-Always label axes with units. 'Body mass (g)' tells the
-reader more than 'body_mass_g'. Captions citing data
-sources earn trust.
+Axes should always be labeled with units. 'Body mass (g)'
+tells the reader more than 'body_mass_g'. A caption that
+cites the data source also earns the reader's trust.
 
 ## Saving plots
+
+`ggsave()` writes a plot to disk in raster or vector form.
 
 ```r
 ggsave("flipper_mass.png", plot = p, width = 6, height = 4,
@@ -409,14 +434,15 @@ ggsave("flipper_mass.png", plot = p, width = 6, height = 4,
 ggsave("flipper_mass.pdf", plot = p, width = 6, height = 4)
 ```
 
-For papers, use vector formats (PDF, SVG) when possible;
-they remain crisp at any zoom. For web, PNG at moderate DPI
-is a good default. Avoid JPG for plots: its compression
-artifacts are visible on lines and text.
+For papers we use vector formats (PDF, SVG) when possible,
+since they remain crisp at any zoom. For the web, PNG at
+moderate DPI is a good default. JPG should be avoided for
+plots, because its compression artifacts are visible on
+lines and text.
 
 ## Collaborating with an LLM on visualization
 
-LLMs handle ggplot2 code well; they handle visualization
+LLMs handle ggplot2 code well. They handle visualization
 *judgment* less reliably.
 
 **Prompt 1: drafting a plot.** Describe the data and the
@@ -424,41 +450,44 @@ question. Ask: 'write a ggplot2 plot that addresses the
 question. Use a color-blind-safe palette and label axes
 with units.'
 
-*What to watch for.* The default LLM plot tends toward
-busy: too many aesthetics encoded, default ggplot theme,
-sometimes no axis labels. Push for clarity over
-decoration. Multiple iterations of 'simpler' tend to
-improve the result.
+*What to watch for.* The default LLM plot tends to be
+busy. It encodes too many aesthetics, keeps the default
+ggplot theme, and sometimes omits axis labels. We would
+push for clarity over decoration. Several rounds of asking
+for something 'simpler' tend to improve the result.
 
 *Verification.* Render the plot and ask whether a reader
-who has never seen the data could state the message in
+who has never seen the data could state its message in
 one sentence. If not, simplify.
 
 **Prompt 2: critiquing a plot.** Paste a `ggplot()` call
-and the rendered plot description, ask: 'critique this
+and the rendered plot description, and ask: 'critique this
 plot, what would be unclear or misleading to a reader?'
 
-*What to watch for.* LLMs are reasonable at spotting
+*What to watch for.* LLMs are reasonably good at spotting
 truncated axes, dual y-axes, missing labels, and palette
-issues. They are weaker on subject-matter problems
-(wrong choice of summary, inappropriate scale for the
-units). Bring substantive judgment.
+issues. They are weaker on subject-matter problems, such
+as the wrong choice of summary or a scale inappropriate
+to the units. Here the analyst has to supply the
+substantive judgment.
 
-*Verification.* Apply the suggested fixes. Run the plot.
-Compare before and after.
+*Verification.* Apply the suggested fixes, render the
+plot, and compare the before and after versions.
 
 **Prompt 3: replicating a published plot.** Describe a
 target figure (or paste the published plot if available)
 and ask the LLM to reproduce its design.
 
 *What to watch for.* LLMs can reproduce the visual style
-of well-known plots (Tufte, Minard); they cannot read your
-data and decide whether the same design fits. Treat the
-LLM output as a starting point and adapt for your data.
+of well-known plots (Tufte, Minard). They cannot read our
+data and decide whether the same design fits it. We treat
+the LLM output as a starting point and adapt it to the
+data at hand.
 
-*Verification.* Compare with the original. Are the
-encodings the same? The aspect ratio? The colors?
-Differences may be improvements; they may be regressions.
+*Verification.* Compare the result with the original. Are
+the encodings the same? Is the aspect ratio? Are the
+colors? Differences may be improvements, or they may be
+regressions.
 
 ## Principle in use
 
@@ -467,26 +496,27 @@ Three habits define defensible visualization:
 1. **One plot, one message.** Resist the urge to combine
    three relationships into one figure. Three figures with
    one message each are clearer.
-2. **Truthful axes, accessible colors.** No truncated
-   axes that exaggerate differences; no color palettes
-   that exclude color-blind readers; no dual y-axes that
+2. **Truthful axes, accessible colors.** Avoid truncated
+   axes that exaggerate differences, color palettes that
+   exclude color-blind readers, and dual y-axes that
    mislead by their scale.
 3. **Compositional thinking.** Build plots by combining
    grammar pieces, not by reaching for chart types. The
    right plot for an unusual question is rarely a built-in
-   chart; it is usually a small variation on something
+   chart. It is usually a small variation on something
    familiar.
 
 ## Version notes (`ggplot2` 3.5+)
 
 A few legacy patterns no longer work in current
-`ggplot2`. `aes_string()` is soft-deprecated in
-`ggplot2` 3.5+; use the `.data` and `.env` pronouns from
-`rlang` for programmatic aesthetics, e.g.,
+`ggplot2`. `aes_string()` is soft-deprecated in `ggplot2`
+3.5+. For programmatic aesthetics we use the `.data` and
+`.env` pronouns from `rlang` instead, e.g.,
 `aes(x = .data[[varname]])`. `qplot()` has been deprecated
-since `ggplot2` 3.4.0; use `ggplot()` directly. When older code or LLM
-output uses these constructs, translate to the current
-forms before relying on the result.
+since `ggplot2` 3.4.0, and `ggplot()` should be used
+directly. When older code or LLM output uses these
+constructs, we translate them to the current forms before
+relying on the result.
 
 ## Exercises
 
@@ -613,10 +643,10 @@ Which scale is most appropriate?
 ::: {.callout-note collapse='true'}
 ## Answer
 
-**B.** Three unordered categories want a qualitative
-color-blind-safe palette. Dark2 (or Set2 / viridis_d)
-fit the role; continuous scales imply an ordering that
-species do not have; the ggplot2 defaults are not
+**B.** Three unordered categories call for a qualitative
+color-blind-safe palette, and Dark2 (or Set2 / viridis_d)
+fits the role. Continuous scales imply an ordering that
+species do not have. The ggplot2 defaults are not
 color-blind-safe.
 :::
 
@@ -636,6 +666,6 @@ color-blind-safe.
    to describe and create visualizations. New plots are
    built by swapping or layering grammar components,
    rather than by learning a different function for
-   every chart type. The benefit is that the same vocab
-   covers everything from a histogram to a Sankey diagram
-   to a custom map.
+   every chart type. The benefit is that the same
+   vocabulary covers everything from a histogram to a
+   Sankey diagram to a custom map.

@@ -34,90 +34,103 @@ By the end of this chapter you should be able to:
 The bootstrap [@efron1979bootstrap; @efron1993bootstrap] is,
 in our view, the most useful general-purpose inference tool
 of the last fifty years. It works when analytic standard
-errors are impossible or wrong, and when it does fail, it
-fails in interesting, learnable ways. Every biostatistician
+errors are impossible or wrong. When it does fail, it fails
+in interesting and learnable ways. Every biostatistician
 should be comfortable rolling her own bootstrap.
+
+We begin with the four decisions that require the
+statistician's judgment before any resampling takes place.
+We then present the plug-in principle, a simple
+nonparametric bootstrap in base R, and the relation between
+the bootstrap and sampling distributions. Standard errors,
+confidence intervals, hypothesis tests, and Monte Carlo
+error are considered next, followed by the settings in
+which the bootstrap fails. Lastly, we shall turn to the
+`boot` package, to bootstrapping regression coefficients,
+and to exercises in collaborating with an LLM.
 
 ## The statistician's contribution {#sec-bootstrap-human}
 
-Before handing a dataset to a large language model with the
-instruction to 'bootstrap the standard error', four
-decisions require the statistician's judgment. An LLM will
-execute a nonparametric iid bootstrap by default. Whether
-that is the *appropriate* bootstrap for the problem at hand
-is a determination the model cannot make without
-statistician input.
+Suppose we hand a dataset to a large language model with
+the instruction to 'bootstrap the standard error'. Before
+doing so, we need to make four decisions that require the
+statistician's judgment. By default, an LLM will execute a
+nonparametric iid bootstrap. Whether that is the
+*appropriate* bootstrap for the problem at hand is a
+determination the model cannot make without input from the
+statistician.
 
 **1. Is the bootstrap appropriate for this statistic at
 all?** The bootstrap fails for extrema (sample max, min,
-modes), for non-smooth statistics (change-points, mode
-estimates), for heavy-tailed populations with infinite
-variance, and for samples below about $n = 20$. An LLM will
-produce a numerical answer in every case; the number will
-be misleading in these cases. Recognizing which case you
-are in is the statistician's job.
+modes) and for non-smooth statistics (change-points, mode
+estimates). It also fails for heavy-tailed populations with
+infinite variance and for samples below about $n = 20$. An
+LLM will produce a numerical answer in every case, and in
+these cases the number will be misleading. Recognizing
+which case we are in is the statistician's job.
 
 **2. What is the dependence structure of the data?** An
 iid bootstrap on time series, clustered data, or
 longitudinal repeated measures systematically
 *underestimates* variance. The confidence interval will be
-too narrow, sometimes dramatically so. Only you can detect
-the dependence in the data and specify a block bootstrap, a
-cluster bootstrap, or a parametric alternative that
-respects the structure.
+too narrow, sometimes dramatically so. Only the analyst can
+detect the dependence in the data. It then falls to the
+analyst to specify a block bootstrap, a cluster bootstrap,
+or a parametric alternative that respects the structure.
 
 **3. Which confidence-interval method matches the
 statistic's behavior?** The percentile method is
-transformation-respecting and easy to explain, but
-undercoverage is common in small samples. BCa is
-second-order accurate and preferred for publication. The
-studentized method has the best coverage but requires a
-bootstrap-within-bootstrap. An LLM typically defaults to
-the percentile method regardless of whether the bootstrap
-distribution is skewed; selecting a more appropriate method
-is the statistician's responsibility.
+transformation-respecting and easy to explain.
+Unfortunately, undercoverage is common in small samples.
+BCa is second-order accurate and preferred for publication.
+The studentized method has the best coverage, but it
+requires a bootstrap-within-bootstrap. An LLM typically
+defaults to the percentile method whether or not the
+bootstrap distribution is skewed. Selecting a more
+appropriate method is the statistician's responsibility.
 
 **4. Is the bootstrap distribution itself plausible?**
-Always plot the histogram of the $B$ replicates. If it is
-wildly skewed, truncated sharply at a boundary, or
-multimodal, either the bootstrap is failing for one of the
-reasons above or the sampling distribution is genuinely
-unusual. Either way, investigate before accepting the
-number as an answer.
+We should always plot the histogram of the $B$ replicates.
+Suppose it is wildly skewed, truncated sharply at a
+boundary, or multimodal. Then either the bootstrap is
+failing for one of the reasons above, or the sampling
+distribution is genuinely unusual. In either case, we need
+to investigate before accepting the number as an answer.
 
-The remainder of this chapter provides the technical
-vocabulary needed to make these four decisions.
+In the remainder of this chapter we shall develop the
+technical vocabulary needed to make these four decisions.
 
 ## The plug-in principle
 
-We do not know the true population distribution $F$, but we do
-know the **empirical distribution** $\hat F_n$, the
-distribution that places probability $1/n$ on each observed
-data point. The *plug-in principle* says: to estimate any
-functional $\theta = t(F)$, substitute $\hat F_n$ for $F$
-and compute $\hat\theta = t(\hat F_n)$. The sample mean,
-median, quantiles, variance, and correlation are all plug-in
-estimates.
+We do not know the true population distribution $F$. We
+do, however, know the **empirical distribution** $\hat F_n$,
+that is, the distribution that places probability $1/n$ on
+each observed data point. The *plug-in principle* says that
+to estimate any functional $\theta = t(F)$, we substitute
+$\hat F_n$ for $F$ and compute $\hat\theta = t(\hat F_n)$.
+The sample mean, median, quantiles, variance, and
+correlation are all plug-in estimates.
 
 For *sampling variability*, the plug-in goes one step
 further. The sampling distribution of $\hat\theta - \theta$
 under repeated draws from $F$ is approximated by the
 distribution of $\hat\theta^* - \hat\theta$ under repeated
-draws from $\hat F_n$. The right-hand side is something we
-can compute by resampling. The left-hand side is what we
-actually want to know. The bootstrap is the computational
-substitution of one for the other.
+draws from $\hat F_n$. We can compute the second of these
+by resampling. The first is what we actually want to know.
+The bootstrap is the computational substitution of one for
+the other.
 
 The substitution is justified by the Glivenko-Cantelli
-theorem: $\hat F_n$ converges uniformly to $F$ as $n$ grows.
-For smooth statistics, the higher-order accurate
+theorem. That is, $\hat F_n$ converges uniformly to $F$ as
+$n$ grows. For smooth statistics, the higher-order accurate
 bootstrap intervals (BCa, studentized) achieve a coverage
-error of $O(1/n)$, faster than the $O(1/\sqrt n)$ rate of
-a central-limit-theorem interval. The plain percentile
-bootstrap is only first-order accurate ($O(1/\sqrt n)$
-coverage error), the same rate as the CLT interval; it
-is worth using primarily for its non-parametric
-applicability rather than for higher-order accuracy.
+error of $O(1/n)$. This is faster than the $O(1/\sqrt n)$
+rate of a central-limit-theorem interval. The plain
+percentile bootstrap, on the other hand, is only
+first-order accurate ($O(1/\sqrt n)$ coverage error), the
+same rate as the CLT interval. We would use it primarily
+for its non-parametric applicability, since it offers no
+gain in the order of accuracy.
 
 ::: {.callout-tip collapse='true'}
 ## Check your understanding
@@ -132,7 +145,7 @@ original sample.
 
 ## A simple nonparametric bootstrap
 
-The nonparametric bootstrap is eight lines of base R:
+In base R, the nonparametric bootstrap takes eight lines:
 
 ```r
 # Original data
@@ -157,14 +170,14 @@ bootstrap:
    would be a permutation of the original, with no new
    variability.
 3. **Repeated $B$ times.** $B$ is the number of Monte Carlo
-   draws; 1000 is adequate for standard errors, 2000 or
-   more for confidence intervals, 10,000 or more for
+   draws. About 200 draws suffice for standard errors, 1000
+   to 2000 for confidence intervals, and 10,000 or more for
    extreme quantiles.
 
 The vector `boot_means` is the **bootstrap distribution** of
 the sample mean. Its sample standard deviation is the
-bootstrap estimate of the standard error of $\bar x$. Its
-quantiles give a percentile confidence interval.
+bootstrap estimate of the standard error of $\bar x$, and
+its quantiles give a percentile confidence interval.
 
 ::: {.callout-tip collapse='true'}
 ## Check your understanding
@@ -180,37 +193,39 @@ no new information about sampling variability.
 ## Bootstrap and sampling distributions
 
 The bootstrap distribution and the sampling distribution are
-not the same thing; they differ in three ways.
+not the same thing. We note that they differ in three ways.
 
 First, **centering**. The sampling distribution is centered
-at the true parameter $\theta$. The bootstrap distribution
-is centered near the observed estimate $\hat\theta$. For this
-reason the bootstrap cannot recover the location of $\theta$
-itself. It can only mimic the offset: for a biased
-$\hat\theta$, the mean of the replicates sits roughly the
-bias away from $\hat\theta$, which is what the bootstrap
-bias estimate $\bar\theta^* - \hat\theta$ measures.
+at the true parameter $\theta$, whereas the bootstrap
+distribution is centered near the observed estimate
+$\hat\theta$. For this reason the bootstrap cannot recover
+the location of $\theta$ itself; it can only mimic the
+offset. That is, for a biased $\hat\theta$, the mean of the
+replicates sits roughly the bias away from $\hat\theta$.
+This offset is what the bootstrap bias estimate
+$\bar\theta^* - \hat\theta$ measures.
 
-Second, **support**. The sampling distribution can in
-principle produce any value the true distribution can. The
-nonparametric bootstrap distribution is restricted to
-functions of the observed values. This shows up when
-estimating the maximum of a bounded distribution, where the
-bootstrap cannot produce values larger than the observed
-maximum.
+Second, **support**. In principle the sampling distribution
+can produce any value the true distribution can. The
+nonparametric bootstrap distribution, by contrast, is
+restricted to functions of the observed values. The
+restriction shows up when estimating the maximum of a
+bounded distribution, since the bootstrap cannot produce
+values larger than the observed maximum.
 
 Third, **variability**. The bootstrap distribution has
 slightly less spread than the sampling distribution, by a
 factor of roughly $\sqrt{(n - 1)/n}$. The bias is negligible
-for large $n$ but compounds with the other small-sample
-weaknesses of the percentile method discussed below.
+for large $n$. However, it compounds with the other
+small-sample weaknesses of the percentile method discussed
+below.
 
 The bootstrap *does* faithfully capture the shape of the
-sampling distribution: its skewness, multimodality, and the
-boundary effects that arise near constrained parameters
-(such as a correlation coefficient near $\pm 1$). These
-shape diagnostics inform the choice of confidence-interval
-method.
+sampling distribution. This includes its skewness, its
+multimodality, and the boundary effects that arise near
+constrained parameters (such as a correlation coefficient
+near $\pm 1$). These shape diagnostics inform the choice of
+confidence-interval method, to which we return below.
 
 ::: {.callout-tip collapse='true'}
 ## Check your understanding
@@ -229,9 +244,9 @@ the same direction.
 ## Estimating standard errors
 
 Let $\hat\theta^*_1, \dots, \hat\theta^*_B$ denote the
-bootstrap replications and $\bar\theta^* = B^{-1} \sum_b
-\hat\theta^*_b$ their mean. The bootstrap estimate of the
-standard error of $\hat\theta$ is
+bootstrap replications, and let $\bar\theta^* = B^{-1} \sum_b
+\hat\theta^*_b$ denote their mean. The bootstrap estimate of
+the standard error of $\hat\theta$ is then
 
 $$
 \widehat{\mathrm{SE}}_B(\hat\theta) =
@@ -239,12 +254,13 @@ $$
   \sum_{b=1}^B (\hat\theta^*_b - \bar\theta^*)^2}.
 $$
 
-In R, this is `sd(boot_replicates)`. The principal value of
-the bootstrap SE is in cases where an analytic formula for
-$\mathrm{SE}(\hat\theta)$ is unavailable or depends on
-assumptions the data do not satisfy: medians, trimmed
-means, correlation coefficients, and any custom statistic
-you can compute from a sample.
+In R, this is `sd(boot_replicates)`. The bootstrap SE is of
+most value where an analytic formula for
+$\mathrm{SE}(\hat\theta)$ is unavailable, or where such a
+formula depends on assumptions the data do not satisfy.
+Examples include medians, trimmed means, correlation
+coefficients, and any custom statistic we can compute from
+a sample.
 
 The **Monte Carlo error** of the bootstrap SE is
 approximately $\widehat{\mathrm{SE}}_B / \sqrt{2B}$. With
@@ -266,72 +282,81 @@ ideal using resampling from the observed data.
 
 ## Confidence-interval flavors
 
-Several bootstrap confidence-interval recipes exist, each
-trading simplicity for coverage accuracy. All assume $B$ is
-large enough to estimate the required quantiles.
+Several bootstrap confidence-interval recipes exist, and
+each trades simplicity for coverage accuracy. All of them
+assume that $B$ is large enough to estimate the required
+quantiles.
 
-**Percentile interval.** The simplest: take the $\alpha/2$
-and $1 - \alpha/2$ quantiles of the bootstrap distribution.
+**Percentile interval.** This is the simplest recipe. We
+take the $\alpha/2$ and $1 - \alpha/2$ quantiles of the
+bootstrap distribution.
 
 ```r
 # Percentile CI by hand
 quantile(boot_means, c(0.025, 0.975))
 ```
 
-Transformation-respecting (a percentile interval on
-$\log \hat\theta$ exponentiates to a percentile interval on
-$\hat\theta$), but first-order accurate only. Tends to
+The percentile interval is transformation-respecting. That
+is, a percentile interval on $\log \hat\theta$
+exponentiates to a percentile interval on $\hat\theta$.
+However, it is first-order accurate only, and it tends to
 undercover in small samples.
 
-**Basic interval.** Reflects the bootstrap distribution
-around $\hat\theta$:
+**Basic interval.** The basic interval reflects the
+bootstrap distribution around $\hat\theta$:
 
 $$
 [2\hat\theta - q_{1 - \alpha/2},\ 2\hat\theta - q_{\alpha/2}],
 $$
 
 where $q_\alpha$ is the $\alpha$ quantile of the bootstrap
-distribution. Corrects a subtle bias the percentile method
-inherits from centering at $\hat\theta$, but loses the
-transformation-respecting property.
+distribution. It corrects a subtle bias that the percentile
+method inherits from centering at $\hat\theta$. On the
+minus side, it loses the transformation-respecting
+property.
 
-**BCa interval.** Bias-corrected and accelerated.
-Second-order accurate. Adjusts the percentile endpoints
-using a bias correction (read from the bootstrap
-distribution's median) and an acceleration constant
-(estimated by jackknife). Available in `boot::boot.ci(type
-= 'bca')`. Preferred for publication-grade intervals.
+**BCa interval.** The bias-corrected and accelerated
+interval is second-order accurate. It adjusts the
+percentile endpoints using a bias correction (read from the
+bootstrap distribution's median) and an acceleration
+constant (estimated by jackknife). It is available in
+`boot::boot.ci(type = 'bca')` and is preferred for
+publication-grade intervals.
 
-**Studentized interval.** Bootstraps a pivot
-$(\hat\theta^* - \hat\theta) / \widehat{\mathrm{SE}}^*$,
-then inverts to an interval on $\theta$. Second-order
-accurate and often has the best coverage, but requires a
-bootstrap-within-bootstrap computation to estimate the
-inner standard error.
+**Studentized interval.** The studentized interval
+bootstraps a pivot
+$(\hat\theta^* - \hat\theta) / \widehat{\mathrm{SE}}^*$
+and then inverts it to an interval on $\theta$. It is
+second-order accurate and often has the best coverage.
+Unfortunately, it requires a bootstrap-within-bootstrap
+computation to estimate the inner standard error.
 
-In practice: reach for the percentile interval first;
+In practice, we reach for the percentile interval first. We
 switch to BCa if the sample is small or the statistic is
-skewed; use the studentized interval only when the cost of
-the double bootstrap is justified.
+skewed. We use the studentized interval only when the cost
+of the double bootstrap is justified.
 
 ## Hypothesis testing by resampling {#sec-bootstrap-test}
 
-A confidence interval and a hypothesis test answer overlapping
-questions about a parameter, and the bootstrap supplies both.
-Hypothesis testing requires one extra construction: resampling
-must occur under conditions in which the null hypothesis is
-true. This **null enforcement** step is what distinguishes a
-bootstrap test from a bootstrap confidence interval.
+A confidence interval and a hypothesis test answer
+overlapping questions about a parameter, and the bootstrap
+supplies both. Hypothesis testing, however, requires one
+extra construction. That is, resampling must occur under
+conditions in which the null hypothesis is true. This
+**null enforcement** step is what distinguishes a bootstrap
+test from a bootstrap confidence interval.
 
-For a two-sample mean comparison, $H_0\!: \mu_A = \mu_B$, the
-standard construction is **pool and center**. Concatenate the
-two samples after centering each at its own sample mean; the
-pooled vector has mean zero by construction, and resampling
-from it yields two new groups whose populations have identical
-means. Compute the observed test statistic on the original
-data, repeat the calculation on each bootstrap replicate drawn
-from the centered pool, and report the proportion of replicates
-whose absolute statistic meets or exceeds the observed.
+To illustrate, consider a two-sample mean comparison,
+$H_0\!: \mu_A = \mu_B$. The standard construction is
+**pool and center**. We concatenate the two samples after
+centering each at its own sample mean. The pooled vector has
+mean zero by construction, and resampling from it yields two
+new groups whose populations have identical means. We
+compute the observed test statistic on the original data and
+repeat the calculation on each bootstrap replicate drawn
+from the centered pool. We then report the proportion of
+replicates whose absolute statistic meets or exceeds the
+observed.
 
 ```r
 # Pool-and-center bootstrap test of H0: mu_A = mu_B
@@ -350,35 +375,37 @@ null_diffs <- replicate(B, {
 mean(abs(null_diffs) >= abs(obs_diff))
 ```
 
-The two-sided p-value is `mean(abs(null_diffs) >= abs(obs_diff))`.
-For a one-sided alternative, drop the absolute values and adjust
-the comparison direction. Monte Carlo error on the p-value is
-approximately $\sqrt{p(1 - p)/B}$, around $0.002$ near $p = 0.05$
-when $B = 10{,}000$.
+The two-sided p-value is
+`mean(abs(null_diffs) >= abs(obs_diff))`. For a one-sided
+alternative, we drop the absolute values and adjust the
+comparison direction. The Monte Carlo error on the p-value
+is approximately $\sqrt{p(1 - p)/B}$. This comes to around
+$0.002$ near $p = 0.05$ when $B = 10{,}000$.
 
 Two comparisons clarify what the bootstrap test is doing.
-**Permutation tests** also generate a null distribution by
-shuffling group labels, but without replacement. Permutation
-tests are exact under exchangeability and are preferable when
-the assumption is defensible. The bootstrap test is approximate
-but extends naturally to settings where exchangeability fails:
-paired data, regression coefficients, or any statistic with a
-bootstrap implementation. **Classical t-tests** make stronger
-distributional assumptions: a pool-and-center bootstrap parallels
-the equal-variance two-sample t-test, while `t.test()` defaults
-to Welch's unequal-variance test. The methods produce different
-p-values not because of Monte Carlo error but because they
-implement different null hypotheses.
+**Permutation tests** also generate a null distribution, by
+shuffling group labels without replacement. They are exact
+under exchangeability and are preferable when that
+assumption is defensible. The bootstrap test, on the other
+hand, is approximate. It does, however, extend naturally to
+settings where exchangeability fails, such as paired data,
+regression coefficients, or any statistic with a bootstrap
+implementation. **Classical t-tests** make stronger
+distributional assumptions. A pool-and-center bootstrap
+parallels the equal-variance two-sample t-test, while
+`t.test()` defaults to Welch's unequal-variance test. The
+methods therefore produce different p-values because they
+implement different null hypotheses. Monte Carlo error is
+not the source of the difference.
 
-The pool-and-center construction generalizes. Testing a
-correlation against zero is achieved by resampling pairs
-$(x_i, y_i^*)$ where the $y$ values are reshuffled to break the
-dependence. Testing a single regression coefficient against zero
-is achieved by bootstrapping the residuals of the reduced model
-and rebuilding the response under the null. The principle is
-constant: design a resampling scheme under which the null is
-true, then read off the tail probability of the observed
-statistic.
+The pool-and-center construction generalizes. To test a
+correlation against zero, we resample pairs $(x_i, y_i^*)$
+in which the $y$ values are reshuffled to break the
+dependence. To test a single regression coefficient against
+zero, we bootstrap the residuals of the reduced model and
+rebuild the response under the null. In each case we design
+a resampling scheme under which the null is true, and then
+read off the tail probability of the observed statistic.
 
 ::: {.callout-tip collapse='true'}
 ## Check your understanding
@@ -400,27 +427,30 @@ population modified to satisfy the null.
 ## Monte Carlo implementation
 
 The theoretical bootstrap enumerates all $n^n$ possible
-resamples with replacement, and for even modest $n$ this is
-astronomical: $n = 20$ already produces $20^{20} \approx
-10^{26}$ ordered resamples. In practice we sample
-a manageable number $B$ of resamples uniformly at random.
-This introduces a Monte Carlo error distinct from the
-statistical error of using a finite original sample.
+resamples with replacement. For even modest $n$ this number
+is astronomical: $n = 20$ already produces
+$20^{20} \approx 10^{26}$ ordered resamples. In practice we
+sample a manageable number $B$ of resamples uniformly at
+random. This introduces a Monte Carlo error, which is
+distinct from the statistical error of using a finite
+original sample.
 
 The Monte Carlo error of a percentile confidence-interval
-endpoint is approximately $\sqrt{\alpha(1 - \alpha)/B} /
-f(q_\alpha)$, where $f$ is the density of the bootstrap
-distribution at the endpoint $q_\alpha$. For a roughly
-normal bootstrap distribution and a 95% interval with $B =
-1000$, this is about $0.08 \cdot \widehat{\mathrm{SE}}_B$,
-an order of magnitude smaller than the statistical error for
-typical $n$.
+endpoint is approximately
+$\sqrt{\alpha(1 - \alpha)/B} / f(q_\alpha)$, where $f$ is
+the density of the bootstrap distribution at the endpoint
+$q_\alpha$. To illustrate, consider a roughly normal
+bootstrap distribution and a 95% interval with $B = 1000$.
+The Monte Carlo error is then about
+$0.08 \cdot \widehat{\mathrm{SE}}_B$, an order of magnitude
+smaller than the statistical error for typical $n$.
 
-Rules of thumb: $B = 200$ suffices for standard errors; $B
-= 1000$ to $2000$ for percentile or BCa confidence
-intervals; $B = 10{,}000$ or more for extreme quantiles or
-p-values below $0.01$. When in doubt, rerun with a different
-seed and confirm results are stable.
+Some rules of thumb follow. For standard errors $B = 200$
+suffices. For percentile or BCa confidence intervals we use
+$B = 1000$ to $2000$, and for extreme quantiles or p-values
+below $0.01$ we use $B = 10{,}000$ or more. When in doubt,
+we rerun with a different seed and confirm that the results
+are stable.
 
 ::: {.callout-tip collapse='true'}
 ## Check your understanding
@@ -442,35 +472,36 @@ large. It breaks down in several recognizable patterns.
 
 **Extrema.** The sample maximum of a bounded distribution
 cannot exceed the observed maximum in any bootstrap
-resample, so the bootstrap distribution has no mass above
-the observed max. Bootstrap CIs for extrema, modes, and
-other boundary statistics are unreliable.
+resample. The bootstrap distribution therefore has no mass
+above the observed max. Bootstrap CIs for extrema, modes,
+and other boundary statistics are unreliable.
 
 **Non-smooth statistics.** Sample quantiles at extreme
 tails, modes, and change-points are not smooth functions of
-the empirical distribution; a small change in data can
-produce a large change in the estimate. The bootstrap
-distribution of a sample median, for instance, is discrete
-even for continuous data.
+the empirical distribution. That is, a small change in the
+data can produce a large change in the estimate. The
+bootstrap distribution of a sample median, for instance, is
+discrete even for continuous data.
 
 **Small samples.** For $n < 20$ the empirical distribution
 is a poor estimate of the true distribution, especially in
-the tails. Parametric bootstrap (resampling from a fitted
+the tails. A parametric bootstrap (resampling from a fitted
 parametric model) or a normal approximation with bias
 correction may perform better.
 
 **Dependent data.** An iid bootstrap on time series or
 clustered data destroys the dependence structure and
-underestimates variance. Use a **block bootstrap** for
-time series (resample contiguous blocks of length $\ell$)
-or a **cluster bootstrap** for hierarchical data (resample
-whole clusters, keeping within-cluster structure intact).
+underestimates variance. For time series we use a
+**block bootstrap**, which resamples contiguous blocks of
+length $\ell$. For hierarchical data we use a
+**cluster bootstrap**, which resamples whole clusters and
+keeps the within-cluster structure intact.
 
 **Heavy tails.** When the population has infinite variance,
 the bootstrap distribution converges slowly or not at all.
 Sample means and regression coefficients from heavy-tailed
-data require trimming, robust statistics, or the parametric
-bootstrap with a heavy-tailed assumption.
+data then require trimming, robust statistics, or a
+parametric bootstrap with a heavy-tailed assumption.
 
 ::: {.callout-tip collapse='true'}
 ## Check your understanding
@@ -487,9 +518,9 @@ yields inaccurate standard errors and confidence intervals.
 ## The `boot` package
 
 For production use, the `boot` package (Canty and Ripley,
-based on Davison and Hinkley's book) handles the resampling,
-parallelism, and confidence-interval calculations. The
-standard workflow has three steps.
+based on Davison and Hinkley's book) handles the
+resampling, the parallelism, and the confidence-interval
+calculations. The standard workflow has three steps.
 
 ```r
 library(boot)
@@ -513,14 +544,14 @@ boot.ci(b, type = c('perc', 'basic', 'bca'))
 The `statistic` function *must* accept `(data, indices)`
 and return the statistic computed on `data[indices]` (or
 `data[indices, ]` for a data frame). The `boot()` function
-handles the resampling via the indices, which is more
+handles the resampling through the indices. This is more
 memory-efficient than constructing each resample as a copy
-of the data. For stratified designs pass `strata = group`;
-for parallel execution set `parallel = 'multicore'`
-(Linux/macOS) or `'snow'` (portable) with `ncpus =
-parallel::detectCores() - 1`.
+of the data. For stratified designs we pass
+`strata = group`. For parallel execution we set
+`parallel = 'multicore'` (Linux/macOS) or `'snow'`
+(portable), with `ncpus = parallel::detectCores() - 1`.
 
-For specialized bootstraps:
+Several functions provide specialized bootstraps:
 
 - `car::Boot()` wraps `boot()` for regression models,
   handling case resampling, residual resampling, and wild
@@ -561,36 +592,39 @@ distributions) that numerical methods can obscure.
 ## Bootstrapping regression coefficients {#sec-bootstrap-regression}
 
 Linear regression provides a productive testbed for the
-bootstrap machinery. Two resampling strategies are standard,
-and a third is worth knowing for diagnostic-failure cases.
+bootstrap machinery. Two resampling strategies are
+standard. A third merits knowing for cases in which the
+diagnostics fail.
 
-**Case (paired) bootstrap.** Resample whole rows of the data
-matrix with replacement, refit the model, and record the
-coefficient. This makes no assumption about the conditional
-distribution of $y$ given $x$ and remains valid under
-heteroscedasticity, because joint resampling of $(x, y)$
-preserves whatever variance structure the data contain.
+**Case (paired) bootstrap.** We resample whole rows of the
+data matrix with replacement, refit the model, and record
+the coefficient. This makes no assumption about the
+conditional distribution of $y$ given $x$. It remains valid
+under heteroscedasticity, because joint resampling of
+$(x, y)$ preserves whatever variance structure the data
+contain.
 
-**Residual bootstrap.** Fit the model once, extract residuals
-$e_i = y_i - \hat y_i$, resample residuals with replacement to
-obtain $e_i^*$, and construct synthetic responses
-$y_i^* = \hat y_i + e_i^*$. Refit the model on
-$(x_i, y_i^*)$. This strategy assumes residuals are
-exchangeable: their distribution does not depend on the
-predictors. When that assumption holds, residual bootstrap is
-more efficient than case bootstrap; when it fails,
-residual-bootstrap intervals are too narrow because they impose
-a constant-variance error structure the data lack.
+**Residual bootstrap.** We fit the model once and extract
+the residuals $e_i = y_i - \hat y_i$. We then resample the
+residuals with replacement to obtain $e_i^*$ and construct
+synthetic responses $y_i^* = \hat y_i + e_i^*$. Lastly, we
+refit the model on $(x_i, y_i^*)$. This strategy assumes
+that the residuals are exchangeable. That is, their
+distribution does not depend on the predictors. When that
+assumption holds, the residual bootstrap is more efficient
+than the case bootstrap. When it fails, residual-bootstrap
+intervals are too narrow, because they impose a
+constant-variance error structure the data lack.
 
-**Wild bootstrap.** When residuals are clearly heteroscedastic
-but the conditional-mean structure is correct, set
-$e_i^* = e_i v_i$ with $v_i$ an independent random sign or a
-Mammen two-point variable. This preserves the conditional
-variance pattern while still generating a valid resampling
-distribution.
+**Wild bootstrap.** Suppose the residuals are clearly
+heteroscedastic but the conditional-mean structure is
+correct. We then set $e_i^* = e_i v_i$, with $v_i$ an
+independent random sign or a Mammen two-point variable.
+This preserves the conditional variance pattern while still
+generating a valid resampling distribution.
 
-A worked case bootstrap for the slope of `wt` predicting `mpg`
-in `mtcars`:
+To illustrate, consider a case bootstrap for the slope of
+`wt` predicting `mpg` in `mtcars`:
 
 ```r
 library(boot)
@@ -608,33 +642,37 @@ boot.ci(b_lm, type = c('perc', 'bca'))
 confint(lm(mpg ~ wt, data = mtcars))['wt', ]
 ```
 
-The percentile and BCa intervals from the case bootstrap are
-slightly wider than the classical interval from `confint()`. The
-discrepancy is informative: a residuals-versus-fitted plot for
-this model shows variance increasing with fitted value, the mild
-heteroscedasticity that the classical interval ignores by
-assuming constant error variance. The bootstrap absorbs this
-through joint resampling and produces a more defensible
-interval.
+The percentile and BCa intervals from the case bootstrap
+are slightly wider than the classical interval from
+`confint()`. The discrepancy is informative. A
+residuals-versus-fitted plot for this model shows variance
+increasing with the fitted value. The classical interval
+ignores this mild heteroscedasticity by assuming constant
+error variance. The bootstrap absorbs it through joint
+resampling and produces a more defensible interval.
 
 The choice among strategies follows from the assumptions:
 
-- Use the case bootstrap when residual diagnostics suggest
-  heteroscedasticity, when the model may be misspecified, or as
-  a robust default in the absence of contrary information.
-- Use the residual bootstrap when residuals are clean and the
-  conditional mean is well captured. The narrower intervals it
-  produces are warranted only when the assumption is defensible.
-- Use the wild bootstrap when heteroscedasticity is severe but
-  the mean structure is sound, particularly in small samples
-  where case bootstrap may resample the same influential
-  observation multiple times.
+- We use the case bootstrap when residual diagnostics
+  suggest heteroscedasticity, when the model may be
+  misspecified, or as the default in the absence of
+  contrary information.
+- We use the residual bootstrap when the residuals are clean
+  and the conditional mean is well captured. The narrower
+  intervals it produces are warranted only when the
+  assumption is defensible.
+- We use the wild bootstrap when heteroscedasticity is
+  severe but the mean structure is sound. This applies
+  particularly in small samples, where the case bootstrap
+  may resample the same influential observation multiple
+  times.
 
-The same machinery extends to generalized linear models (case
-bootstrap on `glm` objects), random-effect models (cluster
-bootstrap that respects the grouping structure), and robust
-regression. The `car::Boot()` function introduced in the
-previous section handles several of these cases automatically.
+The same machinery extends to generalized linear models
+(case bootstrap on `glm` objects), to random-effect models
+(a cluster bootstrap that respects the grouping structure),
+and to robust regression. The `car::Boot()` function
+introduced in the previous section handles several of these
+cases automatically.
 
 ::: {.callout-tip collapse='true'}
 ## Check your understanding
@@ -654,11 +692,12 @@ setting.
 ## Collaborating with an LLM on the bootstrap
 
 Section @sec-bootstrap-human identified the four decisions
-that require the statistician's judgment. This section
-provides practice exercises. Each prompt below is
-adversarial: it is designed to expose a specific LLM
-failure mode. Treat the model's response as a hypothesis
-that requires verification.
+that require the statistician's judgment. In this section we
+shall provide practice exercises on those decisions. Each
+prompt below is adversarial, in the sense that it is
+designed to expose a specific LLM failure mode. We treat the
+model's response as a hypothesis that requires
+verification.
 
 ### Correlation and the Fisher-z transformation
 
@@ -669,19 +708,24 @@ correlation between `waiting` and `eruptions` in the
 **What to watch for.** A correlation is bounded in
 $[-1, 1]$, so its sampling distribution is asymmetric near
 the boundaries. A default nonparametric percentile
-bootstrap on the raw correlation stays inside $[-1, 1]$ but
-can be poorly calibrated there, and a normal-approximation
-bootstrap interval ($\hat r \pm 1.96\,\widehat{\mathrm{SE}}$)
-can produce endpoints that fall outside $[-1, 1]$. The
-textbook remedy is to bootstrap on the Fisher-z
+bootstrap on the raw correlation stays inside $[-1, 1]$,
+but it can be poorly calibrated there. A
+normal-approximation bootstrap interval
+($\hat r \pm 1.96\,\widehat{\mathrm{SE}}$), on the other
+hand, can produce endpoints that fall outside $[-1, 1]$.
+The textbook remedy is to form the interval on the Fisher-z
 transformation $\tfrac{1}{2}\log\tfrac{1+r}{1-r}$ and then
-back-transform.
+back-transform. We note that this remedy matters for the
+normal-approximation interval. The percentile interval is
+transformation-respecting, so wrapping it in the Fisher-z
+transformation leaves its endpoints unchanged.
 
-**Verification.** Inspect the code. Does it wrap the
-correlation in `atanh()` before computing quantiles and
-`tanh()` after? If not, compare interval widths against
-`cor.test()`. A noticeable discrepancy indicates the LLM
-skipped the transformation; ask it a follow-up on whether
+**Verification.** We inspect the code. If it reports a
+normal-approximation interval, does it wrap the correlation
+in `atanh()` before forming the interval and `tanh()` after?
+If not, we compare the interval against `cor.test()`. A
+noticeable discrepancy indicates that the LLM skipped the
+transformation. We would then ask it a follow-up on whether
 a normal-approximation interval is guaranteed to stay in
 the valid range.
 
@@ -694,34 +738,34 @@ confidence interval for the maximum of a sample drawn from
 **What to watch for.** The bootstrap fails for extrema. The
 bootstrap maximum cannot exceed the observed sample
 maximum, so the upper CI endpoint is always the observed
-max itself, a hard ceiling that is *not* a property of
-the true sampling distribution.
+max itself. This hard ceiling is *not* a property of the
+true sampling distribution.
 
-**Verification.** Run the code. Check whether the upper
-endpoint equals the sample maximum. Then ask the LLM:
-'Is this interval trustworthy? What does standard bootstrap
-theory say about statistics defined as extrema of the
-sample?' See whether it recovers the failure mode on its
-own or insists the interval is valid.
+**Verification.** We run the code and check whether the
+upper endpoint equals the sample maximum. We then ask the
+LLM: 'Is this interval trustworthy? What does standard
+bootstrap theory say about statistics defined as extrema of
+the sample?' The test is whether it recovers the failure
+mode on its own or insists that the interval is valid.
 
 ### Time-series mean
 
-**Prompt.** Supply a `ts` object of monthly clinical
-biomarker observations over three years and ask: 'Bootstrap
-the mean and a 95% confidence interval.'
+**Prompt.** We supply a `ts` object of monthly clinical
+biomarker observations over three years and ask:
+'Bootstrap the mean and a 95% confidence interval.'
 
 **What to watch for.** Autocorrelated data violate the iid
 assumption. An iid bootstrap destroys the dependence
-structure and *underestimates* variance, typically
-producing an interval much narrower than the correct one.
+structure and *underestimates* variance. It typically
+produces an interval much narrower than the correct one.
 
 **Verification.** Does the code call `boot::tsboot()` or a
-block-bootstrap function? Or does it call plain
-`boot::boot()`? If the latter, the answer is wrong.
-Compute `acf(x)` and confirm non-trivial autocorrelation,
-then redo the bootstrap with `tsboot(x, ..., l =
-round(length(x)^(1/3)), sim = 'fixed')`. Compare interval
-widths.
+block-bootstrap function, or does it call plain
+`boot::boot()`? If the latter, the answer is wrong. We
+compute `acf(x)` and confirm non-trivial autocorrelation.
+We then redo the bootstrap with
+`tsboot(x, ..., l = round(length(x)^(1/3)), sim = 'fixed')`
+and compare interval widths.
 
 ### Principle in use
 
@@ -729,12 +773,12 @@ These three prompts exercise the four statistician's
 contributions from @sec-bootstrap-human. The bootstrap
 maximum and the time-series mean both test decision 1 (is
 the bootstrap appropriate for this statistic or this data?).
-The time-series mean additionally tests decision 2
-(dependence structure). The correlation prompt tests
-decisions 3 and 4 (confidence-interval method and
-bootstrap-distribution shape). None of these verifications
-requires advanced skill; all require that you ask the
-question the LLM will not ask for you.
+The time-series mean also tests decision 2 (dependence
+structure). The correlation prompt tests decisions 3 and 4
+(confidence-interval method and bootstrap-distribution
+shape). None of these verifications requires advanced
+skill. Each does require that we ask the question the LLM
+will not ask for us.
 
 ## Exercises
 
@@ -834,9 +878,9 @@ distribution?
 ::: {.callout-note collapse='true'}
 ## Answer
 
-**A.** Even for small $n$, $n^n$ explodes quickly. Monte Carlo
-samples a practical number $B$ of resamples, controlling
-accuracy by choice of $B$.
+**A.** Even for small $n$, $n^n$ grows very quickly. Monte
+Carlo samples a practical number $B$ of resamples, and the
+choice of $B$ controls the accuracy.
 :::
 
 ### Question 5

@@ -38,65 +38,75 @@ Direct methods for numerical linear algebra all factor a
 matrix into simpler pieces. The three most useful in
 biostatistics are QR (for regression), Cholesky (for
 positive-definite systems, including covariance matrices),
-and SVD (for rank-deficient or near-singular problems). LU is
-the engine behind `solve()`, but it appears less often in
-user code. Eigendecomposition appears via its product
-(principal components, spectral methods) rather than by name.
+and SVD (for rank-deficient or near-singular problems). LU
+is the engine behind `solve()`, but it appears less often in
+user code. Eigendecomposition appears via its products
+(principal components, spectral methods) rather than by
+name.
 
 Every decomposition factors $A$ into a product with special
-structure, whether triangular, orthogonal, or diagonal. The
+structure, whether triangular, orthogonal, or diagonal. That
 structure is what makes downstream computations fast or
 stable. Solving a triangular system is $O(n^2)$ instead of
-$O(n^3)$, and an orthogonal transformation preserves norms and
-so does not amplify rounding error. This structure is the
-reason statistical software can fit models on realistic data
-at all.
+$O(n^3)$. An orthogonal transformation preserves norms and
+so does not amplify rounding error.
+
+We begin with the judgment the statistician brings to these
+methods and with a summary table of the five
+decompositions. We then take each in turn: Cholesky, QR, LU,
+the eigendecomposition, and the SVD, including the
+pseudoinverse and low-rank approximation. A worked example
+fits OLS via QR, and the chapter closes with a discussion of
+how an LLM can assist with this material.
 
 ## The statistician's contribution {#sec-decompositions-human}
 
 Decompositions are an area where the *mathematics* is fully
-determined, a Cholesky decomposition of a given SPD matrix
-is unique once its diagonal is required to be positive, but
-the *engineering* judgment is
-not. That judgment is where the statistician contributes.
+determined (a Cholesky decomposition of a given SPD matrix
+is unique once its diagonal is required to be positive).
+The *engineering* judgment, however, is not determined. That
+judgment is where the statistician contributes.
 
 **Pick the decomposition that matches the problem's
 structure.** For a symmetric positive-definite matrix
 (covariance, $X^T X$), Cholesky is twice as fast as LU and
-numerically stable. For a general square matrix that needs a
-solve, LU (via `solve()`). For a rectangular matrix in a
-least-squares problem, QR. For rank diagnosis or low-rank
-approximation, SVD. Using the wrong one wastes cycles or, in
-ill-conditioned problems, amplifies error.
+numerically stable. A general square matrix that needs a
+solve calls for LU (via `solve()`). A rectangular matrix in
+a least-squares problem calls for QR. Rank diagnosis and
+low-rank approximation call for the SVD. Using the wrong
+decomposition wastes cycles or, in ill-conditioned problems,
+amplifies error.
 
-**Prefer decomposition results to explicit inverses.** The
-same principle as in the previous chapter, elevated.
+**Prefer decomposition results to explicit inverses.** This
+is the principle of the previous chapter, carried further.
 `chol(Sigma)` plus a triangular solve is faster and more
-stable than computing `solve(Sigma)` and multiplying. If
-you find yourself computing an explicit inverse, ask whether
-a decomposition would give you what you actually need (a
-determinant, a Mahalanobis distance, a Cholesky factor for
-simulation) without materializing $\Sigma^{-1}$.
+stable than computing `solve(Sigma)` and multiplying. If we
+find ourselves computing an explicit inverse, we should ask
+whether a decomposition would give what we actually need
+without materializing $\Sigma^{-1}$. The quantity needed is
+often a determinant, a Mahalanobis distance, or a Cholesky
+factor for simulation.
 
 **Rank deficiency is a signal, not a bug to work around.**
-When `lm()` tells you a design matrix is rank deficient, the
-answer is not 'use a pseudoinverse and move on'. It is to
-understand *why* the design is rank deficient. Collinear
+When `lm()` reports that a design matrix is rank deficient,
+we need to understand *why* the design is rank deficient
+before reaching for a pseudoinverse and moving on. Collinear
 covariates, an interaction with no variation in one cell, a
 factor level with zero observations: each of these is
 diagnostic information about the data. The SVD makes the
-rank visible; it is the statistician's job to decide what to
+rank visible. It is the statistician's job to decide what to
 do about it.
 
 **Low-rank approximations have a statistical
-interpretation.** Truncated SVD is not generic 'compression'.
-In PCA, the truncated SVD is the variance-maximizing
-projection onto $k$ dimensions. In factor analysis, it is
-the low-rank structure of the observed correlations. In
-collaborative filtering, it is a latent-factor model. The
-number $k$ should be chosen with a statistical justification
-(variance explained, cross-validated reconstruction error,
-substantive interpretation), not picked arbitrarily because
+interpretation.** Truncated SVD is not generic
+'compression'. In PCA, the truncated SVD is the
+variance-maximizing projection onto $k$ dimensions. In
+factor analysis, it is the low-rank structure of the
+observed correlations. In collaborative filtering, it is a
+latent-factor model. The number $k$ therefore warrants a
+statistical justification (variance explained,
+cross-validated reconstruction error, substantive
+interpretation). It should not be picked arbitrarily because
 '30 looks like a round number'.
 
 ## Decompositions at a glance
@@ -110,7 +120,7 @@ substantive interpretation), not picked arbitrarily because
 | SVD         | $A = U \Sigma V^T$ | any                      | $\sim mn^2$  | Rank, pseudoinverse, low-rank approximation |
 
 The costs are for dense matrices. Sparse variants exist and
-are faster by factors that depend on sparsity pattern.
+are faster by factors that depend on the sparsity pattern.
 
 ## Cholesky decomposition
 
@@ -121,8 +131,8 @@ $$
 A = L L^T
 $$
 
-with $L$ a lower triangular matrix with positive diagonal.
-(R's `chol()` returns $L^T$, upper triangular, for
+where $L$ is a lower triangular matrix with positive
+diagonal. (R's `chol()` returns $L^T$, upper triangular, for
 historical reasons.)
 
 ```r
@@ -133,18 +143,20 @@ all.equal(t(R) %*% R, Sigma)
 #> [1] TRUE
 ```
 
-Why Cholesky matters in statistics:
+The Cholesky decomposition matters in statistics for four
+reasons:
 
 1. **Fast solves on SPD systems.** `chol(Sigma)` followed by
    two triangular solves costs about half what `solve(Sigma)`
    costs and is numerically more stable. R's `chol2inv()`
-   uses exactly this route.
+   applies the same idea to inversion, computing the
+   inverse directly from the Cholesky factor.
 2. **Positive-definiteness test.** If `chol()` succeeds, the
    matrix is SPD. If it fails with an error, it is not. This
-   is the fastest way to diagnose 'is my covariance matrix
-   genuinely a covariance matrix?'
+   is the fastest way to answer the question 'is my
+   covariance matrix genuinely a covariance matrix?'
 3. **Multivariate normal simulation.** To simulate
-   $\mathbf{x} \sim N(\mu, \Sigma)$:
+   $\mathbf{x} \sim N(\mu, \Sigma)$, we write:
 
    ```r
    L <- t(chol(Sigma))                # lower triangular
@@ -154,18 +166,19 @@ Why Cholesky matters in statistics:
    A single Cholesky suffices for any number of draws.
 
 4. **Mahalanobis distance.** Instead of
-   `t(x) %*% solve(Sigma) %*% x`, use
-   `sum(backsolve(R, x, transpose = TRUE)^2)`, which uses
-   the Cholesky factor and triangular solves.
+   `t(x) %*% solve(Sigma) %*% x`, we use
+   `sum(backsolve(R, x, transpose = TRUE)^2)`, which relies
+   on the Cholesky factor and triangular solves.
 
-The one gotcha: matrices that are *theoretically* SPD can be
-*numerically* non-SPD because of floating-point noise: a
-covariance matrix estimated from data with one exactly
-collinear pair of columns will have a tiny-negative
-eigenvalue. The standard workaround is to add a small ridge:
-`chol(Sigma + 1e-8 * diag(p))`. Whether to do this silently or
-to treat it as a modeling problem is the statistician's
-call.
+There is one gotcha. Matrices that are *theoretically* SPD
+can be *numerically* non-SPD because of floating-point
+noise. For example, a covariance matrix estimated from data
+with one exactly collinear pair of columns has a zero
+eigenvalue in exact arithmetic. Rounding error can turn it
+into a tiny negative one. The standard workaround is to add
+a small ridge: `chol(Sigma + 1e-8 * diag(p))`. Whether to do
+this silently or to treat it as a modeling problem is the
+statistician's call.
 
 ## QR decomposition
 
@@ -177,8 +190,8 @@ $$
 
 where $Q$ has orthonormal columns ($Q^T Q = I$) and $R$ is
 upper triangular. R's `qr()` stores the factors in a compact
-form; helpers `qr.Q()`, `qr.R()`, and `qr.coef()` extract
-them.
+form, and the helpers `qr.Q()`, `qr.R()`, and `qr.coef()`
+extract them.
 
 ```r
 set.seed(1)
@@ -198,52 +211,53 @@ all.equal(as.vector(beta_qr), as.vector(beta_lm))
 
 **Why `lm()` uses QR, not the normal equations.** The normal
 equations $(X^T X)\hat\beta = X^T y$ are mathematically
-correct. But the condition number of $X^T X$ is the *square*
-of the condition number of $X$:
+correct. Unfortunately, the condition number of $X^T X$ is
+the *square* of the condition number of $X$. In symbols,
 
 $$
 \kappa(X^T X) = \kappa(X)^2
 $$
 
 If $X$ is ill-conditioned (collinear predictors, widely
-different scales, polynomial expansions with high-order terms),
-then $X^T X$ is spectacularly ill-conditioned. In finite-
-precision arithmetic, this can cost you 5, 10, or more
+different scales, polynomial expansions with high-order
+terms), then $X^T X$ is spectacularly ill-conditioned. In
+finite-precision arithmetic, this can cost 5, 10, or more
 decimal digits of accuracy in $\hat\beta$.
 
 QR skips $X^T X$ entirely. It operates on $X$ directly, with
 orthogonal transformations that preserve norms and therefore
 do not amplify errors. The computed $\hat\beta$ is as
-accurate as the input data allows.
+accurate as the input data allow.
 
 For a well-conditioned $X$, the two routes agree to many
-digits. For ill-conditioned $X$, QR wins by a factor equal to
-the condition number. The Longley dataset is a classic
-demonstration; the normal-equations route can disagree with
-QR in the 4th decimal place on coefficients that are nominally
-correct to 8.
+digits. For an ill-conditioned $X$, QR wins by a factor
+equal to the condition number. The Longley dataset is a
+classic demonstration. There the normal-equations route can
+disagree with QR in the 4th decimal place on coefficients
+that are nominally correct to 8.
 
 **Computational cost.** QR on $X$ is about $2np^2$ FLOPs
-(Householder reflections) vs. normal equations at
-$np^2 + p^3/3$. For $n \gg p$ (the usual statistical case),
-the costs are similar; QR's stability advantage comes free.
+(Householder reflections), against $np^2 + p^3/3$ for the
+normal equations. For $n \gg p$ (the usual statistical
+case), the costs are similar, so QR's stability advantage
+comes free.
 
 **Column pivoting.** R's default `qr(X)` uses a modified
 LINPACK routine, `dqrdc2` (`LAPACK = FALSE`), with a limited
-pivoting strategy: a column whose remaining norm falls below
-`tol` is moved to the right-hand edge. Pass `LAPACK = TRUE`
-to use LAPACK's `dgeqp3`, which applies full column pivoting
-but does not attempt to detect rank deficiency. The
-permutation is returned in `qrX$pivot`, and the decomposition
-satisfies $A P = QR$. The default routine is how R detects
-rank deficiency: redundant columns are pivoted to the end
-and excluded from `qrX$rank`.
+pivoting strategy. That is, a column whose remaining norm
+falls below `tol` is moved to the right-hand edge. Passing
+`LAPACK = TRUE` selects LAPACK's `dgeqp3`, which applies full
+column pivoting but does not attempt to detect rank
+deficiency. The permutation is returned in `qrX$pivot`, and
+the decomposition satisfies $A P = QR$. The default routine
+is how R detects rank deficiency: redundant columns are
+pivoted to the end and excluded from `qrX$rank`.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: why not the normal equations?
 
 **Question.** `lm()` could compute $\hat\beta = (X^T X)^{-1} X^T y$
-directly. Why doesn't it?
+directly. Why does it not do so?
 
 **Answer.**
 
@@ -252,14 +266,14 @@ of $X$ squared. If $X$ is ill-conditioned (collinear
 predictors, polynomial regression with high-degree terms,
 covariates on vastly different scales), $X^T X$ is
 catastrophically ill-conditioned. In finite-precision
-arithmetic, you lose roughly $\log_{10} \kappa(X)^2$
+arithmetic, we lose roughly $\log_{10} \kappa(X)^2$
 significant digits in $\hat\beta$. QR operates directly on
 $X$ with orthogonal transformations, preserving norms and
 therefore preserving precision. For a well-conditioned $X$,
 both routes produce the same answer to rounding error. For
-an ill-conditioned $X$, QR is vastly more trustworthy. Cost
-is comparable for $n \gg p$; the stability advantage is
-essentially free. `lm()` uses QR for these reasons.
+an ill-conditioned $X$, QR is vastly more trustworthy. The
+cost is comparable for $n \gg p$, so the stability
+advantage is essentially free.
 
 :::
 
@@ -284,17 +298,18 @@ linear systems, this is the default direct method.
 The partial-pivoting strategy chooses each pivot as the
 largest-magnitude element in its column, which bounds error
 growth. Complete pivoting (both row and column permutations)
-gives tighter theoretical bounds but rarely outperforms
-partial pivoting on real matrices and is more expensive, so
-partial pivoting is the standard.
+gives tighter theoretical bounds. However, it rarely
+outperforms partial pivoting on real matrices and is more
+expensive, so partial pivoting is the standard.
 
 For sparse matrices, specialized LU implementations
 (`Matrix::lu`) use graph-theoretic reordering to minimize
-fill-in (zeros in $A$ that become nonzero in $L$ or $U$).
+fill-in, that is, zeros in $A$ that become nonzero in $L$ or
+$U$.
 
 For symmetric positive-definite systems, Cholesky is
-preferred: half the FLOPs and numerically cleaner. For
-general systems, LU is the default.
+preferred, with half the FLOPs and cleaner numerical
+behavior. For general systems, LU is the default.
 
 ## Eigendecomposition
 
@@ -323,29 +338,33 @@ A %*% e$vectors[, 1] - e$values[1] * e$vectors[, 1]
 ```
 
 For **symmetric** matrices, eigenvalues are real and
-eigenvectors are orthogonal: $V^{-1} = V^T$, so
+eigenvectors are orthogonal. That is, $V^{-1} = V^T$, so
 $A = V \Lambda V^T$. This is why statistical applications of
 eigendecomposition almost always concern symmetric inputs
 (covariance matrices, correlation matrices, graph
-Laplacians): the decomposition is numerically well-behaved,
-and the orthogonality of $V$ has a clean statistical meaning
-(principal components are uncorrelated).
+Laplacians). For such inputs the decomposition is
+numerically well-behaved, and the orthogonality of $V$ has a
+clean statistical meaning: principal components are
+uncorrelated.
 
-For non-symmetric matrices, eigendecomposition may not exist
-(defective matrices) or may have complex eigenvalues. In
-statistical practice, non-symmetric eigenproblems are rare;
-when they arise, the SVD is usually a better tool.
+For non-symmetric matrices, the eigendecomposition may not
+exist (defective matrices) or may have complex eigenvalues.
+In statistical practice, non-symmetric eigenproblems are
+rare. When they arise, the SVD is usually a better tool.
 
 **Cost.** The full eigendecomposition of a general
 $n \times n$ matrix is $O(n^3)$. For symmetric matrices, R
-uses a tridiagonalization plus divide-and-conquer algorithm,
-with the same asymptotic cost but a smaller constant.
+calls LAPACK's `DSYEVR`, which reduces the matrix to
+tridiagonal form and then applies the MRRR (multiple
+relatively robust representations) algorithm. The
+asymptotic cost is the same, but the constant is smaller.
 
 **Partial eigendecomposition.** If only the top $k$
 eigenpairs are needed (often true in high-dimensional
-statistics), Krylov methods like Lanczos achieve $O(kn^2)$
-cost, substantially faster than the full decomposition. The
-`RSpectra` package wraps the standard implementation.
+statistics), Krylov methods such as Lanczos achieve
+$O(kn^2)$ cost, substantially faster than the full
+decomposition. The `RSpectra` package wraps the standard
+implementation.
 
 ## Singular value decomposition (SVD)
 
@@ -368,34 +387,36 @@ all.equal(A, s$u %*% diag(s$d) %*% t(s$v))
 #> [1] TRUE
 ```
 
-**Why the SVD is the most versatile decomposition.**
+**Why the SVD is the most versatile decomposition.** Four
+properties account for its versatility.
 
 1. It exists for every matrix, without structural
    requirements (no symmetry, no positive definiteness, no
    squareness).
 2. Singular values are non-negative real numbers, unlike
-   eigenvalues of general matrices which can be complex.
-3. The largest singular value is the matrix's 2-norm; the
-   ratio of the largest to the smallest singular value is
-   the 2-norm condition number. Both quantities drop out of
-   the SVD
-   directly.
-4. SVD gives the rank: the number of nonzero singular
+   the eigenvalues of general matrices, which can be
+   complex.
+3. The largest singular value is the matrix's 2-norm, and
+   the ratio of the largest to the smallest singular value
+   is the 2-norm condition number. Both quantities drop out
+   of the SVD directly.
+4. The SVD gives the rank: the number of nonzero singular
    values. In practice, 'nonzero' is interpreted relative to
-   a tolerance, because singular values below roughly
+   a tolerance. Singular values below roughly
    $\epsilon \|A\|$ (with $\epsilon \approx 10^{-16}$) are
    numerically indistinguishable from zero.
 
 **Economy (thin) SVD.** For $m \geq n$, `svd(A, nu = n, nv = n)`
-(or the default `svd(A)`) returns $U$ as $m \times n$, $\Sigma$
-as length-$n$ diagonal, and $V$ as $n \times n$. This is both
-cheaper and smaller in memory than the full SVD.
+(or the default `svd(A)`) returns $U$ as $m \times n$,
+$\Sigma$ as length-$n$ diagonal, and $V$ as $n \times n$.
+This is both cheaper and smaller in memory than the full
+SVD.
 
-**Cost.** $O(mn \min(m, n))$, dominated by an initial
-bidiagonalization step. For large rectangular matrices, this
-is expensive but tractable. For huge sparse matrices,
-randomized SVD methods (e.g., `rsvd::rsvd`) reduce cost
-substantially when only the top few singular values are
+**Cost.** The cost is $O(mn \min(m, n))$, dominated by an
+initial bidiagonalization step. For large rectangular
+matrices, this is expensive but tractable. For huge sparse
+matrices, randomized SVD methods (e.g., `rsvd::rsvd`) reduce
+cost substantially when only the top few singular values are
 needed.
 
 ### Pseudoinverse via SVD
@@ -412,16 +433,17 @@ zero. `MASS::ginv(A)` implements exactly this.
 
 The pseudoinverse satisfies the four Moore-Penrose axioms
 ($A A^+ A = A$, $A^+ A A^+ = A^+$, $(A A^+)^T = A A^+$,
-$(A^+ A)^T = A^+ A$) and gives the minimum-norm
-least-squares solution to $Ax = b$: $\hat x = A^+ b$
+$(A^+ A)^T = A^+ A$). It also gives the minimum-norm
+least-squares solution to $Ax = b$. That is, $\hat x = A^+ b$
 minimizes $\|Ax - b\|$ and, among all minimizers, minimizes
 $\|x\|$. For rank-deficient regression, this is what a naive
 'just solve it' approach is implicitly doing.
 
 ### Low-rank approximation
 
-The Eckart-Young-Mirsky theorem: the best rank-$k$
-approximation to $A$ (in the Frobenius or 2-norm) is
+The Eckart-Young-Mirsky theorem states that the best
+rank-$k$ approximation to $A$ (in the Frobenius or 2-norm)
+is
 
 $$
 A_k = \sum_{i=1}^k \sigma_i u_i v_i^T = U_k \Sigma_k V_k^T
@@ -429,8 +451,8 @@ $$
 
 obtained by truncating the SVD to the top $k$ singular
 triples. The squared approximation error equals
-$\sigma_{k+1}^2 + \cdots + \sigma_{\min(m,n)}^2$ (Frobenius);
-the error itself is $\sigma_{k+1}$ (2-norm).
+$\sigma_{k+1}^2 + \cdots + \sigma_{\min(m,n)}^2$ (Frobenius),
+and the error itself is $\sigma_{k+1}$ (2-norm).
 
 ```r
 svd_A <- svd(A)
@@ -438,7 +460,7 @@ k <- 3
 A_k <- svd_A$u[, 1:k] %*% diag(svd_A$d[1:k]) %*% t(svd_A$v[, 1:k])
 ```
 
-Applications:
+The principal applications are these:
 
 - **PCA.** Truncated SVD on the centered data matrix gives the
   top-$k$ principal components. The singular values squared
@@ -446,20 +468,20 @@ Applications:
   components.
 - **Image compression.** A rank-$k$ approximation stores
   $k(m + n + 1)$ numbers instead of $mn$. For natural images,
-  surprisingly small $k$ captures most of the structure.
+  a surprisingly small $k$ captures most of the structure.
 - **Collaborative filtering.** Matrix completion via
   truncated SVD implements a latent-factor model for
   recommender systems.
 - **Denoising.** If the signal is low-rank and the noise is
   full-rank, truncating to the signal's rank removes noise.
 
-Choosing $k$ is a modeling decision, not a mechanical one.
-Common approaches: cumulative variance explained ('keep
-components until 95% of variance is captured'), scree-plot
-inspection (look for an 'elbow'), cross-validation on a
-reconstruction error, and parallel analysis (compare observed
-eigenvalues against those of a random matrix of the same
-shape).
+Choosing $k$ is a modeling decision. Several approaches are
+in common use. One is cumulative variance explained ('keep
+components until 95% of variance is captured'), and another
+is scree-plot inspection (look for an 'elbow'). Others are
+cross-validation on a reconstruction error and parallel
+analysis, which compares observed eigenvalues against those
+of a random matrix of the same shape.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: why SVD for rank deficiency
@@ -476,20 +498,24 @@ will be effectively zero (numerical noise, but orders of
 magnitude smaller than the others). The rank of $X$ is the
 count of non-negligible singular values. `MASS::ginv(X)`
 computes the Moore-Penrose pseudoinverse by inverting only
-the non-zero singular values (zero stays zero); the
-resulting $\hat\beta = \mathrm{ginv}(X) y$ is the minimum-
-norm solution. `lm()` handles this by dropping one of the
-collinear columns (reported in the `aliased` field of the
-summary); the pseudoinverse solution does not drop columns
-but distributes the coefficient weight across collinear
-columns. Both are defensible; which is right depends on
-what the analyst meant by including both columns in the
-first place. The SVD makes the rank visible so that the
-choice is deliberate rather than silent.
+the non-zero singular values (zero stays zero). The
+resulting $\hat\beta = \mathrm{ginv}(X) y$ is the
+minimum-norm solution. `lm()` handles the problem by
+dropping one of the collinear columns (reported in the
+`aliased` field of the summary). The pseudoinverse solution,
+on the other hand, does not drop columns but distributes the
+coefficient weight across collinear columns. Both are
+defensible. Which is right depends on what the analyst meant
+by including both columns in the first place. The SVD makes
+the rank visible so that the choice is deliberate rather
+than silent.
 
 :::
 
 ## Worked example: OLS via QR
+
+To illustrate the QR route end to end, we fit OLS and
+recover the standard errors from the triangular factor.
 
 ```r
 set.seed(1)
@@ -522,69 +548,73 @@ all.equal(as.vector(se), as.vector(summary(fit)$coefficients[, 2]))
 #> [1] TRUE
 ```
 
-Two idioms in this code repay study. `qr.resid()` computes
-$(I - QQ^T) y$ in one call instead of forming $QQ^T$
-explicitly. `backsolve(R, diag(p))` inverts a triangular
-matrix by solving $Rx = e_i$ for each column $e_i$ of the
-identity, cheaper and more stable than `solve(R)`.
+Two idioms in this code repay study. First, `qr.resid()`
+computes $(I - QQ^T) y$ in one call instead of forming
+$QQ^T$ explicitly. Second, `backsolve(R, diag(p))` inverts a
+triangular matrix by solving $Rx = e_i$ for each column
+$e_i$ of the identity. This is cheaper and more stable than
+`solve(R)`.
 
 ## Collaborating with an LLM on decompositions
 
 Decompositions are mathematically precise but numerically
-subtle. LLMs are helpful for the math and variable on the
-numerics. Three patterns:
+subtle. LLMs are helpful for the mathematics and variable on
+the numerics. Three patterns follow.
 
-**Prompt 1: picking the right decomposition.** Describe the
-matrix (symmetric? positive definite? rectangular?
+**Prompt 1: picking the right decomposition.** We describe
+the matrix (symmetric? positive definite? rectangular?
 ill-conditioned?) and the downstream goal (solve? rank?
-low-rank approximation? simulation?). Ask: 'which
+low-rank approximation? simulation?). We then ask: 'which
 decomposition is appropriate and why?'
 
 *What to watch for.* The answer will usually cite the right
-one. Check the reasoning against the table at the top of this
-chapter. LLMs sometimes recommend SVD when Cholesky would do,
-because SVD is more 'general'; that generality is not free.
+decomposition, but we should check the reasoning against
+the table at the top of this chapter. LLMs sometimes
+recommend the SVD when Cholesky would do, because the SVD is
+more 'general'. That generality is not free.
 
-*Verification.* Run the proposed decomposition and check
-that the downstream result agrees with a cross-reference
-(e.g., the SVD pseudoinverse should agree with `lm()` on a
-full-rank problem).
+*Verification.* We run the proposed decomposition and check
+that the downstream result agrees with a cross-reference.
+For example, the SVD pseudoinverse should agree with `lm()`
+on a full-rank problem.
 
-**Prompt 2: translating math to R.** Paste the algebraic
+**Prompt 2: translating math to R.** We paste the algebraic
 expression (e.g., 'the Cholesky factor of $X^T X + \lambda I$')
 and ask for idiomatic R.
 
-*What to watch for.* Hand-written code that mixes
-`t(X) %*% X` with `solve(...)` when `chol(crossprod(X) + lambda * diag(p))`
-plus `backsolve` would be faster and more stable. Nudge the
+*What to watch for.* The risk is hand-written code that
+mixes `t(X) %*% X` with `solve(...)` when
+`chol(crossprod(X) + lambda * diag(p))` plus `backsolve`
+would be faster and more stable. It is worth nudging the
 prompt explicitly toward decomposition-based idioms.
 
-*Verification.* Compare against a reference implementation
-for small examples, and watch for the numerical behavior as
-$\lambda \to 0$ (should approach the unregularized OLS
-solution) and $\lambda \to \infty$ (should approach zero).
+*Verification.* We compare against a reference
+implementation for small examples. We also watch the
+numerical behavior as $\lambda \to 0$ (it should approach
+the unregularized OLS solution) and as $\lambda \to \infty$
+(it should approach zero).
 
-**Prompt 3: choosing $k$ for truncation.** Describe the data
-and goal and ask: 'how should I choose $k$ for a rank-$k$
-SVD approximation?'
+**Prompt 3: choosing $k$ for truncation.** We describe the
+data and the goal and ask: 'how should I choose $k$ for a
+rank-$k$ SVD approximation?'
 
 *What to watch for.* Answers often default to '95% variance
 explained'. That is a rule of thumb, not a theorem. For
-exploratory PCA it is reasonable; for denoising or a
+exploratory PCA it is reasonable. For denoising or a
 downstream predictive task, cross-validated reconstruction
 error is usually better.
 
-*Verification.* Whatever rule you use, compute the
+*Verification.* Whatever rule we use, we compute the
 reconstruction at several values of $k$ and look at the
 scree plot or the CV curve. The right $k$ is often visually
 obvious on real data and rarely matches the 'default' rule.
 
-LLMs are good at recalling the names,
+On the one hand, LLMs are good at recalling the names,
 formulas, and canonical uses of decompositions, and
-reasonable at translating math to R. They are less reliable
-at the choice between decompositions on a given problem and
-the choice of truncation parameter. Those are engineering
-judgments informed by data.
+reasonable at translating mathematics to R. On the other,
+they are less reliable at choosing between decompositions
+on a given problem and at choosing the truncation parameter.
+Those are engineering judgments informed by data.
 
 ## Principle in use
 
@@ -699,9 +729,9 @@ equations?
 ::: {.callout-note collapse='true'}
 ## Answer
 
-**B.** The stability argument is the reason. Cost is
-similar; accuracy is substantially better for ill-
-conditioned designs.
+**B.** The stability argument is the reason. The cost is
+similar, and the accuracy is substantially better for
+ill-conditioned designs.
 :::
 
 ### Question 4
@@ -725,8 +755,8 @@ of LU on SPD matrices and numerically cleaner.
 
 ### Question 5
 
-The Eckart-Young-Mirsky theorem states that the best rank-
-$k$ approximation to $A$ in the Frobenius norm is:
+The Eckart-Young-Mirsky theorem states that the best
+rank-$k$ approximation to $A$ in the Frobenius norm is:
 
 - A) The first $k$ rows of $A$.
 - B) The first $k$ columns of $A$.
@@ -759,6 +789,6 @@ compression, matrix completion, and low-rank denoising.
    $X^T X$ squares the condition number to $\kappa(X)^2$
    and amplifies numerical error for ill-conditioned
    designs. For a well-conditioned $X$ the two routes
-   agree to rounding error; for ill-conditioned $X$ they
-   can differ by many decimal digits, always in favor of
-   QR.
+   agree to rounding error. For an ill-conditioned $X$
+   they can differ by many decimal digits, always in favor
+   of QR.

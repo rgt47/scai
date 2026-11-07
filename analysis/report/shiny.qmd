@@ -40,54 +40,65 @@ By the end of this chapter you should be able to:
 An interactive application lets collaborators explore a
 model's behavior without running any code. For a
 biostatistician, this means writing less one-off code in
-response to every new question a collaborator asks: 'what
-does the predicted survival look like at age 70?' becomes
-a slider on a deployed app rather than a request for a new
-PDF. Shiny is the dominant tool for building such
-applications in R.
+response to every new question a collaborator asks. A
+question such as 'what does the predicted survival look like
+at age 70?' becomes a slider on a deployed app rather than a
+request for a new PDF. Shiny is the dominant tool for
+building such applications in R.
 
 The framework was created by Joe Cheng at RStudio (now
-Posit) and has matured over a decade into the standard for
-analytic dashboards in R. The Mastering Shiny book by
-Hadley Wickham (mastering-shiny.org) is the canonical
-modern reference.
+Posit). It has matured over a decade into the standard for
+analytic dashboards in R. Hadley Wickham's Mastering Shiny
+(mastering-shiny.org) is the canonical modern reference.
+
+In this chapter we shall begin with the judgments the
+statistician brings to an application (@sec-shiny-human) and
+with a one-page account of the reactive model. We then build
+a minimal app and examine inputs, outputs, and reactive
+expressions in turn. The middle sections treat the
+distinction between `reactive()` and `observeEvent()`, the
+control of expensive recomputation, input validation, and
+modules. We close with deployment, debugging, a worked
+regression explorer, and the use of an LLM as a collaborator.
 
 ## The statistician's contribution {#sec-shiny-human}
 
-Shiny apps look easy until one has to be maintained. The
-pitfalls are predictable; the judgments that prevent them
-are not in the framework.
+Shiny apps appear easy until one has to be maintained. The
+pitfalls are predictable, but the judgments that prevent
+them are not part of the framework.
 
 **Decide what should be reactive.** Every input change can
-trigger every downstream computation. Sometimes that is
-right (a small dataset filter); sometimes it is disastrous
-(a 30-second model fit running every time the user moves a
-slider by 1). The right reactive granularity (often
-involving `bindEvent()` to delay expensive computations
-until a 'Run' button is pressed) is the analyst's
-judgment; the framework will not choose it for you.
+trigger every downstream computation. For a small dataset
+filter that behavior is appropriate. For a 30-second model
+fit that runs every time the user moves a slider by 1, it is
+disastrous. The right reactive granularity is the analyst's
+judgment, and the framework will not choose it for us. It
+often involves `bindEvent()` to delay expensive computations
+until a 'Run' button is pressed.
 
-**Validate inputs.** A Shiny app is a public surface,
-even when 'public' means 'visible to three collaborators'.
-Inputs that crash the server because the
-user uploaded a CSV with extra columns, or set a slider to
-zero, are bugs. `validate()` and `req()` catch them
+**Validate inputs.** A Shiny app is a public surface, even
+when 'public' means 'visible to three collaborators'.
+Suppose that the user uploads a CSV with extra columns, or
+sets a slider to zero. If such an input crashes the server,
+that is a bug. `validate()` and `req()` catch these cases
 gracefully.
 
-**Modularize.** A single-file app of 200 lines is fine. A
-single file of 2000 lines is unmaintainable. Shiny modules
-allow UI/server pairs that handle one component (a dataset
-selector, a plot, a table) to be encapsulated and combined
-with namespace isolation. Splitting the
-monolith is the difference between an app that survives a
-year of feature requests and one that gets rewritten.
+**Modularize.** A single-file app of 200 lines is
+manageable, whereas a single file of 2000 lines is
+unmaintainable. Shiny modules allow a UI/server pair that
+handles one component (a dataset selector, a plot, a table)
+to be encapsulated. Such pairs are then combined with
+namespace isolation. Splitting the monolith is the
+difference between an app that survives a year of feature
+requests and one that gets rewritten.
 
-**Be deliberate about deployment.** A `shinyapps.io` free
-tier app times out after idle minutes. A self-hosted Shiny
-Server has different scaling and security
-characteristics. A Posit Connect deployment integrates
-with internal authentication. Pick the destination that
-matches the audience; do not assume.
+**Be deliberate about deployment.** The destinations differ
+in ways that matter. A `shinyapps.io` free-tier app times out
+after idle minutes. A self-hosted Shiny Server has different
+scaling and security characteristics, and a Posit Connect
+deployment integrates with internal authentication. The
+destination should therefore be chosen to match the
+audience.
 
 ## Reactive programming in one page
 
@@ -100,23 +111,24 @@ Shiny's reactive model has three building blocks:
   output is needed) and *cached* (rerun only when a
   dependency changes).
 - **Observers.** Computations that run for side effects
-  (writing files, updating an external database). Run
-  whenever a dependency changes; do not return a cached
+  (writing files, updating an external database). They run
+  whenever a dependency changes and do not return a cached
   value.
 
-The dependency graph is built automatically. When you write
+The dependency graph is built automatically. When we write
 `reactive({ filter(data, year == input$year) })`, Shiny
 notes that the expression depends on `input$year`. When
 `input$year` changes, the expression's cached value is
-invalidated; the next time anything asks for it, the
+invalidated. The next time anything asks for it, the
 expression recomputes.
 
-This is a different mental model from imperative R. You
-do not call functions in order; you declare relationships
-and let the framework figure out execution. The payoff is
-that the UI updates automatically when inputs change. The
-cost is that bugs are about *when* things happen, which
-is harder to debug than *what* they compute.
+This is a different mental model from imperative R. We do
+not call functions in order. Instead, we declare
+relationships and let the framework determine the order of
+execution. On the plus side, the UI updates automatically
+when inputs change. On the minus side, bugs concern *when*
+things happen, and such bugs are harder to debug than errors
+in *what* is computed.
 
 ## A minimum Shiny app
 
@@ -156,7 +168,7 @@ server <- function(input, output, session) {
 shinyApp(ui, server)
 ```
 
-Five things to notice:
+The reader will note five features of this app.
 
 1. **`ui` is HTML in disguise.** `fluidPage`,
    `sidebarLayout`, and friends are R functions that emit
@@ -175,9 +187,9 @@ Five things to notice:
    can be run interactively (in the console) or deployed.
 
 The `.data[[input$xvar]]` syntax inside `aes()` lets us
-use a string-valued input as a data column reference; this
-is the modern tidy-eval idiom for column selection by
-character.
+use a string-valued input as a data column reference. This
+is the modern tidy-eval idiom for selecting a column by a
+character name.
 
 ## Inputs, outputs, reactives
 
@@ -224,8 +236,8 @@ server <- function(input, output, session) {
 
 The reactive `filtered()` is shared by both outputs.
 Without it, `filter(data, year == input$year)` would run
-twice. With it, it runs once and the cached value is
-shared.
+twice. With it, the filter runs once and the cached value
+is shared.
 
 ## `reactive()` vs `observeEvent()`
 
@@ -244,11 +256,11 @@ observeEvent(input$save_button, {
 })
 ```
 
-Use `reactive()` when you want a cached intermediate
-value to be referenced by multiple downstream reactives or
-outputs. Use `observeEvent()` when you want to do
-something *because* an input changed (or a button was
-clicked) but do not need a return value.
+We use `reactive()` when a cached intermediate value is to
+be referenced by multiple downstream reactives or outputs.
+We use `observeEvent()` when we want to do something
+*because* an input changed (or a button was clicked) but do
+not need a return value.
 
 `observe()` (without `Event`) runs whenever any of its
 dependencies changes. `observeEvent(trigger, expr)` runs
@@ -260,11 +272,11 @@ only when `trigger` changes; `expr` runs inside
 The default reactive model recomputes whenever a
 dependency changes. For expensive computations (a long
 model fit, a database query, an external API call), this
-is unacceptable: the user wants the model to update only
-when they have finished entering parameters.
+behavior is unacceptable. The user wants the model to
+update only after the parameters have been entered.
 
-`bindEvent()` (added in Shiny 1.6 alongside the older
-`eventReactive()`) does this:
+`bindEvent()`, added in Shiny 1.6 alongside the older
+`eventReactive()`, provides this control:
 
 ```r
 # expensive fit, only re-runs when run_button is clicked
@@ -273,7 +285,8 @@ fit <- bindEvent(reactive({
   lm(y ~ x, data = filtered())
 }), input$run_button)
 
-# fit() returns the most recent fit (or NULL initially)
+# fit() returns the most recent fit; before the first
+# click it raises a silent validation error, as req() does
 output$summary <- renderPrint({ summary(fit()) })
 ```
 
@@ -286,20 +299,21 @@ observeEvent(input$run_button, {
 })
 ```
 
-The Mastering Shiny book ('Reactivity in depth' chapter)
-is essential reading for getting reactive timing right.
+The 'Reactivity in depth' chapter of Mastering Shiny is
+essential reading on the question of reactive timing.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: reactive vs. observer
 
-**Question.** You want your Shiny app to fit a regression
-when the user clicks a 'Fit' button, then update both a
-plot and a table with the result. Should the fit be a
-`reactive()`, an `observeEvent()`, or both?
+**Question.** Suppose that we want a Shiny app to fit a
+regression when the user clicks a 'Fit' button, and then to
+update both a plot and a table with the result. Should the
+fit be a `reactive()`, an `observeEvent()`, or both?
 
 **Answer.**
 
-A `reactive()` triggered by `input$run_button`:
+The fit should be a `reactive()` triggered by
+`input$run_button`:
 
 ```r
 fit <- bindEvent(reactive({
@@ -308,12 +322,11 @@ fit <- bindEvent(reactive({
 ```
 
 The plot and table both reference `fit()`, so the fit is
-computed once and the cached result is shared. Using an
-`observeEvent` would not give you a cached return value
-to share. Using a plain `reactive()` would re-run on
-every input change, defeating the purpose of the button.
-The combination of `reactive()` and `bindEvent()` is the
-right pattern.
+computed once and the cached result is shared. An
+`observeEvent` would not provide a cached return value to
+share. A plain `reactive()`, on the other hand, would re-run
+on every input change, which defeats the purpose of the
+button.
 
 :::
 
@@ -337,14 +350,15 @@ output$result <- renderPlot({
 ```
 
 `req(input$file)` halts evaluation silently if the user
-has not yet uploaded a file: nothing renders and no
-error is shown.
+has not yet uploaded a file. In that case nothing renders
+and no error is shown.
 
 `validate(need(...))` halts evaluation and displays a
-human-readable message explaining why. Useful when the
-user has done something almost-but-not-quite right.
+human-readable message explaining why. This is useful when
+the user has done something that is almost, but not quite,
+right.
 
-Without these, an app with a missing file or invalid
+Without these checks, an app with a missing file or invalid
 input throws server-side errors that may render as red
 text in the UI or stack traces in the log.
 
@@ -397,12 +411,13 @@ server <- function(input, output, session) {
 }
 ```
 
-Three things modules give you:
+Modules provide three benefits.
 
 1. **Namespace isolation.** `NS(id)` ensures that two
    instances of the same module do not collide on input
    ids.
-2. **Reusability.** Define once, instantiate many.
+2. **Reusability.** A module is defined once and
+   instantiated many times.
 3. **Testability.** Each module can be tested in
    isolation.
 
@@ -412,21 +427,22 @@ organized.
 
 ## Deployment
 
-The three common destinations:
+There are three common destinations.
 
-**`shinyapps.io`** is Posit's hosted service. Free tier
+**`shinyapps.io`** is Posit's hosted service. Its free tier
 allows a few apps with limited active hours per month.
-`rsconnect::deployApp()` deploys with a single call. Public
-URLs; basic authentication available on paid plans.
+`rsconnect::deployApp()` deploys with a single call. URLs
+are public, and basic authentication is available on paid
+plans.
 
-**Posit Connect** is the enterprise self-hosted
-platform. Integrates with internal authentication, scales
-across multiple servers, supports private deployments.
+**Posit Connect** is the enterprise self-hosted platform. It
+integrates with internal authentication, scales across
+multiple servers, and supports private deployments.
 
-**Self-hosted Shiny Server (open source).** Free, but you
-manage the infrastructure: server provisioning, scaling,
-authentication, monitoring. The 'just run a Shiny app on
-my Linux box' option.
+**Self-hosted Shiny Server (open source)** is free, but we
+then manage the infrastructure ourselves: server
+provisioning, scaling, authentication, and monitoring. It is
+the 'just run a Shiny app on my Linux box' option.
 
 For deployment to shinyapps.io:
 
@@ -436,17 +452,18 @@ deployApp(appDir = ".", appName = "penguin-explorer",
           forceUpdate = TRUE)
 ```
 
-For each: read the deployment documentation. The
-`{rsconnect}` package handles the basics; production
-deployments often require attention to memory limits,
-session timeouts, and authentication.
+For each destination the deployment documentation should be
+read with care. The `{rsconnect}` package handles the
+basics. Production deployments, however, often require
+attention to memory limits, session timeouts, and
+authentication.
 
 ## Debugging reactivity
 
 `reactlog::reactlog_enable()` records every reactive
-event. Run the app, interact with it, then call
-`reactlog::reactlog_show()` to see the dependency graph
-and event history:
+event. To use it, we run the app, interact with it, and
+then call `reactlog::reactlog_show()` to see the dependency
+graph and event history:
 
 ```r
 options(shiny.reactlog = TRUE)
@@ -461,12 +478,17 @@ which observers ran in response to which events. For
 debugging an app where things update at the wrong time
 or not at all, `reactlog` is the canonical tool.
 
-For server-side errors, `shiny::runApp(launch.browser = TRUE)`
-in development gives you a console that traces messages.
+For server-side errors in development, the messages and
+stack traces print to the R console from which
+`shiny::runApp()` was called.
 For production, the deployment platform's logs (Posit
 Connect, shinyapps.io) capture stack traces.
 
 ## Worked example: regression explorer
+
+To illustrate, consider an app that fits a linear model to
+the Palmer penguins data and displays the residuals and the
+coefficient table.
 
 ```r
 library(shiny)
@@ -528,54 +550,52 @@ server <- function(input, output, session) {
 shinyApp(ui, server)
 ```
 
-The user picks a response, predictors, and clicks 'Fit'.
+The user picks a response and predictors and then clicks
+'Fit'.
 The fit recomputes only when the button is clicked, not
 on every checkbox change. The plot and table both share
 the cached `fit()`. `req()` ensures graceful handling
 before the first fit.
 
-This is a small but realistic pattern: an interactive
-exploration of a model where the expensive step (the fit)
-is gated behind a button.
-
 ## Collaborating with an LLM on Shiny
 
-Shiny apps are an area where LLMs can produce a lot of
-working code quickly, and where reactivity bugs are easy
-to miss.
+On the one hand, LLMs can produce a large amount of working
+Shiny code quickly. On the other hand, the reactivity bugs
+in that code are easy to miss.
 
-**Prompt 1: drafting an app.** Describe the app: what
-should the user see, what inputs should they have, what
-output should appear. Ask: 'write a single-file Shiny
+**Prompt 1: drafting an app.** We describe the app: what
+the user should see, which inputs they should have, and what
+output should appear. We then ask: 'write a single-file Shiny
 app implementing this. Use `bindEvent()` for any
 expensive computation that should be gated behind a
 button.'
 
-*What to watch for.* Default LLM apps tend to be too
-reactive: every input change triggers everything. For
-expensive computations, the gating with
+*What to watch for.* Apps drafted by an LLM tend by default
+to be too reactive, so that every input change triggers
+everything. For expensive computations, gating with
 `bindEvent()` / `actionButton()` is essential.
 
-*Verification.* Run the app. Try moving sliders fast and
-see whether the app keeps up. If it stutters, the
-computation is too aggressive; refactor with `bindEvent`.
+*Verification.* We run the app, move the sliders quickly,
+and see whether the app keeps up. If it stutters, the
+computation is too aggressive, and we refactor it with
+`bindEvent`.
 
-**Prompt 2: diagnosing a reactivity bug.** Paste the
-relevant chunk of `server` code and describe the symptom:
-'when I change input X, output Y does not update' or
-'when I change input X, output Y updates twice'. Ask
-the LLM to diagnose.
+**Prompt 2: diagnosing a reactivity bug.** We paste the
+relevant chunk of `server` code and describe the symptom,
+for example 'when I change input X, output Y does not
+update' or 'when I change input X, output Y updates twice'.
+We then ask the LLM for a diagnosis.
 
 *What to watch for.* The LLM should recognize common
 patterns: missing parentheses on a reactive call (`fit`
 vs. `fit()`), `observeEvent` where `reactive` was needed,
-or vice versa. If the diagnosis is generic, push for
+or vice versa. If the diagnosis is generic, we press for
 specifics.
 
-*Verification.* Apply the fix and observe whether the bug
-goes away. Use `reactlog` if the bug is subtle.
+*Verification.* We apply the fix and observe whether the
+bug goes away, using `reactlog` if the bug is subtle.
 
-**Prompt 3: refactoring to modules.** Paste the
+**Prompt 3: refactoring to modules.** We paste the
 single-file app and ask: 'refactor this into Shiny
 modules. Identify reasonable component boundaries.'
 
@@ -585,7 +605,7 @@ include forgetting `ns()` on input ids in the module UI,
 or using global state that breaks with multiple module
 instances.
 
-*Verification.* Run the refactored app. If the module's
+*Verification.* We run the refactored app. If the module's
 input ids are used correctly, instantiating two copies of
 the module should not cause id collisions.
 

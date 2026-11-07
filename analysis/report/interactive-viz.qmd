@@ -12,7 +12,8 @@ By the end of this chapter you should be able to:
   single user and a single session, using `bslib`,
   `shinyloadtest`, and reactive-graph discipline.
 - Build dashboards with `flexdashboard`, Quarto dashboards,
-  and `shinydashboard`/`bslib::page_navbar()`, and choose
+  and `shiny` dashboards built with `bslib::page_navbar()`
+  or `bs4Dash`, and choose
   between them based on the audience and update cadence.
 - Use Observable JS cells and `ojs_define()` in Quarto to
   embed reactive analytics in static documents.
@@ -24,32 +25,42 @@ By the end of this chapter you should be able to:
 ## Orientation
 
 A static plot answers a question. A dashboard, by contrast,
-mediates a conversation: the user asks something the
+mediates a conversation. The user asks something the
 designer anticipated, the dashboard responds, and the user
 asks the follow-up. This shift from artifact to
 conversation changes both the engineering and the design.
 
-This chapter is about the engineering. The design half
-(how to compose a dashboard that supports decision-making
-rather than confusing the user) gets a section here but
-is the subject of book-length treatments [@few2013data;
-@munzner2014visualization]. We focus on the toolkit:
+In this chapter we shall be concerned mainly with the
+engineering. The design half, that is, how to compose a
+dashboard that supports decision-making rather than
+confusing the user, receives one section here. It is the
+subject of book-length treatments [@few2013data;
+@munzner2014visualization]. Our focus is the toolkit:
 `plotly` for interactive graphics, `shiny` for reactive
 applications, dashboard frameworks for at-a-glance
 displays, and Observable JS for in-document reactivity.
 
-Most analytic questions are better answered by a
-well-designed static figure than by a dashboard. Static
-output is therefore the default throughout this chapter,
-and interactivity has to justify itself case by case.
+We note at the outset that most analytic questions are
+better answered by a well-designed static figure than by a
+dashboard. Static output is therefore the default throughout
+this chapter, and interactivity has to justify itself case
+by case.
+
+We begin with the judgments the statistician contributes
+(@sec-interactive-viz-human). We then treat interactive
+plots with `plotly` and `htmlwidgets`, reactive applications
+with `shiny`, the dashboard frameworks, and Observable JS in
+turn. A worked clinical quality dashboard and a section on
+collaborating with an LLM complete the chapter.
 
 ## The statistician's contribution {#sec-interactive-viz-human}
 
 LLMs can write `shiny` code, configure `plotly` tooltips,
-and lay out dashboards. They cannot decide which
-interactions a clinician actually wants, what default views
-inform decisions, or whether the dashboard is delivering
-information or merely flattering the user with graphics.
+and lay out dashboards. Unfortunately, they cannot decide
+which interactions a clinician actually wants or which
+default views inform decisions. Nor can they judge whether
+the dashboard is delivering information or merely
+flattering the user with graphics.
 
 **(Judgment 1.) Interactivity that does not help is
 distraction.** Users routinely ask for filters and toggles
@@ -58,9 +69,9 @@ time, complicates testing, slows page load, and obscures
 the data behind layers of UI. The statistician's role is
 to push back on requested interactions until the user can
 articulate what decision the interaction informs. 'I want
-to filter by year' is not yet a decision; 'I want to see
+to filter by year' is not yet a decision. 'I want to see
 this year's quality measure trends to decide where to
-intervene' is.
+intervene' is one.
 
 **(Judgment 2.) Defaults are the dashboard.** Most users
 look at a dashboard's default state and never change it.
@@ -68,16 +79,16 @@ The default view, default filters, default time range, and
 default sort order *are* the dashboard for those users.
 Building elaborate alternative views that no one will
 discover is wasted work. The statistician decides what the
-default state should communicate; the secondary views are
-optional refinements.
+default state should communicate, and the secondary views
+are optional refinements.
 
 **(Judgment 3.) Calibration applies to dashboards.**
 Numbers reported on dashboards are taken at face value.
 A dashboard that displays predicted readmission risk to
 clinicians is making a calibration claim by displaying
 the number. If the underlying model is poorly calibrated,
-the dashboard is misleading, and 'we just display the
-model output' is not a defense. The statistician is
+the dashboard is misleading. The plea that 'we just display
+the model output' is not a defense. The statistician is
 responsible for the accuracy of every quantity the
 dashboard shows, including the ones the user did not ask
 about.
@@ -113,7 +124,7 @@ Other `htmlwidgets`-based packages cover specialized needs:
 
 - **`leaflet`** for interactive maps.
 - **`DT`** for searchable, sortable, paginated tables:
-  the de-facto standard for data tables in dashboards.
+  the de facto standard for data tables in dashboards.
 - **`reactable`** for tables with conditional formatting
   and inline interactivity, more flexible than `DT` for
   custom layouts.
@@ -122,12 +133,17 @@ Other `htmlwidgets`-based packages cover specialized needs:
 - **`echarts4r`** for richer chart types than `plotly`
   (gauges, sankey, treemaps).
 
-A practical performance note: `htmlwidgets` embed all data
-in the rendered HTML by default. A dashboard with 100,000
-points displayed in `plotly` produces a large HTML file
-and can be slow to render. For large data either subsample
-before rendering or use server-side rendering via
-`shiny::renderPlotly()`.
+We note one practical performance issue. By default,
+`htmlwidgets` embed all data in the rendered HTML. A
+dashboard with 100,000 points displayed in `plotly`
+therefore produces a large HTML file and can be slow to
+render. For large data we therefore reduce the data before
+rendering, by subsampling, aggregating, or filtering. In a
+`shiny` app this reduction can run on the server, inside
+`plotly::renderPlotly()`, so that only the reduced data are
+sent to the browser. We note that `renderPlotly()` alone
+does not shrink the payload, because the widget still
+carries whatever data it is given.
 
 ## Reactive applications with `shiny`
 
@@ -136,7 +152,7 @@ analytic applications in R. The architecture is reactive:
 the UI declares inputs and outputs, the server defines how
 outputs depend on inputs, and `shiny` wires them together.
 
-A minimum viable application:
+To illustrate, consider a minimal application:
 
 ````{.r}
 library(shiny)
@@ -178,21 +194,21 @@ shinyApp(ui, server)
 ````
 
 `bslib` [@aden2024bslib] is the modern UI framework for
-`shiny`, replacing the older `shinydashboard` look with a
-Bootstrap 5 design system that supports themeing,
-responsive layouts, and dark mode. Most new applications
-should start with `bslib`.
+`shiny`. It replaces the older `shinydashboard` look with a
+Bootstrap 5 design system that supports theming, responsive
+layouts, and dark mode. Most new applications should start
+with `bslib`.
 
 ### Reactive-graph discipline
 
 The most common cause of slow `shiny` applications is
 unintended re-execution. A `reactive({ ... })` re-runs when
 any input it reads changes and caches the result for all
-its readers; a `renderPlot({ ... })` likewise re-runs when
-*any* reactive it reads changes. Without discipline, a single input
-change can trigger a cascade of re-renders.
+its readers. A `renderPlot({ ... })` likewise re-runs when
+*any* reactive it reads changes. Without discipline, a
+single input change can trigger a cascade of re-renders.
 
-Three rules:
+We offer three rules.
 
 1. **Compute once, use many times.** If two outputs depend
    on the same filtered data, compute the filter in a
@@ -209,15 +225,15 @@ Three rules:
    `NULL`. This prevents unnecessary computation during
    initial render.
 
-For applications with many users, the application also has
-to scale. `shinyloadtest`
+An application with many users must also scale.
+`shinyloadtest`
 [@dipert2024shinyloadtest] simulates concurrent sessions
 and measures response times. The results often reveal that
 a single-server application supports 10 to 20 concurrent users
 before degrading. Scaling beyond that requires either
 horizontal scaling (multiple R processes behind a load
-balancer, via `shinyapps.io`, Posit Connect, or
-`shiny-server-pro`) or aggressive caching of the
+balancer, via `shinyapps.io` or Posit Connect) or
+aggressive caching of the
 expensive operations.
 
 ::: {.callout-note icon=false collapse=true}
@@ -225,7 +241,7 @@ expensive operations.
 
 **Question.** A collaborator asks for a dashboard
 displaying weekly clinical-quality metrics. The data
-update once a week, all users see the same view, no
+update once a week, and all users see the same view. No
 filtering or interaction is needed beyond viewing the
 plots. Should this be a `shiny` application?
 
@@ -237,7 +253,7 @@ rendered to HTML and republished weekly via cron or
 GitHub Actions, is the right tool. It is simpler, cheaper
 to host, faster to load, and accessible without server
 infrastructure. `shiny` adds value only when the user
-interacts; if the only 'interaction' is viewing a fixed
+interacts. If the only 'interaction' is viewing a fixed
 display, the static report is the better choice.
 
 :::
@@ -249,8 +265,8 @@ Three dashboard frameworks dominate in 2026:
 **Quarto dashboards** [@quarto2024dashboard], added in
 Quarto 1.4, let you author a multi-pane dashboard in
 Markdown with code chunks. They render to a static HTML
-file with no server required. The right tool when the
-data updates on a schedule and the dashboard does not
+file with no server required. They are the right tool when
+the data update on a schedule and the dashboard does not
 need user-driven filtering.
 
 **`flexdashboard`** is the older, still-supported
@@ -260,10 +276,11 @@ Quarto dashboards.
 
 **`shiny` dashboards via `bslib::page_navbar()` or
 `bs4Dash`** are the choice when reactive interactivity is
-required. They are heavier, they need a server, but
-they support the full reactive programming model.
+required. On the minus side, they are heavier and need a
+server. On the plus side, they support the full reactive
+programming model.
 
-The decision tree:
+The choice may be summarized as a decision table.
 
 | Need | Tool |
 |------|------|
@@ -276,13 +293,13 @@ The decision tree:
 
 Observable JS (OJS) is JavaScript-based reactive notebook
 syntax adapted for Quarto. It provides reactive
-interactivity without a server: the computation runs in
-the user's browser. The trade-off: OJS reactives must be
-written in JavaScript (or in R/Python with data passed via
-`ojs_define()`), and the data must be small enough to
-ship in the rendered HTML.
+interactivity without a server, because the computation
+runs in the user's browser. The trade-off is twofold. OJS
+reactives must be written in JavaScript (or in R/Python
+with data passed via `ojs_define()`). The data, moreover,
+must be small enough to ship in the rendered HTML.
 
-The pattern:
+The basic pattern is as follows.
 
 ````{.qmd}
 ```{{r}}
@@ -307,7 +324,8 @@ Plot.plot({
 
 (The double-braced `{{r}}` and `{{ojs}}` are Quarto's escape
 syntax for showing chunk-syntax literally inside another
-code block; in your real document, write single braces.)
+code block. In an actual document, single braces are
+written.)
 
 OJS is the right tool when:
 
@@ -324,10 +342,11 @@ applications, `shiny` remains the answer.
 
 ## Worked example: a clinical quality dashboard
 
-A monthly-refreshed dashboard displaying readmission rates,
-length of stay, and patient satisfaction by service line,
-built as a Quarto dashboard. The data refreshes on the
-first of each month via a cron-driven render.
+To illustrate, consider a monthly-refreshed dashboard that
+displays readmission rates, length of stay, and patient
+satisfaction by service line. It is built as a Quarto
+dashboard, and the data refresh on the first of each month
+via a cron-driven render.
 
 ````{.qmd}
 ---
@@ -398,20 +417,21 @@ d |>
 (...further pages with data-quality checks)
 ````
 
-The `valuebox` cells communicate the headline numbers in
-the way clinicians scan first. The line chart provides
-trend context. The data table at the right provides drill
-detail. The conditional color on the readmission valuebox
-(red above 12%, green below) is a deliberate decision: the
-dashboard communicates a judgment about the value along
-with the value itself. That judgment should be reviewed
-by clinical stakeholders, not invented by the analyst.
+The `valuebox` cells communicate the headline numbers,
+which clinicians scan first. The line chart then provides
+trend context, and the data table at the right provides
+drill-down detail. The conditional color on the readmission
+valuebox (red above 12%, green below) is a deliberate
+decision. That is, the dashboard communicates a judgment
+about the value along with the value itself. Such a
+judgment should be reviewed by clinical stakeholders rather
+than invented by the analyst.
 
 The dashboard renders to a self-contained HTML file. A
 GitHub Actions workflow runs `quarto render` against fresh
 data on the first of every month and publishes the result.
-No `shiny` server is needed; the cost is near zero; the
-output is fast to load and trivially shareable.
+No `shiny` server is needed, and the cost is near zero. The
+output is fast to load and straightforward to share.
 
 ## Collaborating with an LLM on interactive visualization
 
@@ -425,52 +445,53 @@ tooltips showing patient ID and discharge date.'**
 *What to watch for.* The LLM will produce working code
 quickly. It may default to `ggplotly()` even when
 `plot_ly()` would render faster on the data size. It may
-embed sensitive identifiers (patient ID) in the rendered
-HTML; if the dashboard is shared, this is a privacy
-violation.
+also embed sensitive identifiers (patient ID) in the
+rendered HTML. If the dashboard is shared, this is a
+privacy violation.
 
-*Verification.* Inspect the rendered HTML for any
-identifying information that should not be shared.
-Check rendering time on representative data; if it is
-slow, switch to `plot_ly()` or aggregate the data before
-plotting.
+*Verification.* We inspect the rendered HTML for any
+identifying information that should not be shared. We also
+check rendering time on representative data. If rendering
+is slow, we switch to `plot_ly()` or aggregate the data
+before plotting.
 
 **Prompt 2: 'Add a filter for service line and a date
 range to this shiny app.'**
 
 *What to watch for.* The LLM will produce working
-reactive code. It may not factor the filter into a
-single `reactive()`, leading to redundant computation. It
-may not add `req(input$service)` to handle initial state.
-It will rarely test the application under any meaningful
-load.
+reactive code. However, it may not factor the filter into
+a single `reactive()`, which leads to redundant
+computation. It may also omit `req(input$service)` for the
+initial state. It will rarely test the application under
+any meaningful load.
 
-*Verification.* Read the resulting reactive graph in
-`reactlog`. Confirm filters compute once, not in each
-`renderX()`. Run `shinyloadtest` on a target concurrency
-level before deploying to a multi-user environment.
+*Verification.* We read the resulting reactive graph in
+`reactlog` and confirm that the filters compute once rather
+than in each `renderX()`. We then run `shinyloadtest` at a
+target concurrency level before deploying to a multi-user
+environment.
 
 **Prompt 3: 'Design a dashboard for clinical leadership to
 monitor readmissions.'**
 
-*What to watch for.* The LLM will produce a layout:
+*What to watch for.* The LLM will produce a layout,
 typically with too many panels and too many chart types.
 It will not ask what decisions clinical leadership makes
-or what view should be the default. It is happy to
-populate a dashboard with everything available rather
-than the few quantities that matter.
+or what view should be the default. Instead, it tends to
+populate a dashboard with everything available rather than
+with the few quantities that matter.
 
-*Verification.* Before implementing, articulate the
-two or three decisions the dashboard supports. Build for
-those. Treat additional panels as optional. The dashboard
+*Verification.* Before implementing, we articulate the two
+or three decisions the dashboard supports and build for
+those, treating additional panels as optional. A dashboard
 that fits on a single screen with three carefully chosen
 panels is almost always more useful than the eight-panel
 sprawl the LLM produces.
 
-The meta-pattern: LLMs accelerate the building of UI; they
-do not improve the design of UI. Treat the LLM as fast
-hands; bring your own taste and your own contact with the
-end user.
+The meta-pattern is that LLMs accelerate the building of UI
+but do not improve its design. We therefore treat the LLM
+as fast hands, and we bring our own taste and our own
+contact with the end user.
 
 ## Principle in use
 
@@ -480,17 +501,17 @@ work:
 1. **Default to static.** A static figure or a static
    parameterized report should be the working assumption.
    Interactivity is a feature you add when you can name
-   the decision it informs, not a default.
+   the decision it informs.
 
 2. **Engineer for the default state.** Most users look at
-   the dashboard you ship without changing anything. The
+   the dashboard we ship without changing anything. The
    default view, default filters, and default sort are
    the dashboard. Make them informative.
 
 3. **Test under load before deploying.** A `shiny`
-   application that works on your laptop may collapse
-   under five concurrent users. Run `shinyloadtest`
-   before deploying to a multi-user setting; cache and
+   application that works on a laptop may collapse under
+   five concurrent users. We run `shinyloadtest` before
+   deploying to a multi-user setting, and we cache and
    scale the bottlenecks before users find them.
 
 ## Exercises
@@ -535,4 +556,4 @@ work:
   (<https://quarto.org/docs/dashboards/>) and the
   Observable JS guide
   (<https://quarto.org/docs/interactive/ojs/>) are
-  exemplary practical references.
+  practical references for those tools.

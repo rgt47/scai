@@ -28,48 +28,53 @@ By the end of this chapter you should be able to:
 The simulation chapter in the first half of the book
 (@sec-simulation) treated Monte Carlo as a tool for
 estimating sampling distributions and method properties.
-That treatment used the simplest version: simulate from
-the target distribution, average. The ground covered
-there is sufficient for most simulation studies and most
-bootstrap inferences.
+That treatment used the simplest version, in which we
+simulate from the target distribution and average. The
+ground covered there is sufficient for most simulation
+studies and most bootstrap inferences.
 
-This chapter treats Monte Carlo as a more general
+In this chapter we shall treat Monte Carlo as a more general
 toolbox for high-dimensional integration, intractable
-likelihoods, and rigorous error reporting. Importance
-sampling extends Monte Carlo to targets you cannot sample
-from directly. Variance-reduction techniques compress the
-error bar for a given Monte Carlo budget, sometimes by
-factors of ten or more. ABC handles models where the
-likelihood is so complex you cannot even write it down
-but you can simulate from it. Permutation tests provide
-distribution-free inference whose Monte Carlo error is
-explicitly bounded.
+likelihoods, and rigorous error reporting. We begin with
+importance sampling, which extends Monte Carlo to targets we
+cannot sample from directly. We then consider
+variance-reduction techniques. These compress the error bar
+for a given Monte Carlo budget, sometimes by factors of ten
+or more. Next we treat ABC, which handles models whose
+likelihood is too complex to write down but from which we
+can still simulate. Lastly, we examine permutation tests,
+which provide distribution-free inference with an
+explicitly bounded Monte Carlo error, and the accounting of
+Monte Carlo error in published results.
 
 ## The statistician's contribution {#sec-monte-carlo-human}
 
 Every Monte Carlo estimate carries an explicit standard
-error, which many other tools do not supply. The judgments at the
-center of this chapter are about choosing the right
-Monte Carlo method for the problem at hand and
-interpreting the resulting error correctly.
+error, which many other tools do not supply. The judgments
+at the center of this chapter concern two tasks. The first
+is choosing the right Monte Carlo method for the problem at
+hand. The second is interpreting the resulting error
+correctly.
 
 **Match method to problem structure.** Direct simulation
-when the target is easy to sample from. Importance
-sampling when the target is hard but a related proposal
-is easy. Variance reduction when the budget is fixed
-and the goal is the tightest possible error bar. ABC when
-even the likelihood is intractable. Permutation when
-distributional assumptions are unwanted. Reaching for the
-wrong tool produces correct-but-inefficient results in
-the best case and wrong results in the worst.
+is appropriate when the target is easy to sample from.
+Importance sampling is appropriate when the target is hard
+but a related proposal is easy. Variance reduction applies
+when the budget is fixed and the goal is the tightest
+possible error bar. ABC applies when even the likelihood is
+intractable, and permutation applies when distributional
+assumptions are unwanted. Reaching for the wrong tool
+produces correct but inefficient results in the best case,
+and wrong results in the worst.
 
 **Importance sampling fails silently.** When the proposal
 distribution has lighter tails than the target, the
-importance weights become heavy-tailed and a few extreme
-weights dominate the estimate. The point estimate looks
-fine, but the variance is enormous. The diagnostic is the
-effective sample size of the weights. If it is much less
-than the nominal sample size, the estimator is unstable.
+importance weights become heavy-tailed. A few extreme
+weights then dominate the estimate. The point estimate
+looks fine, but the variance is enormous. The diagnostic is
+the effective sample size of the weights. If it is much
+less than the nominal sample size, the estimator is
+unstable.
 
 **Variance reduction is not free.** Control variates,
 stratified sampling, and Rao-Blackwellization all
@@ -80,54 +85,58 @@ is present is the analyst's contribution.
 
 **Report Monte Carlo standard errors.** Every Monte Carlo
 estimate has an SE. Reporting it makes the error bar
-visible and forces honest accounting of how many
-simulations were enough. The convention 'we used 1000
-simulations' without an SE is, in our view, undisciplined.
-The convention 'we used 1000 simulations, with Monte Carlo
-SE 0.003 on the reported coverage' is disciplined.
+visible, and it forces an honest accounting of how many
+simulations were enough. In our view, the convention 'we
+used 1000 simulations' without an SE is undisciplined. The
+convention 'we used 1000 simulations, with Monte Carlo SE
+0.003 on the reported coverage' is disciplined.
 
 ## Importance sampling
 
-To estimate $E_p[h(X)] = \int h(x) p(x) \, dx$ when $p$
-is hard to sample from but a related distribution $q$
-(the **proposal**) is easy, importance sampling uses
+Suppose we wish to estimate
+$E_p[h(X)] = \int h(x) p(x) \, dx$, where $p$ is hard to
+sample from but a related distribution $q$ (the
+**proposal**) is easy. Importance sampling uses the
+identity
 
 $$
 E_p[h(X)] = E_q\!\left[h(X) \frac{p(X)}{q(X)}\right]
 $$
 
 and estimates the right-hand side by simple Monte Carlo
-under $q$. With samples $x_1, \ldots, x_M \sim q$ and
-weights $w_i = p(x_i) / q(x_i)$, the importance-sampling
-estimator is
+under $q$. That is, with samples $x_1, \ldots, x_M \sim q$
+and weights $w_i = p(x_i) / q(x_i)$, the
+importance-sampling estimator is
 
 $$
 \hat\mu_{\text{IS}} = \frac{1}{M} \sum_{i=1}^M w_i h(x_i).
 $$
 
-In practice the unnormalized target $\tilde p(x) \propto p(x)$
-is often what you can compute. **Self-normalized
-importance sampling** uses
+In practice the unnormalized target
+$\tilde p(x) \propto p(x)$ is often all that we can
+compute. **Self-normalized importance sampling** uses
 
 $$
 \hat\mu_{\text{SN}} = \frac{\sum_i \tilde w_i h(x_i)}{\sum_i \tilde w_i}, \quad \tilde w_i = \tilde p(x_i) / q(x_i)
 $$
 
-and avoids needing the normalizing constant of $p$. The
-self-normalized estimator is biased but consistent; the
-ordinary importance-sampling estimator is unbiased.
+and so avoids the need for the normalizing constant of $p$.
+The self-normalized estimator is biased but consistent,
+whereas the ordinary importance-sampling estimator is
+unbiased.
 
 ### Choosing the proposal
 
 The variance of the importance-sampling estimator depends
-critically on $q$. The textbook result: minimum variance
-is achieved when $q(x) \propto p(x) |h(x)|$. In
+critically on $q$. The textbook result is that minimum
+variance is achieved when $q(x) \propto p(x) |h(x)|$. In
 practice, $q$ should resemble $p$ in shape but should
 have *heavier tails*. A proposal lighter in the tails
 than the target produces unbounded weights at the
-target's tail values, and the variance can be infinite.
+target's tail values, and the variance can then be
+infinite.
 
-Common choices:
+Three choices are common.
 
 - **Gaussian proposal centered at the posterior mode.** A
   good first attempt for log-concave targets.
@@ -140,17 +149,18 @@ Common choices:
 
 ### Diagnosing failure: effective sample size
 
-The **effective sample size** of the importance weights:
+The **effective sample size** of the importance weights is
+defined as
 
 $$
 \text{ESS} = \frac{\left(\sum_i w_i\right)^2}{\sum_i w_i^2}.
 $$
 
-For weights all equal, ESS equals the nominal sample
-size $M$. For one weight dominant, ESS approaches 1.
-A useful rule: if ESS / $M$ < 0.1, the importance-
-sampling estimator is unstable; reconsider the
-proposal.
+When the weights are all equal, ESS equals the nominal
+sample size $M$. When one weight dominates, ESS approaches
+1. A useful rule is that if ESS / $M$ < 0.1, the
+importance-sampling estimator is unstable, and the proposal
+should be reconsidered.
 
 ```r
 # importance sampling for E[X^2] under N(0,1), proposing N(0,2)
@@ -158,7 +168,7 @@ M <- 1e4
 x <- rnorm(M, 0, sqrt(2))             # proposal
 w <- dnorm(x, 0, 1) / dnorm(x, 0, sqrt(2))   # weights
 
-# self-normalised estimate
+# self-normalized estimate
 mu_hat <- sum(w * x^2) / sum(w)
 mu_hat
 #> [1] 0.998              # should be 1
@@ -170,27 +180,28 @@ ess
 ```
 
 Increasing the proposal variance further (e.g., to
-$\text{Var}(q) = 4$) drops ESS substantially; making the
-proposal lighter than the target ($\text{Var}(q) = 0.5$)
-produces infinite-variance weights and the estimator is
-useless.
+$\text{Var}(q) = 4$) drops ESS substantially. Conversely,
+making the proposal lighter than the target
+($\text{Var}(q) = 0.5$) produces infinite-variance weights,
+and the estimator is then useless.
 
 ### Truncation and resampling
 
-For heavy-tailed weights, two practical fixes:
+For heavy-tailed weights there are two practical fixes.
 
 - **Truncation.** Replace $w_i$ with $\min(w_i, w_{\max})$
-  for some threshold; biases the estimator but
+  for some threshold. This biases the estimator but
   stabilizes the variance.
 - **Resampling (sequential importance sampling).** Sample
   $M$ values from $\{x_i\}$ with probabilities
-  proportional to $w_i$; the resampled set is roughly
-  iid from a discrete approximation to $p$.
+  proportional to $w_i$. The resampled set is then
+  roughly iid from a discrete approximation to $p$.
 
-Both are workarounds; the cure is usually a better
+Both are workarounds, and the cure is usually a better
 proposal. Truncation and resampling are part of the
-particle-filter toolkit but are also useful for one-shot
-importance-sampling problems with bad proposals.
+particle-filter toolkit. They are also useful, however,
+for one-shot importance-sampling problems with bad
+proposals.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: proposal tail-heaviness
@@ -203,18 +214,17 @@ proposal $q$ has *lighter* tails than the target $p$?
 The importance weight $w(x) = p(x) / q(x)$ grows like
 $p(x) / q(x)$ in the tails. If $q$ has lighter tails,
 $q(x)$ decays faster than $p(x)$ as $|x| \to \infty$,
-so $w(x)$ grows to infinity. A few samples from the
-shared bulk get weight near 1; a single rare sample
-near the tail gets weight near $\infty$. The estimator
-is dominated by that one sample; its variance is
-infinite. The fix is a proposal with *heavier* tails
-than the target. Student-$t$ proposals are popular
-exactly because their polynomial tails dominate any
-exponential-tailed target. The intuition: you would
-rather oversample the tails (big sample, small weights)
-than miss them (small sample, huge weights). The latter
-is the failure mode; the former is merely
-inefficient.
+so $w(x)$ grows to infinity. Samples from the shared bulk
+get weight near 1, while a single rare sample near the tail
+gets weight near $\infty$. The estimator is dominated by
+that one sample, and its variance is infinite. The remedy
+is a proposal with *heavier* tails than the target.
+Student-$t$ proposals are popular precisely because their
+polynomial tails dominate any exponential-tailed target.
+Intuitively, it is better to oversample the tails (big
+sample, small weights) than to miss them (small sample,
+huge weights). Missing them is the failure mode, whereas
+oversampling them is merely inefficient.
 
 :::
 
@@ -222,27 +232,27 @@ inefficient.
 
 For a fixed Monte Carlo budget $M$, variance-reduction
 techniques produce estimators with smaller variance
-than crude Monte Carlo. Each requires extra structure
-in the problem.
+than crude Monte Carlo. Each, however, requires extra
+structure in the problem.
 
 ### Control variates
 
-If $g(X)$ is a function whose expectation $E[g(X)] = \mu_g$
-is known, the estimator
+Suppose $g(X)$ is a function whose expectation
+$E[g(X)] = \mu_g$ is known. Then the estimator
 
 $$
 \hat\mu_{\text{cv}} = \frac{1}{M} \sum_i \big(h(x_i) - c \cdot (g(x_i) - \mu_g)\big)
 $$
 
-is unbiased for $E[h(X)]$ for any $c$, and the variance
-is minimized at $c = \text{Cov}(h, g) / \text{Var}(g)$.
-The optimal $c$ is estimated from the same samples.
+is unbiased for $E[h(X)]$ for any $c$. Its variance is
+minimized at $c = \text{Cov}(h, g) / \text{Var}(g)$, and
+this optimal $c$ is estimated from the same samples.
 
-The variance reduction equals $\text{Var}(h) \cdot \rho^2$
+The variance reduction equals $\text{Var}(h) \cdot \rho^2$,
 where $\rho = \text{Cor}(h, g)$. For $|\rho| > 0.9$, the
-reduction is dramatic.
+reduction is large.
 
-Applications:
+Three applications illustrate the idea.
 
 - **Pricing options** with control variate the
   Black-Scholes formula (known closed form for a related
@@ -254,68 +264,74 @@ Applications:
 
 ### Antithetic variates
 
-For a symmetric distribution, sample $X$ and use $-X$
-together. For monotone $h$, $h(X)$ and $h(-X)$ are
+For a symmetric distribution, we sample $X$ and use $X$ and
+$-X$ together. For monotone $h$, $h(X)$ and $h(-X)$ are
 negatively correlated, so the pair average has smaller
 variance than two independent draws. For antisymmetric
 $h$ the correlation is $-1$ and the variance is zero,
-though then $E[h(X)] = 0$ is known without simulation.
-For symmetric $h$ the correlation is $+1$ and the pairing
-doubles the variance relative to independent draws.
+though in that case $E[h(X)] = 0$ is known without
+simulation. For symmetric $h$, on the other hand, the
+correlation is $+1$, and the pairing doubles the variance
+relative to independent draws.
 
 ### Stratified sampling
 
-Partition the sample space into strata, sample
+We partition the sample space into strata, sample
 proportionally within each, and combine. The
 within-stratum variance is smaller than the overall
-variance, so the combined estimator has smaller variance
-than crude Monte Carlo with the same total sample size.
+variance. As a result, the combined estimator has smaller
+variance than crude Monte Carlo with the same total sample
+size.
 
-For a one-dimensional uniform variable and a smooth $h$,
-stratification into $K$ equal strata with one draw each
-multiplies the crude Monte Carlo variance by a factor of
-order $1/K^2$, so the residual variance vanishes as
-$K \to \infty$. In higher dimensions, **Latin hypercube
-sampling** is the analog.
+To illustrate, consider a one-dimensional uniform variable
+and a smooth $h$. Stratification into $K$ equal strata with
+one draw each multiplies the crude Monte Carlo variance by
+a factor of order $1/K^2$. The residual variance therefore
+vanishes as $K \to \infty$. In higher dimensions, **Latin
+hypercube sampling** is the analog.
 
 ### Rao-Blackwellization
 
-If the target expectation can be written
-$E[h(X, Y)] = E[E[h(X, Y) \mid X]]$, computing the inner
-conditional expectation in closed form (where possible)
-reduces variance:
+Suppose the target expectation can be written
+$E[h(X, Y)] = E[E[h(X, Y) \mid X]]$. Computing the inner
+conditional expectation in closed form, where possible,
+then reduces the variance. In symbols,
 
 $$
 \hat\mu_{\text{rb}} = \frac{1}{M} \sum_i E[h(x_i, Y) \mid X = x_i].
 $$
 
-The reduction equals $\text{Var}(E[h \mid X])$, which is
-non-negative by the law of total variance.
+By the law of total variance,
+$\text{Var}(h) = E[\text{Var}(h \mid X)] + \text{Var}(E[h \mid X])$.
+The Rao-Blackwellized estimator has per-sample variance
+$\text{Var}(E[h \mid X])$, so the reduction equals
+$E[\text{Var}(h \mid X)]$, which is non-negative.
 
-Applications: many Bayesian posterior summaries can be
-Rao-Blackwellized by integrating out latent variables
-analytically when their conditional distribution is
-known.
+Many Bayesian posterior summaries can be Rao-Blackwellized
+in this way, by integrating out latent variables
+analytically when their conditional distribution is known.
 
 ### Common random numbers
 
-When comparing two methods on the same simulated
-dataset, use *the same* simulated dataset for both.
-This induces positive correlation between the two
-methods' estimates, reducing the variance of their
-difference. We treated this in @sec-simulation; it is the simplest variance-reduction
-technique and the highest-leverage in method comparison.
+When comparing two methods on simulated data, we use *the
+same* simulated dataset for both. This induces positive
+correlation between the two methods' estimates, which
+reduces the variance of their difference. We treated this
+technique in @sec-simulation. It is the simplest
+variance-reduction technique, and the most effective one in
+method comparison.
 
 ## Approximate Bayesian Computation
 
 Some models are easy to simulate from but hard or
-impossible to write a likelihood for. Examples:
+impossible to write a likelihood for. Examples include
 agent-based models in epidemiology, complex stochastic
-process models, models with many latent variables and no
-closed-form marginal.
+process models, and models with many latent variables and
+no closed-form marginal.
 
-ABC handles such models by replacing likelihood
-evaluation with summary-statistic comparison:
+ABC handles such models by replacing likelihood evaluation
+with a comparison of summary statistics. The procedure has
+three steps.
 
 1. Sample candidate parameters $\boldsymbol\theta'$ from
    the prior.
@@ -328,8 +344,8 @@ evaluation with summary-statistic comparison:
 
 The accepted $\boldsymbol\theta'$ values approximate
 samples from $p(\boldsymbol\theta \mid T(\mathbf{y}_{\text{obs}}))$.
-For sufficient statistics, this is the true posterior; for
-non-sufficient statistics, it is an approximation whose
+For sufficient statistics this is the true posterior. For
+non-sufficient statistics it is an approximation, and its
 quality depends on the choice of $T$ and $\epsilon$.
 
 ```r
@@ -353,7 +369,7 @@ sd(post) / sqrt(length(post))     # SE of posterior mean
 #> [1] 0.003
 ```
 
-Modern variants:
+Several modern variants refine the basic procedure.
 
 - **Sequential ABC.** Use a sequence of decreasing
   tolerances, refining the proposal at each stage. The
@@ -361,33 +377,33 @@ Modern variants:
 - **Regression-adjusted ABC.** After accepting candidates
   near $T_{\text{obs}}$, fit a local regression of
   $\boldsymbol\theta$ on $T$ and adjust each accepted
-  $\boldsymbol\theta$ as if $T$ had exactly equalled
+  $\boldsymbol\theta$ as if $T$ had exactly equaled
   $T_{\text{obs}}$.
 - **ABC with summary statistic learning.** Use machine
   learning to identify informative summary statistics.
 
-ABC has three main limitations:
+Unfortunately, ABC has three main limitations.
 
 - Choosing $T$ requires substantive knowledge.
-- The tolerance $\epsilon$ trades bias for variance; too
-  large gives biased posteriors, too small gives few
-  accepted samples.
-- Acceptance rates can be very low; computational cost
+- The tolerance $\epsilon$ trades bias for variance. Too
+  large a value gives biased posteriors, and too small a
+  value gives few accepted samples.
+- Acceptance rates can be very low, and computational cost
   scales accordingly.
 
 ## Permutation tests
 
 Permutation tests are exact (or arbitrarily close to
-exact) under the null hypothesis of exchangeability,
-without parametric distributional assumptions.
+exact) under the null hypothesis of exchangeability.
+They require no parametric distributional assumptions.
 
 The basic procedure for testing whether two groups have
-the same distribution:
+the same distribution is as follows.
 
 1. Compute the test statistic $T$ on the observed data.
 2. Permute the group labels among the observations many
    times; for each permutation, compute $T$ on the
-   relabelled data.
+   relabeled data.
 3. The p-value is the fraction of permuted statistics at
    least as extreme as the observed.
 
@@ -417,7 +433,7 @@ permutation_test <- function(x, y, M = 10000,
 }
 ```
 
-Three considerations matter for practice:
+Three considerations matter in practice.
 
 - **Choice of test statistic.** Mean difference is the
   default for location shifts. For variance differences,
@@ -427,26 +443,26 @@ Three considerations matter for practice:
   whatever the statistic is sensitive to.
 - **Handling ties.** Standard sampling-with-permutation
   handles ties correctly because each permutation is a
-  distinct relabelling. Some implementations using
-  ranks need adjustment; check the package
-  documentation.
+  distinct relabeling. Some implementations that use
+  ranks need adjustment, and the package documentation
+  should be checked.
 - **One-sided vs. two-sided.** State the alternative
   explicitly. Reporting a 'p-value of 0.03' without
   specifying the side invites confusion.
 
 For unbalanced or matched designs (paired samples,
-stratified data, time-series with autocorrelation),
-permutation must respect the design: shuffle within
-strata, within blocks, or in a way that preserves the
-correlation structure. The `coin` R package handles
-many of these correctly.
+stratified data, time series with autocorrelation),
+permutation must respect the design. That is, we shuffle
+within strata, within blocks, or in a way that preserves
+the correlation structure. The `coin` R package handles
+many of these cases correctly.
 
 ## Monte Carlo error accounting
 
 Every Monte Carlo estimate $\hat\mu_M$ has variance
-$\text{Var}(\hat\mu_M) = \sigma^2 / M$ where $\sigma^2$
+$\text{Var}(\hat\mu_M) = \sigma^2 / M$, where $\sigma^2$
 is the variance of the underlying samples. The Monte
-Carlo standard error is
+Carlo standard error is therefore
 
 $$
 \text{MCSE}(\hat\mu_M) = \sqrt{\frac{\sigma^2}{M}}.
@@ -459,16 +475,18 @@ $$
 \text{MCSE} = \sqrt{\frac{p(1-p)}{M}}.
 $$
 
-Practical interpretation:
+Three practical consequences follow.
 
 - For an estimated power of 0.8 with $M = 1000$
   replicates, MCSE $\approx 0.013$. Reporting power as
   0.80 with two decimal places is honest; reporting it
   as 0.802 implies false precision.
 - Differences in power smaller than $2 \cdot \text{MCSE}$
-  are within Monte Carlo noise; do not interpret them.
-- To halve the MCSE, quadruple $M$. For
-  high-precision results, $M$ must be very large.
+  are within Monte Carlo noise, and we should not
+  interpret them.
+- To halve the MCSE, we must quadruple $M$. For
+  high-precision results, $M$ must therefore be very
+  large.
 
 For continuous estimates (bias, MSE, expected loss), the
 MCSE is the empirical SD divided by $\sqrt{M}$:
@@ -480,18 +498,18 @@ $$
 where $s$ is the sample SD of the per-replicate
 estimates.
 
-Always report MCSE alongside the point estimate. A Monte Carlo
-result without an MCSE is
-incomplete; a Monte Carlo result with an MCSE smaller
-than the precision being claimed is dishonest.
+We should always report the MCSE alongside the point
+estimate. A Monte Carlo result without an MCSE is
+incomplete. A Monte Carlo result whose claimed precision is
+finer than its MCSE supports is dishonest.
 
 ## Worked example: power simulation with variance reduction
 
-Consider a simulation comparing the power of the
-$t$-test and the Wilcoxon rank-sum test under
-log-normal data. @sec-simulation covered this under
-simple Monte Carlo. Here we add common random
-numbers (already covered) and then a control variate.
+To illustrate, consider a simulation comparing the power of
+the $t$-test and the Wilcoxon rank-sum test under
+log-normal data. @sec-simulation covered this comparison
+under simple Monte Carlo. Here we add common random numbers
+(already covered) and then a control variate.
 
 ```r
 set.seed(1)
@@ -523,39 +541,39 @@ mcse
 #> 0.0069 0.0055
 ```
 
-The Wilcoxon test has higher estimated power
-(0.81 vs 0.62), well outside the Monte Carlo error
-($\pm 2 \cdot 0.0069 = \pm 0.014$). Common random
-numbers are baked in (we use the same `y1`, `y2` for
-both tests).
+We see that the Wilcoxon test has the higher estimated
+power (0.81 vs 0.62). The difference lies well outside the
+Monte Carlo error ($\pm 2 \cdot 0.0069 = \pm 0.014$).
+Common random numbers are built in, since we use the same
+`y1` and `y2` for both tests.
 
-To add a control variate: under the null hypothesis
-$\delta = 0$, both methods have power equal to
+A control variate may be added as follows. Under the null
+hypothesis $\delta = 0$, both methods have power equal to
 $\alpha$. The deviation from $\alpha$ at $\delta = 0$ is
-a known-zero quantity that can serve as a control. In
-this single-$\delta$ design the savings would be
-modest; the technique becomes powerful when comparing
+therefore a known-zero quantity that can serve as a
+control. In this single-$\delta$ design the savings would be
+modest. The technique becomes more useful when we compare
 power across many $\delta$ values.
 
 ## Collaborating with an LLM on Monte Carlo
 
-LLMs handle the textbook Monte Carlo material well; they
+LLMs handle the textbook Monte Carlo material well. They
 are weaker on importance-sampling diagnostics and on
 permutation tests for unusual designs.
 
 **Prompt 1: importance sampling diagnostics.** Paste
-your importance-sampling code (target, proposal, sample
+the importance-sampling code (target, proposal, sample
 size). Ask: 'compute the effective sample size and
 diagnose whether this proposal is appropriate.'
 
 *What to watch for.* The LLM should compute ESS and
-compare to nominal $M$. A healthy proposal has
-ESS / $M$ above 0.5; a marginal one has 0.1 to 0.5; a
+compare it to the nominal $M$. A healthy proposal has
+ESS / $M$ above 0.5, a marginal one has 0.1 to 0.5, and a
 broken one has under 0.1. The LLM should also identify
 whether the proposal has heavier or lighter tails than
 the target.
 
-*Verification.* Plot the weights; the histogram should
+*Verification.* Plot the weights. The histogram should
 not have one or two extreme outliers. If the maximum
 weight is more than 100 times the median, the proposal
 is too light in the tails.
@@ -566,17 +584,18 @@ budget, problem structure). Ask: 'recommend one or two
 variance-reduction techniques for this setting.'
 
 *What to watch for.* The LLM should match technique to
-structure: control variate when a related quantity has
-known expectation; antithetic when the integrand is
-monotone; stratified when the input distribution
-admits natural strata; common random numbers when
-comparing methods. If the LLM recommends every
-technique without discrimination, push back.
+structure. A control variate suits a setting in which a
+related quantity has known expectation, and antithetic
+variates suit a monotone integrand. Stratification suits an
+input distribution that admits natural strata, and common
+random numbers suit the comparison of methods. If the LLM
+recommends every technique without discrimination, we
+should push back.
 
-*Verification.* Implement the recommended technique;
-compare the empirical variance to that of crude Monte
+*Verification.* Implement the recommended technique and
+compare its empirical variance to that of crude Monte
 Carlo. The reduction should be proportional to the
-correlation (or stratification structure, etc.) the
+correlation (or stratification structure, etc.) that the
 technique exploits.
 
 **Prompt 3: permutation test design.** Describe the
@@ -584,22 +603,22 @@ data structure (paired, matched, stratified, with
 covariates, etc.) and ask: 'design a permutation test
 that respects the design.'
 
-*What to watch for.* For paired data, permute within
-pairs only (sign-flipping). For matched designs,
-permute within matched sets. For stratified data,
-permute within strata. The LLM may default to the
-simple two-sample permutation; if so, push for the
-design-aware version.
+*What to watch for.* For paired data, we permute within
+pairs only (sign-flipping). For matched designs, we permute
+within matched sets, and for stratified data, within
+strata. The LLM may default to the simple two-sample
+permutation. If so, we should press for the design-aware
+version.
 
-*Verification.* The null distribution of the permuted
-statistic should be approximately symmetric around
-zero (for two-sided tests) under truly null data; if
-it is biased, the permutation respects the wrong
+*Verification.* Under truly null data, the null
+distribution of the permuted statistic should be
+approximately symmetric around zero (for two-sided tests).
+If it is biased, the permutation respects the wrong
 exchangeability.
 
 LLMs accelerate the routine Monte Carlo cases. Failure
-modes such as heavy-tailed weights, and non-standard
-designs, still need human judgment.
+modes such as heavy-tailed weights and non-standard
+designs still need human judgment.
 
 ## Principle in use
 
@@ -627,8 +646,9 @@ Three habits define defensible Monte Carlo:
    proposal scale; report how the ESS changes.
 2. Estimate $E[X^2]$ for $X \sim N(0, 1)$ via crude
    Monte Carlo, antithetic variates ($X$ and $-X$
-   together), and Rao-Blackwellization (use
-   $E[X^2 \mid X^+] = (X^+)^2$ where $X^+ = |X|$).
+   together), and Rao-Blackwellization conditioning on
+   $X^+ = |X|$. Note that $E[X^2 \mid X^+] = (X^+)^2 = X^2$,
+   and explain why this conditioning gives no reduction.
    Compare empirical SDs at fixed $M$.
 3. Implement ABC for a normal-mean inference where
    $T(\mathbf{y}) = \bar y$. Compare the ABC posterior

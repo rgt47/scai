@@ -31,101 +31,113 @@ By the end of this chapter you should be able to:
 
 ## Orientation
 
-Computer arithmetic differs from real arithmetic. Every floating-point
-number is a real number rounded to one of a finite set,
-spaced unevenly across the real line. Every operation on
-floating-point numbers introduces a small relative error,
-on the order of $10^{-16}$ for double precision. Most of
-the time you will not notice; the errors are tiny and they
-do not accumulate to anything visible. Some of the time
-you will notice catastrophically: a regression that worked
-on simulated data fails on a real dataset; a likelihood
-that should be 0.999 returns 1.001; an MCMC chain produces
-NaN after a million iterations and the cause is not apparent
-from the output.
+Computer arithmetic differs from real arithmetic. Every
+floating-point number is a real number rounded to one of a
+finite set, spaced unevenly across the real line. Every
+operation on floating-point numbers introduces a small
+relative error, on the order of $10^{-16}$ for double
+precision. Most of the time we do not notice, because the
+errors are tiny and do not accumulate to anything visible.
+Unfortunately, some of the time we notice
+catastrophically. A regression that worked on simulated
+data fails on a real dataset. A likelihood that should be
+0.999 returns 1.001. An MCMC chain produces NaN after a
+million iterations, and the cause is not apparent from the
+output.
 
-The numerical-methods chapters of the first half, beginning
-with @sec-matrix-algebra, taught the algorithms; this chapter
-teaches when those algorithms break and how to tell. The
-material is foundational for every numerical chapter that
-follows. A working biostatistician who skips it tends to
-rediscover it one bug at a time over a career.
+The numerical-methods chapters of the first half,
+beginning with @sec-matrix-algebra, taught the algorithms.
+In this chapter we shall consider when those algorithms
+break and how to tell. The material is foundational for
+every numerical chapter that follows. A working
+biostatistician who skips it tends to rediscover it one bug
+at a time over a career.
+
+We begin with floating-point representation and the
+arithmetic laws it breaks, and then take up catastrophic
+cancellation. The condition number and the distinction
+between forward and backward stability come next. We close
+with a set of diagnostic patterns, stable rewrites of
+common formulas, and a worked example on the logistic
+likelihood.
 
 ## The statistician's contribution {#sec-numerical-stability-human}
 
 An LLM can recite IEEE 754, the definition of a condition
-number, and the textbook anti-patterns. What it cannot do
-is recognize when *your* analysis is in numerical trouble.
-The judgments at the center of this chapter are
-diagnostic: knowing what to suspect when something looks
+number, and the textbook anti-patterns, but it cannot
+recognize when *our* analysis is in numerical trouble. The
+judgments at the center of this chapter are diagnostic.
+That is, they concern what to suspect when something looks
 slightly off, and what to test for confirmation.
 
-**Suspect numerical fragility before suspecting bugs.** When
-a regression returns coefficients that contradict prior
-work, or a likelihood maximizes at a value that disagrees
-with a closed-form check, the first hypothesis should not
-be 'I have a bug'. It should be 'something here is
-ill-conditioned'. The diagnostic is fast: compute the
+**Suspect numerical fragility before suspecting bugs.**
+Suppose a regression returns coefficients that contradict
+prior work, or a likelihood maximizes at a value that
+disagrees with a closed-form check. The first hypothesis
+should not be 'I have a bug'. It should be 'something here
+is ill-conditioned'. The diagnostic is fast. We compute the
 condition number, compute the gradient by finite
-differences and compare to the analytic gradient, perturb
-the input slightly and watch the output. If the output
-moves by more than the perturbation should produce, look
-at the floating-point behavior of the algorithm on this
-data before looking for a coding error.
+differences and compare it to the analytic gradient, and
+perturb the input slightly while watching the output. If
+the output moves by more than the perturbation should
+produce, we look at the floating-point behavior of the
+algorithm on these data before looking for a coding error.
 
 **Statistical formulas in textbooks are not numerically
 stable formulas.** The shortcut variance form
 $\frac{1}{n-1}\bigl(\sum x_i^2 - n\bar x^2\bigr)$ is
-mathematically correct but numerically fragile: it
+mathematically correct but numerically fragile. It
 subtracts two near-equal large numbers when $\bar x$ is
-large relative to $\sigma$, and the catastrophic
+large relative to $\sigma$, and the resulting catastrophic
 cancellation can produce a *negative* variance estimate.
-The centered-deviation form $\frac{1}{n-1}\sum (x_i - \bar x)^2$
-is numerically robust and is what R's `var()` actually
-computes. The textbook often presents the shortcut form
-without warning. The stable formulations exist in
-libraries; the ones that you type in from memory will be
-the textbook ones.
+The centered-deviation form
+$\frac{1}{n-1}\sum (x_i - \bar x)^2$ is numerically robust,
+and it is what R's `var()` computes. Unfortunately, the
+textbook often presents the shortcut form without warning.
+The stable formulations exist in libraries, whereas the
+ones we type in from memory will be the textbook ones.
 
 **Match precision to need; do not over-promise.** A
 floating-point answer with 16 digits of nominal precision
 may have only 10 actual digits after a moderately
-ill-conditioned operation, and only 4 digits after a badly
-ill-conditioned one. A function that returns a 16-digit
-number does not flag whether all 16 are trustworthy; the
-caller has to. Regression-coefficient point estimates with three
-digits of precision and a 95% CI are honest. The same
-estimate with eight digits of precision suggests a level
-of numerical certainty that the underlying computation
-cannot supply.
+ill-conditioned operation. After a badly ill-conditioned
+one it may have only 4. A function that returns a 16-digit
+number does not flag whether all 16 are trustworthy, so
+the caller has to. Regression-coefficient point estimates
+reported to three digits with a 95% CI are honest. The
+same estimate reported to eight digits suggests a level of
+numerical certainty that the underlying computation cannot
+supply.
 
-**Test the boundary, not just the middle.** Synthetic
-data drawn from $N(0, 1)$ rarely exposes numerical
-problems. Real biomedical data has near-zero variances,
+**Test the boundary, not just the middle.** Synthetic data
+drawn from $N(0, 1)$ rarely exposes numerical problems.
+Real biomedical data have near-zero variances,
 near-collinear covariates, near-saturated probabilities,
-and observations that span many orders of magnitude. Test
-the center of the data distribution for correctness and
-the boundary for robustness; code that passes only the
-first works on the analyst's laptop and fails on the next
-analyst's harder dataset.
+and observations that span many orders of magnitude. We
+test the center of the data distribution for correctness
+and the boundary for robustness. Code that passes only the
+first test works on the analyst's laptop and fails on the
+next analyst's harder dataset.
 
 ## Floating-point arithmetic in one page
 
 A double-precision floating-point number has 64 bits: 1
-sign bit, 11 exponent bits, 52 mantissa bits. The number
-represented is
+sign bit, 11 exponent bits, and 52 mantissa bits. In
+symbols, the number represented is
 
 $$
 (-1)^s \cdot (1 + m / 2^{52}) \cdot 2^{e - 1023}
 $$
 
-with special cases for zero, subnormals (when $e = 0$),
-infinity (when $e = 2047$ and $m = 0$), and NaN (when
-$e = 2047$ and $m \ne 0$).
+where $s$ is the sign bit, $m$ the mantissa, and $e$ the
+exponent. There are special cases for zero, subnormals
+(when $e = 0$), infinity (when $e = 2047$ and $m = 0$), and
+NaN (when $e = 2047$ and $m \ne 0$).
 
 The relative gap between consecutive representable numbers
-is roughly $2^{-52} \approx 2.22 \times 10^{-16}$. This is
-**machine epsilon**:
+is roughly $2^{-52} \approx 2.22 \times 10^{-16}$. This
+quantity is **machine epsilon**, and R reports it together
+with the extreme representable values.
 
 ```r
 .Machine$double.eps
@@ -134,12 +146,12 @@ is roughly $2^{-52} \approx 2.22 \times 10^{-16}$. This is
 .Machine$double.xmax            # largest finite double
 #> [1] 1.797693e+308
 
-.Machine$double.xmin            # smallest positive normalised
+.Machine$double.xmin            # smallest positive normalized
 #> [1] 2.225074e-308
 ```
 
 The largest integer exactly representable as a double is
-$2^{53} = 9{,}007{,}199{,}254{,}740{,}992$. Beyond this,
+$2^{53} = 9{,}007{,}199{,}254{,}740{,}992$. Beyond it,
 consecutive integers are no longer all representable.
 
 ```r
@@ -147,13 +159,14 @@ consecutive integers are no longer all representable.
 #> [1] TRUE
 ```
 
-This is one reason patient identifiers and sequence reads
-are stored as integers or strings, not doubles.
+This is one reason why patient identifiers and sequence
+reads are stored as integers or strings, not doubles.
 
 ### The arithmetic laws change
 
 Floating-point operations satisfy *most* of the laws of
-real arithmetic, with three important exceptions:
+real arithmetic. There are, however, three important
+exceptions.
 
 **Addition is not associative.** $(a + b) + c$ may differ
 from $a + (b + c)$ because the rounding step between
@@ -168,9 +181,10 @@ operations depends on operand magnitudes.
 #> [1] 0     # the 1 is lost
 ```
 
-The lost `1` is absorption (swamping): a small number
-added to a much larger number is invisible at double
-precision because the large number's rounding swallows it.
+The lost `1` is an instance of absorption (swamping). That
+is, a small number added to a much larger number is
+invisible at double precision, because the large number's
+rounding swallows it.
 
 **Multiplication is not associative either**, though the
 deviations are typically smaller and harder to construct.
@@ -182,38 +196,41 @@ multiplication.
 
 For algorithms whose correctness depends on the exact
 arithmetic laws, every operation is a place where a small
-error enters. The error analysis question is whether the
-errors stay bounded or grow.
+error enters. The question for error analysis is whether
+those errors stay bounded or grow.
 
 ## Catastrophic cancellation
 
-When you subtract two nearly-equal numbers, the leading
-significant digits agree and cancel; what remains is a
+When we subtract two nearly equal numbers, the leading
+significant digits agree and cancel. What remains is a
 small number whose precision is set by the *trailing*
-digits of the inputs. Those trailing digits are the
-rounding error. The result has lost most of its
-significant figures.
+digits of the inputs. Unfortunately, those trailing digits
+are the rounding error, and so the result has lost most of
+its significant figures.
 
-A canonical example: the textbook variance formula.
+To illustrate, consider the canonical example, the
+textbook variance formula.
 
 $$
 \widehat{\sigma}^2 = \frac{1}{n-1} \sum_{i=1}^n (x_i - \bar x)^2
 $$
 
-This is mathematically correct. Computed in two passes, it
-is also numerically stable whatever the size of $\bar x$.
-But for $x_i$ near a large mean (a vector of HbA1c values
-around 6.5%, say), an algebraically equivalent
-rearrangement is
+This form is mathematically correct. Computed in two
+passes, it is also numerically stable whatever the size of
+$\bar x$. An algebraically equivalent rearrangement,
+however, is
 
 $$
 \widehat{\sigma}^2 = \frac{1}{n-1} \left( \sum x_i^2 - n \bar x^2 \right)
 $$
 
-which is what the textbook 'shortcut formula' actually
-computes. This form subtracts two large nearly-equal
-numbers (the sum of squares and $n \bar x^2$) and is
-catastrophically unstable for data far from zero.
+which is what the textbook 'shortcut formula' computes.
+This form subtracts two large, nearly equal numbers (the
+sum of squares and $n \bar x^2$). It is catastrophically
+unstable for data whose mean is large relative to their
+standard deviation. The following example, with a mean of
+about $10^9$ and a standard deviation of about 1, makes
+the point.
 
 ```r
 x <- 1e9 + rnorm(1000, sd = 1)        # mean ~1e9, sd ~1
@@ -229,38 +246,39 @@ var_naive <- (sum(x^2) - length(x) * mean_x^2) / (length(x) - 1)
 var_naive
 #> [1] -23.5       # negative; clearly wrong
 
-# what R's var() actually does (two-pass centred-deviation, stable)
+# what R's var() actually does (two-pass centered-deviation, stable)
 var(x)
 #> [1] 1.014
 ```
 
 The shortcut formula gives a *negative* variance estimate.
-The naive code does not crash; it produces a plausible-
-looking number that is wrong by orders of magnitude.
+We note that the naive code does not crash. Instead it
+produces a plausible-looking number that is wrong by
+orders of magnitude.
 
-The cure is one of:
+There are three cures.
 
-1. **Two-pass.** Compute the mean first; then sum the
-   squared deviations. Doubles the data passes; numerically
-   robust. This is what R's `var()` and `sd()` use
-   internally (the C source calls a centered-deviation
-   sum after a separate mean pass).
-2. **Welford's online algorithm.** Single-pass; updates
-   running mean and sum-of-squares in a numerically
-   stable way. The standard choice for streaming data
-   where two passes are not available.
+1. **Two-pass.** Compute the mean first, and then sum the
+   squared deviations. This doubles the passes over the
+   data but is numerically robust. It is what R's `var()`
+   and `sd()` use internally (the C source calls a
+   centered-deviation sum after a separate mean pass).
+2. **Welford's online algorithm.** This single-pass method
+   updates a running mean and sum of squares in a
+   numerically stable way. It is the standard choice for
+   streaming data, where two passes are not available.
 3. **Center the data first.** Subtract any reasonable
-   approximation of the mean from every observation;
-   compute on the centered data. Useful when you need to
-   express the variance via a formula that the shortcut
-   form would otherwise tempt you into.
+   approximation of the mean from every observation, and
+   compute on the centered data. This is useful when we
+   need to express the variance through a formula that the
+   shortcut form would otherwise tempt us into.
 
-In a regression setting, the same issue appears as
-$X^T X$ becoming numerically near-singular when $X$ has
-columns of very different magnitudes. The cure is to
-center and scale columns before forming $X^T X$, or to
-work directly with the QR decomposition of $X$ (which
-never forms $X^T X$).
+In a regression setting, the same issue appears when $X$
+has columns of very different magnitudes, so that $X^T X$
+becomes numerically near-singular. The cure is to center
+and scale the columns before forming $X^T X$.
+Alternatively, we may work directly with the QR
+decomposition of $X$, which never forms $X^T X$.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: variance formulas
@@ -273,22 +291,24 @@ on a vector of patient ages (range 18 to 95, mean about
 
 Probably not, but it is on the edge of trouble. Patient
 ages are roughly $O(50)$, with variance on the order of
-$O(200)$. The sum of squares is $\sim n \cdot 50^2$ and
-$n \bar x^2$ is also $\sim n \cdot 50^2$. Their
-difference is the variance times $n - 1$. The relative
-cancellation is about $(n-1) \sigma^2 / (n \bar x^2) \approx
-\sigma^2 / \bar x^2 \approx 200 / 2500 = 0.08$. You lose
-about $\log_{10}(1/0.08) \approx 1$ digit of precision.
-Not catastrophic for $n$ in the thousands, but already
-worse than the two-pass formulation, which loses zero
-digits to cancellation. The relative cancellation grows
-with $\bar x^2 / \sigma^2$, so for biomarkers measured in
-units far from zero (HbA1c around 6, eGFR around 90,
-serum creatinine around 0.9), the shortcut formula loses
-more digits and eventually gives plainly wrong answers.
-The right rule is to never use the shortcut formula in
-new code; the cost of `var()` is negligible and the
-behavior is correct on every input.
+$O(200)$. The sum of squares is $\sim n \cdot 50^2$, and
+$n \bar x^2$ is also $\sim n \cdot 50^2$. Their difference
+is the variance times $n - 1$. The relative cancellation
+is therefore about
+$(n-1) \sigma^2 / (n \bar x^2) \approx
+\sigma^2 / \bar x^2 \approx 200 / 2500 = 0.08$. That is, we
+lose about $\log_{10}(1/0.08) \approx 1$ digit of
+precision. The loss is not catastrophic for $n$ in the
+thousands. It is, however, already worse than the
+two-pass formulation, which loses zero digits to
+cancellation. The relative cancellation grows with
+$\bar x^2 / \sigma^2$. Consequently, for biomarkers
+measured in units far from zero (HbA1c around 6, eGFR
+around 90, serum creatinine around 0.9), the shortcut
+formula loses more digits and eventually gives plainly
+wrong answers. The right rule is never to use
+the shortcut formula in new code. The cost of `var()` is
+negligible, and its behavior is correct on every input.
 
 :::
 
@@ -296,7 +316,7 @@ behavior is correct on every input.
 
 The condition number of a numerical problem measures how
 much the solution changes when the input is perturbed.
-For solving $A \mathbf{x} = \mathbf{b}$:
+For solving $A \mathbf{x} = \mathbf{b}$ it is
 
 $$
 \kappa(A) = \|A\| \cdot \|A^{-1}\|
@@ -305,15 +325,16 @@ $$
 (in any consistent norm). For the 2-norm, $\kappa_2(A)$ is
 the ratio of the largest to the smallest singular value.
 
-The interpretation: a relative perturbation of size
-$\epsilon$ in the right-hand side $\mathbf{b}$ produces a
-relative perturbation of size up to $\kappa(A) \epsilon$ in
-the solution $\mathbf{x}$. With double-precision input, a
-matrix with $\kappa(A) \approx 10^{12}$ permits roughly
+The interpretation is as follows. A relative perturbation
+of size $\epsilon$ in the right-hand side $\mathbf{b}$
+produces a relative perturbation of size up to
+$\kappa(A) \epsilon$ in the solution $\mathbf{x}$. With
+double-precision input, a matrix with
+$\kappa(A) \approx 10^{12}$ therefore permits roughly
 $\log_{10}(10^{16} / 10^{12}) = 4$ digits of meaningful
 precision in the answer.
 
-In R:
+In R we compute it with `kappa()`.
 
 ```r
 A <- matrix(c(1, 1, 1, 1.0001), 2, 2)
@@ -323,7 +344,7 @@ log10(kappa(A, exact = TRUE))
 #> [1] 4.602        # about 11 digits of precision out of 16
 ```
 
-A few rules of thumb worth memorizing:
+A few rules of thumb merit memorizing.
 
 - $\kappa(A) \le 100$: well-conditioned. Most or all 16
   digits are meaningful.
@@ -335,27 +356,29 @@ A few rules of thumb worth memorizing:
   precision. The computed solution is dominated by
   rounding error.
 
-Common sources of large condition number in
-biostatistical work:
+In biostatistical work, large condition numbers have
+three common sources.
 
 - **Collinear or near-collinear covariates.** Two columns
-  of $X$ that are nearly proportional inflate $\kappa(X^T X)$
-  to $\kappa(X)^2$, which is the squared condition number.
+  of $X$ that are nearly proportional inflate
+  $\kappa(X^T X)$ to $\kappa(X)^2$, which is the squared
+  condition number.
 - **Wildly different scales.** A design matrix with one
   column in millions (genome positions) and another in
-  tenths (proportions) has $\kappa(X^T X)$ much larger
-  than necessary. Center and scale before fitting.
+  tenths (proportions) has a $\kappa(X^T X)$ much larger
+  than necessary. We center and scale before fitting.
 - **Vandermonde-like structure.** Polynomial regression
   with degree above 5 or so produces matrices whose
-  condition numbers explode. Use orthogonal polynomials
-  (`poly()` instead of `cbind(x, x^2, x^3, ...)`).
+  condition numbers explode. Orthogonal polynomials are
+  the remedy (`poly()` instead of
+  `cbind(x, x^2, x^3, ...)`).
 
-For the regression problem $X^T X \boldsymbol\beta = X^T y$,
-the condition number of the *linear system* is
-$\kappa(X^T X) = \kappa(X)^2$. Working with the QR
-decomposition of $X$ avoids forming $X^T X$ at all and
-keeps the conditioning at $\kappa(X)$, not $\kappa(X)^2$.
-This is why `lm()` uses QR.
+For the regression problem
+$X^T X \boldsymbol\beta = X^T y$, the condition number of
+the *linear system* is $\kappa(X^T X) = \kappa(X)^2$.
+Working with the QR decomposition of $X$ avoids forming
+$X^T X$ at all. It keeps the conditioning at $\kappa(X)$,
+not $\kappa(X)^2$, and this is why `lm()` uses QR.
 
 ## Forward and backward stability
 
@@ -363,22 +386,24 @@ A numerical algorithm computes $\hat y = f^*(x)$ rather
 than the exact $y = f(x)$. There are two ways to think
 about the error.
 
-**Forward error.** $\|\hat y - y\|$, the distance between
-the computed and exact answers. This is what you would
-naturally want to bound, but it depends jointly on the
-algorithm and the conditioning of the problem.
+**Forward error.** The forward error is
+$\|\hat y - y\|$, the distance between the computed and
+exact answers. It is what we would naturally want to
+bound. However, it depends jointly on the algorithm and on
+the conditioning of the problem.
 
-**Backward error.** The smallest perturbation $\Delta x$
-such that $\hat y = f(x + \Delta x)$. That is, the
-algorithm produces the *exact* answer to a *slightly
-different* problem.
+**Backward error.** The backward error is the smallest
+perturbation $\Delta x$ such that
+$\hat y = f(x + \Delta x)$. That is, the algorithm
+produces the *exact* answer to a *slightly different*
+problem.
 
-Backward error analysis (Wilkinson, 1960s) is the
-dominant analytical framework in modern numerical
-analysis. An algorithm is **backward stable** if
+Backward error analysis, developed by Wilkinson in the
+1960s, is the dominant analytical framework in modern
+numerical analysis. An algorithm is **backward stable** if
 $\|\Delta x\| \le C \cdot \epsilon_\text{mach}$ for some
 modest constant $C$. The forward error is then bounded by
-$\kappa(f) \cdot \|\Delta x\|$, so:
+$\kappa(f) \cdot \|\Delta x\|$, and so
 
 $$
 \frac{\|\hat y - y\|}{\|y\|} \lesssim \kappa(f) \cdot \epsilon_\text{mach}
@@ -388,27 +413,28 @@ This factorization separates *algorithm quality* (whether
 the algorithm is backward stable) from *problem
 difficulty* (the condition number). A backward stable
 algorithm produces forward errors as small as the problem
-permits; an ill-conditioned problem cannot be solved
-accurately by any algorithm operating in finite precision.
+permits. Conversely, no algorithm operating in finite
+precision can solve an ill-conditioned problem
+accurately.
 
-The practical consequence: when you observe a large
-forward error, ask which factor is responsible. If the
-condition number is huge, no algorithm can save you;
-either accept the limited precision, regularize the
-problem, or use higher-precision arithmetic. If the
-condition number is small but the answer is still wrong,
-the algorithm is unstable; replace it.
+The practical consequence is that, when we observe a large
+forward error, we ask which factor is responsible. If the
+condition number is huge, no algorithm can save us. We may
+accept the limited precision, regularize the problem, or
+use higher-precision arithmetic. If the condition number
+is small but the answer is still wrong, the algorithm is
+unstable and should be replaced.
 
 ## Diagnostic patterns
 
 A small set of patterns surfaces most numerical fragility
-in statistical code.
+in statistical code. We present four of them.
 
 **Pattern 1: compare to a closed-form benchmark.** When a
 numerical answer disagrees with a closed-form check, the
-question is whether the disagreement is at the rounding
-level (acceptable) or many orders of magnitude larger
-(a bug or instability).
+question is the size of the disagreement. At the rounding
+level it is acceptable. Many orders of magnitude larger,
+it indicates a bug or an instability.
 
 ```r
 # closed form for OLS on synthetic data
@@ -426,12 +452,12 @@ max(abs(beta_lm - beta_qr))
 #> [1] 1.776e-15      # at machine precision; agreement
 ```
 
-If this agreement breaks (becomes $10^{-6}$ or larger),
+If this agreement breaks down (to $10^{-6}$ or larger), we
 investigate.
 
-**Pattern 2: perturb and watch.** Add a small noise to the
-input; recompute. The output should move by an amount
-proportional to the noise.
+**Pattern 2: perturb and watch.** Add a small amount of
+noise to the input and recompute. The output should move
+by an amount proportional to the noise.
 
 ```r
 A <- matrix(c(1, 1, 1, 1.0001), 2, 2)
@@ -443,16 +469,16 @@ max(abs(x_pert - x_orig))
 #> [1] 1e-06          # output moves 10000x more than input
 ```
 
-The output moved $10^4$ times more than the input. That
-is the condition number $(\approx 4 \times 10^4)$ at work.
-For research code, automate this check on real data and
-flag any operation where the output sensitivity is
-larger than expected.
+The output moved $10^4$ times more than the input. This is
+the condition number $(\approx 4 \times 10^4)$ at work. In
+research code we would automate this check on real data.
+Any operation whose output sensitivity is larger than
+expected would then be flagged.
 
 **Pattern 3: compute the gradient two ways and compare.**
-For an analytic gradient, compare to a finite-difference
-gradient. Disagreement above $10^{-6}$ or so is a bug,
-typically in the analytic version.
+An analytic gradient should be compared to a
+finite-difference gradient. Disagreement above $10^{-6}$
+or so indicates a bug, typically in the analytic version.
 
 ```r
 library(numDeriv)
@@ -467,15 +493,16 @@ max(abs(gf(x) - grad(f, x)))
 
 **Pattern 4: monitor the magnitude of intermediate
 quantities.** When debugging an MCMC chain that produces
-NaN, log every intermediate variance estimate, every
-covariance matrix's condition number, every likelihood
-contribution. The first to overflow, underflow, or become
-singular is the immediate cause; the algorithmic root
-cause is one or two steps upstream.
+NaN, we log every intermediate variance estimate, every
+covariance matrix's condition number, and every likelihood
+contribution. The first quantity to overflow, underflow,
+or become singular is the immediate cause. The algorithmic
+root cause is usually one or two steps upstream.
 
 ## Stable rewrites of unstable formulas
 
-Three classic anti-patterns and their stable replacements.
+We now present three classic anti-patterns and their
+stable replacements.
 
 **Antipattern: $\log \sum_i \exp(z_i)$ computed naively.**
 
@@ -497,11 +524,12 @@ logsumexp(z)
 #> [1] 1001.313
 ```
 
-This appears whenever you normalize a probability across
-many categories: softmax, mixture-model responsibilities,
-log-likelihood contributions in models with many random
-effects. R's `matrixStats::logSumExp` provides the
-robust implementation.
+This computation appears whenever we normalize a
+probability across many categories, as in softmax,
+mixture-model responsibilities, and log-likelihood
+contributions in models with many random effects. R's
+`matrixStats::logSumExp` provides a robust
+implementation.
 
 **Antipattern: $1 - \exp(z)$ for $z$ near zero.**
 
@@ -511,19 +539,19 @@ z <- 1e-10
 #> [1] -1e-10         # severe cancellation
 ```
 
-R provides `expm1(z)` which computes $\exp(z) - 1$
-accurately for small $z$:
+R provides `expm1(z)`, which computes $\exp(z) - 1$
+accurately for small $z$.
 
 ```r
 -expm1(z)
 #> [1] -1e-10         # but with full precision
 ```
 
-Likewise `log1p(z)` computes $\log(1 + z)$ accurately for
-small $z$. These appear in CDFs for distributions that are
-close to 1 in the upper tail, in the logistic-regression
-log-likelihood for predictions near 0 or 1, and in
-survival analysis.
+Likewise, `log1p(z)` computes $\log(1 + z)$ accurately for
+small $z$. These functions appear in CDFs for
+distributions that are close to 1 in the upper tail, in
+the logistic-regression log-likelihood for predictions
+near 0 or 1, and in survival analysis.
 
 **Antipattern: solving $X^T X \boldsymbol\beta = X^T y$ via
 explicit inverse.**
@@ -534,12 +562,12 @@ beta <- solve(crossprod(X), crossprod(X, y))       # better
 beta <- qr.coef(qr(X), y)                          # best
 ```
 
-The first form forms $X^T X$ and inverts it explicitly,
-inflating the condition number from $\kappa(X)$ to
-$\kappa(X)^2$ and then computing an inverse, which is
-both numerically worse and computationally wasteful. The
-QR-based form avoids forming $X^T X$ entirely and
-preserves the original conditioning.
+The first form computes $X^T X$ and inverts it
+explicitly. Forming $X^T X$ inflates the condition number
+from $\kappa(X)$ to $\kappa(X)^2$, and the explicit
+inverse is both numerically worse and computationally
+wasteful. The QR-based form avoids forming $X^T X$
+entirely and preserves the original conditioning.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: log-sum-exp
@@ -549,32 +577,37 @@ overflow when the naive form does not?
 
 **Answer.**
 
-The naive form computes $\exp(z_i)$ for every $z_i$.
-For any $z_i$ above about 709, this overflows to
-infinity at double precision. The log-sum-exp trick
-factors out the maximum: $\log \sum \exp(z_i) = M + \log \sum \exp(z_i - M)$
-where $M = \max_i z_i$. Now the exponentials inside the
-sum have arguments $z_i - M \le 0$, so each $\exp(\cdot)$
-is in $(0, 1]$ and cannot overflow. The sum and log are
-applied to a small finite number, then $M$ is added back
-on the log scale. The mathematics is identical and only
-the floating-point behavior changes, which makes this the
-canonical example of a *numerically stable rewrite*.
+The naive form computes $\exp(z_i)$ for every $z_i$. For
+any $z_i$ above about 709, this overflows to infinity at
+double precision. The log-sum-exp trick factors out the
+maximum. In symbols,
+$\log \sum \exp(z_i) = M + \log \sum \exp(z_i - M)$,
+where $M = \max_i z_i$. The exponentials inside the sum
+now have arguments $z_i - M \le 0$. Each $\exp(\cdot)$
+therefore lies in $(0, 1]$ and cannot overflow. The sum
+and log are applied to a small finite number, and $M$ is
+then added back on the log scale. The mathematics is
+identical and only the floating-point behavior changes.
+This makes the trick the canonical example of a
+*numerically stable rewrite*.
 
 :::
 
 ## Worked example: a numerically robust logistic likelihood
 
-The logistic-regression log-likelihood is
+To illustrate the ideas of this chapter on a realistic
+problem, consider the logistic-regression log-likelihood,
 
 $$
 \ell(\boldsymbol\beta) = \sum_i \left[ y_i \mathbf{x}_i^T \boldsymbol\beta - \log(1 + \exp(\mathbf{x}_i^T \boldsymbol\beta)) \right].
 $$
 
-The naive computation of `log(1 + exp(eta))` overflows
-when $\eta$ is large positive and underflows (returning
-$\log 1 = 0$) when $\eta$ is large negative. The robust
-form uses `log1p` and a max trick:
+Here $\mathbf{x}_i$ is the covariate vector and $y_i$ the
+binary response for observation $i$. The naive computation
+of `log(1 + exp(eta))` overflows when $\eta$ is large
+positive. It underflows (returning $\log 1 = 0$) when
+$\eta$ is large negative. The robust form uses `log1p` and
+a max trick.
 
 ```r
 loglik_logistic <- function(beta, X, y) {
@@ -589,7 +622,7 @@ loglik_logistic <- function(beta, X, y) {
 }
 ```
 
-Compare to the naive form on a difficult input:
+We compare it with the naive form on a difficult input.
 
 ```r
 set.seed(1)
@@ -610,18 +643,19 @@ loglik_logistic(beta_test, X, y)
 #> [1] -2754.3         # finite and meaningful
 ```
 
-The naive version returns `-Inf`, which an optimizer
-treats as a barrier and the chain stops; the robust
-version returns a finite value the optimizer can work
-with.
+The naive version returns `-Inf`. An optimizer treats this
+value as a barrier, and the optimization stops. The robust
+version, on the other hand, returns a finite value that
+the optimizer can work with.
 
 ## Collaborating with an LLM on numerical stability
 
-LLMs are reasonable at recalling the textbook anti-patterns
-in this chapter and at writing the stable replacements.
-They are less reliable at identifying which of *your*
-specific formulas are unstable, because that requires
-working through the magnitudes that arise in your data.
+LLMs are reasonably good at recalling the textbook
+anti-patterns in this chapter and at writing the stable
+replacements. They are less reliable at identifying which
+of *our* specific formulas are unstable. That task
+requires working through the magnitudes that arise in the
+data at hand.
 
 **Prompt 1: review for instability.** Paste a short
 function (a likelihood, a moment computation, a closed-form
@@ -629,85 +663,82 @@ estimator) and ask: 'identify any numerical-stability
 risks in this code, and propose stable rewrites where
 relevant.'
 
-*What to watch for.* The LLM should flag: subtractions of
-nearly-equal quantities, naive `log(1 + exp(x))` and
-`log(sum(exp(x)))`, explicit matrix inverses, computations
-of variance via the shortcut formula, and accumulation of
-many small additions to a large running total. If it
-flags none on a function that contains any of these,
-push back; if it flags more, evaluate each.
+*What to watch for.* The LLM should flag subtractions of
+nearly equal quantities, naive `log(1 + exp(x))` and
+`log(sum(exp(x)))`, explicit matrix inverses,
+computations of variance via the shortcut formula, and
+the accumulation of many small additions to a large
+running total. If it flags none of these on a function
+that contains one, we would push back. If it flags others
+as well, we evaluate each.
 
 *Verification.* Construct an extreme input (mean far from
 zero, near-collinear design, near-zero variance) and run
-both versions. The stable rewrite should produce a finite
-sensible number; the unstable version should produce
+both versions. The stable rewrite should produce a finite,
+sensible number. The unstable version should produce
 overflow, underflow, NaN, or wildly wrong values.
 
 **Prompt 2: explain a numerical bug.** Paste the failing
-output and the surrounding code, ask: 'this returns NaN
+output and the surrounding code, and ask: 'this returns NaN
 on a small subset of inputs. Trace the failure: what is
 the first quantity that becomes NaN, and why?'
 
 *What to watch for.* The LLM is good at the standard
-failure cascade (zero variance → divide by zero → NaN; a
-covariance matrix with a tiny negative eigenvalue from
-rounding → Cholesky fails). It is less reliable for
-domain-specific cascades (a hierarchical-prior scale
-collapsing to zero in a Bayesian model). If the answer
-sounds vague, ask the LLM to state the failure in terms
-of specific quantities and where they were last finite.
+failure cascades. Examples are zero variance leading to
+division by zero and then NaN, or a covariance matrix
+with a tiny negative eigenvalue from rounding, which
+causes the Cholesky factorization to fail. It is less
+reliable for domain-specific cascades, such as a
+hierarchical-prior scale collapsing to zero in a Bayesian
+model. If the answer sounds vague, we ask the LLM to state
+the failure in terms of specific quantities and where
+they were last finite.
 
 *Verification.* Add `stopifnot()` or `cat(...)` checkpoints
 at each stage of the computation. The first checkpoint
-that triggers identifies the precise failure point;
-compare to what the LLM predicted.
+that triggers identifies the precise failure point, which
+we then compare to what the LLM predicted.
 
 **Prompt 3: produce a numerically robust implementation.**
 Describe the mathematical formula and the input ranges,
-ask: 'implement this in R, prioritizing numerical
+and ask: 'implement this in R, prioritizing numerical
 robustness over brevity. Use `log1p`, `expm1`, `logSumExp`,
 `crossprod`, `qr.coef`, and similar where applicable.
 Comment on each numerical-stability decision in the code.'
 
-*What to watch for.* The LLM should produce code with
-explicit stability rationale in comments. If the comments
-are absent or generic, the implementation may be a
-straight transcription of the formula without thinking
-about magnitudes. If the code matches a textbook anti-
-pattern, ask for a specific rewrite.
+*What to watch for.* The LLM should produce code with an
+explicit stability rationale in its comments. If the
+comments are absent or generic, the implementation may be
+a straight transcription of the formula, written without
+thought about magnitudes. If the code matches a textbook
+anti-pattern, we ask for a specific rewrite.
 
 *Verification.* Test on three input regimes: typical
 (centered near zero, modest variance), extreme (mean far
 from zero), and pathological (near-collinear design or
 saturated probabilities). The robust implementation
-should work on all three; the textbook implementation
-will fail on the second or third.
-
-Numerical robustness is a property of how a formula is
-*computed*, so two algebraically identical formulas can
-differ in it. LLMs assist with the computation but cannot
-recognize instability without you naming the specific
-risk.
+should work on all three, whereas the textbook
+implementation will fail on the second or third.
 
 ## Principle in use
 
 Three habits define defensible numerical practice:
 
-1. **Compute condition numbers.** Whenever you solve a
+1. **Compute condition numbers.** Whenever we solve a
    linear system, fit a regression, or invert a matrix,
-   compute and look at the condition number. It is one
-   line of code and surfaces the numerical risk before
-   it becomes a wrong answer.
-2. **Use stable rewrites by default.** `log1p`, `expm1`,
-   `logSumExp`, `crossprod`, `qr.coef` for OLS,
-   two-pass variance. Make the stable form your habit;
-   reach for the unstable form only when you have
-   specifically verified its safety.
+   we compute and look at the condition number. It takes
+   one line of code, and it surfaces the numerical risk
+   before it becomes a wrong answer.
+2. **Use stable rewrites by default.** These include
+   `log1p`, `expm1`, `logSumExp`, `crossprod`, `qr.coef`
+   for OLS, and two-pass variance. The stable form should
+   be the habit. The unstable form is warranted only when
+   its safety has been specifically verified.
 3. **Test the boundary.** Synthetic data centered near
-   zero rarely exposes problems. Run on data with
-   means far from zero, near-collinear covariates, and
-   probabilities near 0 or 1, the regimes that production
-   data often occupies.
+   zero rarely exposes problems. We run on data with means
+   far from zero, near-collinear covariates, and
+   probabilities near 0 or 1, since these are the regimes
+   that production data often occupy.
 
 ## Exercises
 
@@ -726,10 +757,12 @@ Three habits define defensible numerical practice:
    $\sigma_i(\mathbf{z}) = \exp(z_i) / \sum_j \exp(z_j)$.
    Verify on inputs containing values larger than 700,
    where naive softmax overflows.
-4. The logistic CDF $\Phi(z) = (1 + e^{-z})^{-1}$ has a
-   naive implementation that returns 1 for large
-   positive $z$ (true) and 0 for large negative $z$ (also
-   true). Implement `log(plogis(z))` accurately for both
+4. The logistic CDF $F(z) = (1 + e^{-z})^{-1}$ has a
+   naive implementation that rounds to exactly 1 for
+   large positive $z$ and underflows to 0 for large
+   negative $z$. Taking the log then returns 0 and
+   `-Inf`, respectively, and the tail information is
+   lost. Implement `log(plogis(z))` accurately for both
    tails. Hint: this is what R's `plogis(z, log.p = TRUE)`
    does; verify your implementation against it.
 5. Take a regression of yours from a previous chapter or
@@ -742,13 +775,16 @@ Three habits define defensible numerical practice:
 ## Further reading
 
 - [@goldberg1991what], 'What every computer scientist
-  should know about floating-point arithmetic'. The
-  canonical introduction. Free at `dl.acm.org`.
+  should know about floating-point arithmetic', the
+  canonical introduction. It is freely available at
+  `dl.acm.org`.
 - [@higham2002accuracy], *Accuracy and Stability of
-  Numerical Algorithms*, 2nd ed. The reference. Dense.
+  Numerical Algorithms*, 2nd ed., the standard reference.
+  It is dense.
 - [@trefethen1997numerical], *Numerical Linear
   Algebra*. The treatment of conditioning and stability
-  in chapters 12--15 is excellent.
+  in chapters 12 to 15 is the clearest
+  available.
 - The R documentation at `?.Machine` and the
   `matrixStats` package vignettes for stable
   implementations of common reductions.

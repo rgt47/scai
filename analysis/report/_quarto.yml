@@ -20,7 +20,7 @@ profile:
 
 book:
   title: 'Statistical Computing in the Age of AI'
-  author: 'The rgtlab Curriculum Project'
+  author: 'rgtlab curriculum team'
   date: today
   date-format: 'YYYY-MM-DD'
 

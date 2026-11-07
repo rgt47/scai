@@ -13,8 +13,8 @@ By the end of this chapter you should be able to:
 - Use Apache Arrow and `arrow` for out-of-memory tabular
   data, and DuckDB for SQL-style analytics on data larger
   than RAM.
-- Decide when to move work to a GPU via `torch` or `gpuR`,
-  and recognize the small set of statistical workloads where
+- Decide when to move work to a GPU via `torch`, and
+  recognize the small set of statistical workloads where
   GPU acceleration actually pays off.
 - Reason about cloud computation (instance selection,
   spot/preemptible pricing, storage tiers) in terms of
@@ -24,70 +24,75 @@ By the end of this chapter you should be able to:
 
 ## Orientation
 
-Statistical computation often runs on a single laptop until
-suddenly it cannot. The bootstrap with 1000 replicates
-finishes in ten minutes; the same bootstrap on the production
-cohort with hundreds of strata stalls overnight. The
-posterior predictive check that ran fine on a 5% sample
-crashes the R session at full sample. The Monte Carlo study
-that completed in an afternoon now needs a week of runs.
+Statistical computation often runs on a single laptop
+until, at some point, it cannot. A bootstrap with 1000
+replicates finishes in ten minutes, but the same bootstrap
+on the production cohort with hundreds of strata stalls
+overnight. A posterior predictive check that ran without
+difficulty on a 5% sample crashes the R session at full
+sample. A Monte Carlo study that completed in an afternoon
+now needs a week of runs.
 
-This chapter covers the next layer above the laptop. Most
-statistical work is **embarrassingly parallel** (independent
-replicates of the same computation), and the right tool for
-that case is rarely the most sophisticated one. We start
-with the parallelism stack in R, work through out-of-memory
-tabular data with Arrow and DuckDB, touch GPU computation
-where it matters, and end with cloud-cost reasoning.
+In this chapter we shall cover the next layer above the
+laptop. Most statistical work is **embarrassingly
+parallel** (independent replicates of the same
+computation), and the right tool for that case is rarely
+the most sophisticated one. We begin with the parallelism
+stack in R. We then work through out-of-memory tabular
+data with Arrow and DuckDB, touch on GPU computation where
+it matters, and end with cloud-cost reasoning.
 
-The framing throughout: **profile before parallelizing,
-parallelize the right loop, and verify the speedup is
-real.** Parallelization is one of the few engineering moves
-that can both speed work up and silently corrupt results;
-treat it accordingly.
+The framing throughout is to **profile before
+parallelizing, parallelize the right loop, and verify that
+the speedup is real.** Parallelization is one of the few
+engineering moves that can both speed work up and silently
+corrupt results, and we treat it accordingly.
 
 ## The statistician's contribution {#sec-hpc-human}
 
 GPUs and clusters solve compute problems. The
-statistician's role is to ensure
-the compute problem being solved is the right one, and that
-the speedup is bought at a cost the project can afford.
+statistician's role is to ensure that the compute problem
+being solved is the right one, and that the speedup is
+bought at a cost the project can afford.
 
 **(Judgment 1.) Parallelize the right level.** A naive
-intuition is to parallelize the innermost loop. This is
-almost always wrong. The right level is the *outermost*
-embarrassingly parallel loop: the bootstrap replicate, the
-simulation iteration, the cross-validation fold. Parallel
-overhead (process startup, data serialization, and result
-collection) is paid once per dispatched task. Splitting a
-fast inner loop across workers can leave you slower than
-the serial version. The statistician identifies the right
-unit of parallelism by understanding where the natural
-independence lies; an LLM that says 'use `mclapply`' has
+intuition is to parallelize the innermost loop.
+Unfortunately, this is almost always wrong. The right
+level is the *outermost* embarrassingly parallel loop: the
+bootstrap replicate, the simulation iteration, the
+cross-validation fold. Parallel overhead (process startup,
+data serialization, and result collection) is paid once
+per dispatched task. Splitting a fast inner loop across
+workers can therefore leave us slower than the serial
+version. The statistician identifies the right unit of
+parallelism by understanding where the natural
+independence lies. An LLM that says 'use `mclapply`' has
 elided the question.
 
 **(Judgment 2.) Random-number reproducibility is a
 correctness issue.** Two parallel workers using the same
-seed will produce identical 'random' replicates. For a Monte
-Carlo study this is catastrophic, and it fails silently: the
-run completes, the output looks reasonable, and the variance
-estimate is wrong. The defense is L'Ecuyer's parallel RNG
+seed will produce identical 'random' replicates. For a
+Monte Carlo study this is catastrophic, and it fails
+silently. That is, the run completes, the output looks
+reasonable, and the variance estimate is wrong. The
+defense is L'Ecuyer's parallel RNG
 (`set.seed(., kind = "L'Ecuyer-CMRG")` plus per-task seed
 advancement)
 or the `future` framework's `furrr_options(seed = TRUE)`.
 The statistician must specify reproducibility requirements
-before parallelizing; LLMs frequently produce parallel code
-that is fast and wrong on RNG.
+before parallelizing, since LLMs frequently produce
+parallel code that is fast but wrong on RNG.
 
 **(Judgment 3.) Cloud cost is your problem.** Spot
-instances are 60 to 90% cheaper than on-demand, but they can be
-reclaimed mid-run. A 12-hour Stan fit on a spot instance
-that gets reclaimed at hour 11 has cost the spot rate for
-11 hours and produced no output. The statistician decides
-whether to use spot, on-demand, or reserved instances based
-on the value of a partial completion, the cost of a restart,
-and the deadline. These are project-management choices,
-and a cloud cost surprise can end a budget or a career.
+instances are 60 to 90% cheaper than on-demand, but they
+can be reclaimed mid-run. Consider a 12-hour Stan fit on a
+spot instance that is reclaimed at hour 11. It has cost
+the spot rate for 11 hours and produced no output. The
+statistician decides whether to use spot, on-demand, or
+reserved instances. The decision rests on the value of a
+partial completion, the cost of a restart, and the
+deadline. These are project-management choices, and an
+unplanned cloud bill can exhaust a project budget.
 
 ## The R parallelism stack
 
@@ -95,38 +100,41 @@ Four frameworks cover most R parallel workloads.
 
 **`parallel` (base R).** `mclapply()` (forking, Unix only)
 and `parLapply()` (PSOCK clusters, cross-platform) are the
-oldest tools. They work; they are well-understood; they are
-also the most error-prone interface, particularly around
-RNG seeds, error propagation, and progress reporting. Use
-them when no dependency on `future` is acceptable.
+oldest tools. They work and are well understood. However,
+they are also the most error-prone interface, particularly
+around RNG seeds, error propagation, and progress
+reporting. We use them when no dependency on `future` is
+acceptable.
 
 **`future` and `furrr`.** `future` [@bengtsson2021unifying]
 provides a uniform API for asynchronous computation across
-backends: sequential, multicore, multisession, cluster, and
-cloud. `furrr::future_map()` is the parallel counterpart of
-`purrr::map()` and handles RNG correctly with
-`furrr_options(seed = TRUE)`. This is the recommended default
-for applied parallelism: code written with `future_map()`
-runs on a laptop, a workstation, or a cluster with one
-`plan()` call.
+backends: sequential, multicore, multisession, cluster,
+and cloud. `furrr::future_map()` is the parallel
+counterpart of `purrr::map()`, and it handles RNG
+correctly with `furrr_options(seed = TRUE)`. This is the
+recommended default for applied parallelism. Code written
+with `future_map()` runs on a laptop, a workstation, or a
+cluster with one `plan()` call.
 
-**`mirai` and `crew`.** `mirai` is a lighter, lower-overhead
-alternative to `future` for high-throughput dispatch.
-`crew` builds on `mirai` to support persistent workers and
-auto-scaling, and is the engine behind `targets`'s
-parallelism. For pipelines that dispatch many short tasks,
-`crew` is dramatically more efficient than `future`:
-seconds versus minutes of overhead at scale.
+**`mirai` and `crew`.** `mirai` is a lighter,
+lower-overhead alternative to `future` for high-throughput
+dispatch. `crew` builds on `mirai` to support persistent
+workers and auto-scaling, and it is the engine behind the
+parallelism in `targets`. For pipelines that dispatch many
+short tasks, `crew` is substantially more efficient than
+`future`, with seconds rather than minutes of overhead at
+scale.
 
 **`batchtools`.** For HPC clusters with schedulers (SLURM,
-PBS, LSF), `batchtools` is the established interface. It
-has a steeper learning curve and is overkill for laptop or
-workstation work, but it is the right tool when you need to
-submit thousands of jobs to a scheduler and harvest the
-results.
+PBS, LSF), `batchtools` is the established interface. On
+the one hand, it has a steeper learning curve and is
+overkill for laptop or workstation work. On the other, it
+is the right tool when we need to submit thousands of jobs
+to a scheduler and harvest the results.
 
-A worked example contrasts the styles. Suppose we want to
-fit 500 bootstrap replicates of a regression model.
+A worked example contrasts the styles. To illustrate,
+suppose we want to fit 500 bootstrap replicates of a
+regression model.
 
 ````{.r}
 library(furrr)
@@ -144,11 +152,12 @@ results <- future_map(
 )
 ````
 
-The `.options = furrr_options(seed = TRUE)` is non-negotiable.
-Without it, `future_map` will warn but proceed; the resulting
-'replicates' may not be statistically independent.
+The `.options = furrr_options(seed = TRUE)` argument is
+non-negotiable. Without it, `future_map` will warn but
+proceed, and the resulting 'replicates' may not be
+statistically independent.
 
-**The cost model**, simplified:
+**The cost model**, simplified, is as follows:
 
 - Forking (`mclapply` on Unix) shares memory copy-on-write;
   startup cost is microseconds.
@@ -157,22 +166,22 @@ Without it, `future_map` will warn but proceed; the resulting
   serialized across the boundary.
 - Cluster backends pay scheduler queueing time on top.
 
-The implication: if your task is sub-second and you have
-copy-on-write available, fork; if your task is seconds to
-minutes and you need cross-platform, use `multisession`; if
-your task is minutes to hours and you have scheduler access,
-batch.
+The implication is as follows. If the task is sub-second
+and copy-on-write is available, we fork. If the task takes
+seconds to minutes and we need cross-platform support, we
+use `multisession`. If the task takes minutes to hours and
+we have scheduler access, we batch.
 
 ## Out-of-memory tabular data: Arrow and DuckDB
 
-When a dataset will not fit in RAM, the right move is rarely
-'rent a bigger machine.' It is to switch to columnar
-out-of-memory tools that read only the columns and rows
-required.
+When a dataset will not fit in RAM, the right move is
+rarely 'rent a bigger machine.' Instead, we switch to
+columnar out-of-memory tools that read only the columns
+and rows required.
 
-**Apache Arrow** is a columnar in-memory format and a set of
-tools for working with it. The R `arrow` package binds to
-the C++ implementation. Key idioms:
+**Apache Arrow** is a columnar in-memory format and a set
+of tools for working with it. The R `arrow` package binds
+to the C++ implementation. A typical query is as follows:
 
 ````{.r}
 library(arrow)
@@ -186,20 +195,21 @@ ds |>
   collect()
 ````
 
-The query is built lazily, with no data read until
+The query is built lazily, and no data are read until
 `collect()` materializes the result into an in-memory
 tibble. Arrow pushes the filter down to the file scan, so
 only the rows matching the predicate are decoded. On a
 50 GB Parquet dataset this can be the difference between
 two seconds and two hours.
 
-**DuckDB** [@raasveldt2019duckdb] is an embedded analytical
-database, like SQLite but column-oriented and tuned for
-OLAP queries. The `duckdb` and `duckplyr` R packages expose
-DuckDB through a `dplyr`-compatible interface. DuckDB excels
-at SQL-shaped analytics on data larger than RAM, joins, and
-window functions. For a project that already speaks SQL,
-DuckDB is often the cleanest path.
+**DuckDB** [@raasveldt2019duckdb] is an embedded
+analytical database, similar to SQLite but
+column-oriented and tuned for OLAP queries. The `duckdb`
+and `duckplyr` R packages expose DuckDB through a
+`dplyr`-compatible interface. DuckDB excels at SQL-shaped
+analytics on data larger than RAM, at joins, and at window
+functions. For a project that already works in SQL, DuckDB
+is often the cleanest path.
 
 ````{.r}
 library(duckdb); library(DBI); library(dplyr)
@@ -214,9 +224,10 @@ tbl(con, "cohort") |>
 
 The decision between Arrow and DuckDB is largely about
 ergonomics. Arrow integrates more naturally with `dplyr`
-pipelines and the broader R ecosystem; DuckDB is faster on
+pipelines and the broader R ecosystem. DuckDB is faster on
 complex joins and excels at SQL-shaped work. Many projects
-use both: Arrow to read and filter, DuckDB to join.
+use both, with Arrow to read and filter and DuckDB to
+join.
 
 ::: {.callout-note icon=false collapse=true}
 ## Check your understanding: when not to parallelize
@@ -229,12 +240,13 @@ elements, each taking about 50 ms. They propose switching to
 
 No. The total serial time is about 500 ms. Spawning a
 multisession `future` plan typically costs more than a
-second per worker for R session startup, plus serialization
-overhead per task. The parallel version will be slower than
-the serial version. Parallelization is profitable when total
-serial time substantially exceeds parallel overhead;
-sub-second loops over a handful of items are below that
-threshold. Run the serial version, profile, and parallelize
+second per worker for R session startup, plus
+serialization overhead per task. The parallel version will
+therefore be slower than the serial version.
+Parallelization is profitable when total serial time
+substantially exceeds parallel overhead, and sub-second
+loops over a handful of items are below that threshold. We
+would run the serial version, profile it, and parallelize
 only the loops that dominate.
 
 :::
@@ -243,80 +255,89 @@ only the loops that dominate.
 
 GPUs accelerate dense linear algebra and matrix-shaped
 computation. Most statistical workloads are not
-matrix-shaped in the way GPUs reward, and most attempts to
-move statistical code to GPU end up slower or no faster.
-The narrow class of problems where GPU pays off:
+matrix-shaped in the way GPUs reward. As a result, most
+attempts to move statistical code to a GPU end up slower
+or no faster. The narrow class of problems in which a GPU
+pays off is as follows:
 
 - **Deep learning and neural network training.** `torch`
   for R and `tensorflow`/`keras` are the established
   interfaces. These are GPU-native and benefit from
-  order-of-magnitude speedups on appropriately sized models.
+  order-of-magnitude speedups on appropriately sized
+  models.
 - **Large dense matrix algebra.** Models that hinge on
   Cholesky or eigendecomposition of dense matrices in the
-  thousands-of-rows range can benefit from GPU BLAS. `gpuR`
-  exposes this via OpenCL.
-- **Stan and PyMC under specific configurations.** Stan can
-  run gradient evaluations on GPU for some model classes;
-  PyMC via JAX/NumPyro can target GPU and TPU. Speedups are
-  model-dependent; benchmark before assuming benefit.
+  thousands-of-rows range can benefit from GPU BLAS. The
+  OpenCL-based `gpuR` package that once exposed this was
+  archived from CRAN in November 2025; `torch` tensors
+  now provide GPU linear algebra from R.
+- **Stan and PyMC under specific configurations.** Stan
+  can run gradient evaluations on a GPU for some model
+  classes, and PyMC via JAX/NumPyro can target GPU and
+  TPU. Speedups are model-dependent, so we benchmark
+  before assuming any benefit.
 
-What does *not* benefit from GPU: looping over heterogeneous
-small models, data manipulation, most regression fitting on
-small-to-medium datasets, and any workload bottlenecked by
-data movement to and from GPU memory. The CPU↔GPU memory
-transfer is often the dominant cost; if your inner loop
-touches GPU memory many times, you have lost the gain.
+What does *not* benefit from a GPU? The list includes
+looping over heterogeneous small models, data
+manipulation, most regression fitting on small-to-medium
+datasets, and any workload bottlenecked by data movement
+to and from GPU memory. The CPU↔GPU memory transfer is
+often the dominant cost. If the inner loop touches GPU
+memory many times, the gain is lost.
 
-The decision rule is empirical: benchmark a representative
-sub-problem on CPU and GPU before committing infrastructure
-to a GPU-based pipeline.
+The decision rule is empirical. We benchmark a
+representative sub-problem on CPU and GPU before
+committing infrastructure to a GPU-based pipeline.
 
 ## Cloud computation and cost discipline
 
 Three observations dominate cloud-cost reasoning for
 statistics.
 
-**Spot instances are 60 to 90% cheaper but reclaimable.** AWS
-spot, Azure low-priority, and GCP preemptible instances
-offer substantial discounts in exchange for the right of the
-provider to reclaim them on short notice. For
-fault-tolerant workloads, such as a Monte Carlo study where
-individual replicates can be retried, they are excellent.
-For long-running serial fits with no checkpointing, they
-are dangerous. Either save state at every iteration (so a
-reclaim is at most a small loss) or pay for on-demand.
+**Spot instances are 60 to 90% cheaper but reclaimable.**
+AWS spot, Azure low-priority, and GCP preemptible
+instances offer substantial discounts. In exchange, the
+provider retains the right to reclaim them on short
+notice. For fault-tolerant workloads, such as a Monte
+Carlo study in which individual replicates can be retried,
+they are excellent. For long-running serial fits with no
+checkpointing, they are dangerous. We either save state at
+every iteration (so that a reclaim is at most a small
+loss) or pay for on-demand.
 
-**Storage tiers compound.** S3 standard storage is 10×
-cheaper than EBS attached to a running instance. Holding
-50 TB of intermediate data on EBS for a six-month project
-is materially more expensive than holding it on S3 with
-on-demand access. The pattern that scales: keep cold data
-on S3, mount only the working subset to compute, write
-results back to S3. `arrow::s3_bucket()` and
+**Storage tiers compound.** S3 standard storage is roughly
+3 to 4× cheaper per GB-month than general-purpose EBS
+volumes attached to a running instance. Holding 50 TB of
+intermediate data on EBS for a six-month project is
+therefore materially more expensive than holding it on S3
+with on-demand access. The pattern that scales is to keep
+cold data on S3, mount only the working subset to compute,
+and write results back to S3. `arrow::s3_bucket()` and
 `arrow::open_dataset()` make this idiomatic from R.
 
 **Right-size, do not over-size.** The instance type with
-the most cores is rarely the right answer for a statistical
-workload. Memory-bandwidth-bound work (most R) benefits more
-from fewer fast cores with high memory bandwidth than from
-many slow cores; compute-bound matrix work may benefit from
-the opposite. Run a benchmark on a small instance, project
-the runtime to a large one, and pick the smallest instance
-that meets the deadline.
+the most cores is rarely the right answer for a
+statistical workload. Memory-bandwidth-bound work (most R)
+benefits more from fewer fast cores with high memory
+bandwidth than from many slow cores. Compute-bound matrix
+work may benefit from the opposite. We run a benchmark on
+a small instance, project the runtime to a large one, and
+pick the smallest instance that meets the deadline.
 
-**Infrastructure as code** manages this complexity: tools
-like `paws` and `googleCloudStorageR` script provisioning,
-and `targets` with cloud-aware backends dispatches and
-harvests work.
-The pattern: a `_targets.R` pipeline runs locally on a
-laptop and on a cluster with the same code, parametrized
-only by the `crew` controller it uses.
+**Infrastructure as code** manages this complexity. Tools
+such as `paws` and `googleCloudStorageR` script
+provisioning, and `targets` with cloud-aware backends
+dispatches and harvests work. In this pattern, a
+`_targets.R` pipeline runs locally on a laptop and on a
+cluster with the same code. It is parametrized only by the
+`crew` controller it uses.
 
 ## Worked example: a parallel bootstrap with reproducible RNG
 
-A 5000-replicate bootstrap of a Cox proportional hazards
-model fit, with explicit RNG handling and a `targets`
-pipeline that scales from laptop to cluster.
+To illustrate, consider a 5000-replicate bootstrap of a
+Cox proportional hazards model fit. The example uses
+explicit RNG handling and a `targets` pipeline that scales
+from laptop to cluster.
 
 ````{.r}
 # _targets.R
@@ -337,10 +358,11 @@ boot_one <- function(i, data) {
 
 list(
   tar_target(cohort, readRDS("data/cohort.rds")),
+  tar_target(boot_index, seq_len(5000)),
   tar_target(
     boot_replicates,
-    boot_one(seq_len(5000), cohort),
-    pattern = map(seq_len(5000)),
+    boot_one(boot_index, cohort),
+    pattern = map(boot_index),
     iteration = "list",
     cue = tar_cue(seed = TRUE)
   ),
@@ -355,14 +377,17 @@ list(
 )
 ````
 
-`crew_controller_local(workers = 8)` runs locally; swapping
-to `crew.cluster::crew_controller_slurm()` reuses the same
-pipeline on a SLURM cluster with one line changed. `cue =
-tar_cue(seed = TRUE)` ensures the per-replicate seed is
-deterministic, so rerunning the same pipeline produces the
-same bootstrap distribution.
+`crew_controller_local(workers = 8)` runs locally.
+Swapping to `crew.cluster::crew_controller_slurm()` reuses
+the same pipeline on a SLURM cluster with one line
+changed. `targets` derives each target's seed
+deterministically from the global seed option and the
+target's name, so rerunning the same pipeline produces the
+same bootstrap distribution. The cue
+`cue = tar_cue(seed = TRUE)` controls whether a target
+reruns when its seed changes.
 
-A serial benchmark for comparison:
+For comparison, a serial benchmark gives the following:
 
 ````{.r}
 serial <- system.time({
@@ -373,36 +398,39 @@ serial <- system.time({
 ````
 
 With 8 workers under `crew`, the same 500 replicates take
-about 7.4 seconds, a speedup of 5.8× after
-serialization and dispatch overhead. The full 5000-replicate
-run completes in just over a minute, and the same pipeline
+about 7.4 seconds, a speedup of 5.8× after serialization
+and dispatch overhead. The full 5000-replicate run
+completes in just over a minute. The same pipeline
 deployed to a 64-worker cluster runs in under 10 seconds.
 
 ## Collaborating with an LLM on HPC
 
-LLMs are useful for translating
-serial R code to a parallel form, for suggesting Arrow and
-DuckDB query rewrites, and for reasoning about cloud cost
-trade-offs. They are unreliable on parallel RNG, on
-diagnosing why a parallel run is slower than serial, and on
-GPU benchmarking advice that is not blanket optimism.
+LLMs are useful for translating serial R code to a
+parallel form, for suggesting Arrow and DuckDB query
+rewrites, and for reasoning about cloud cost trade-offs.
+They are unreliable on parallel RNG and on diagnosing why
+a parallel run is slower than serial. They are also
+unreliable on GPU benchmarking, where their advice tends
+toward blanket optimism.
 
 **Prompt 1: 'Parallelize this bootstrap loop with reproducible
-RNG.'** Provide the serial loop. Ask for a `furrr_map`
+RNG.'** Provide the serial loop. Ask for a `future_map`
 version with proper seed handling.
 
 *What to watch for.* The LLM may produce parallel code
-without `furrr_options(seed = TRUE)`, or with `set.seed()`
-inside the worker (a correctness bug: it produces
-identical replicates across workers). It may suggest
-`mclapply()` without the `mc.set.seed = TRUE` argument and
-the `RNGkind("L'Ecuyer-CMRG")` setup that makes it work.
+without `furrr_options(seed = TRUE)`. It may instead call
+`set.seed()` inside the worker, which is a correctness bug
+because it produces identical replicates across workers.
+It may also suggest `mclapply()` without the
+`mc.set.seed = TRUE` argument and the
+`RNGkind("L'Ecuyer-CMRG")` setup that makes it work.
 
 *Verification.* Run the parallel version twice with the
 same seed; the bootstrap distribution should be identical.
-Run it once and inspect a small number of replicates for
-duplicate values across workers. Identical replicates from
-different worker indices are a definitive RNG-bug signature.
+Then run it once and inspect a small number of replicates
+for duplicate values across workers. Identical replicates
+from different worker indices are a definitive signature
+of an RNG bug.
 
 **Prompt 2: 'Why is my parallel run slower than serial?'**
 Paste the serial timing, the parallel timing, the worker
@@ -410,44 +438,47 @@ count, the per-iteration work, and the data size.
 
 *What to watch for.* The LLM will often suggest 'increase
 workers' or 'switch backends' without diagnosing the
-underlying issue. The common causes (too-fine-grained
-parallelism, large per-task data serialization, thread
-oversubscription in BLAS-using code) require the LLM to ask
-clarifying questions about per-task work size and data
-movement. If the LLM does not ask, push back.
+underlying issue. The common causes are too-fine-grained
+parallelism, large per-task data serialization, and thread
+oversubscription in BLAS-using code. Diagnosing them
+requires the LLM to ask clarifying questions about
+per-task work size and data movement. If the LLM does not
+ask, push back.
 
 *Verification.* Profile a single worker iteration with
-`profvis`. Compute total work time, parallel overhead per
-task, and projected speedup with $W$ workers. If projected
-speedup is less than 2×, parallelization is not the right
-intervention; restructure the loop instead.
+`profvis`. Compute the total work time, the parallel
+overhead per task, and the projected speedup with $W$
+workers. If the projected speedup is less than 2×,
+parallelization is not the right intervention, and the
+loop should be restructured instead.
 
 **Prompt 3: 'Should I use spot or on-demand instances for
 this 8-hour Stan fit?'** Provide the workload, deadline, and
 checkpointing capability.
 
 *What to watch for.* The LLM defaults to recommending spot
-for cost reasons. It typically does not weigh the cost of a
-mid-run reclaim: for an 8-hour fit with no checkpointing,
-a reclaim at hour 7 wastes the full instance cost and the
-elapsed time before a re-run. The right answer depends on
-your tolerance for re-runs and your deadline.
+for cost reasons. It typically does not weigh the cost of
+a mid-run reclaim. For an 8-hour fit with no
+checkpointing, a reclaim at hour 7 wastes the full
+instance cost and the elapsed time before a re-run. The
+right answer depends on the tolerance for re-runs and on
+the deadline.
 
 *Verification.* If the model can checkpoint (save Stan's
-warm-up state, resume), spot is fine. If it cannot, compute
-the expected cost including the probability of reclaim
-times the redo cost. A 5% reclaim probability on an 8-hour
-fit means an expected 24 minutes of waste per run; on a
-$10/hour instance that is $4 expected waste against
-roughly $48 in savings. Spot still wins, but the
-calculation should be made.
+warm-up state, resume), spot is fine. If it cannot,
+compute the expected cost, including the probability of
+reclaim times the redo cost. To illustrate, a 5% reclaim
+probability on an 8-hour fit means an expected 24 minutes
+of waste per run. On a \$10/hour instance that is \$4 of
+expected waste against roughly \$48 in savings. Spot still
+wins, but the calculation should be made.
 
-LLMs are competent on the syntactic mechanics of
-parallelism (which package, which function) and weak on
-the operational questions: whether it will actually be
-faster, be correct, or cost less. Use them for code
-translation; do the cost and correctness reasoning
-yourself.
+In practice, we use LLMs for code translation and do the
+cost and correctness reasoning ourselves. They are
+competent on the syntactic mechanics of parallelism (which
+package, which function). They are weak on the
+operational questions of whether the result will actually
+be faster, be correct, or cost less.
 
 ## Principle in use
 
@@ -456,22 +487,22 @@ Three habits define defensible HPC work:
 1. **Profile first, parallelize second.** A serial run with
    `profvis` identifies the bottleneck. Parallelizing a
    non-bottleneck wastes engineering time and adds bugs.
-   The 80/20 rule: most of the runtime is in 20% of the
-   code; parallelize that 20%.
+   The 80/20 rule applies: most of the runtime is in 20%
+   of the code, and that 20% is what we parallelize.
 
 2. **Make RNG explicit and tested.** Every parallel
    computation that uses random numbers must specify
-   `furrr_options(seed = TRUE)` or its equivalent. Test by
-   running the pipeline twice with the same seed; the
-   results must match exactly. If they do not, the
+   `furrr_options(seed = TRUE)` or its equivalent. We test
+   by running the pipeline twice with the same seed, and
+   the results must match exactly. If they do not, the
    pipeline has a correctness bug.
 
 3. **Cost-budget the run.** Before submitting a long cloud
    job, write down the expected runtime, the per-hour cost,
-   the total budget, and the kill criterion. A $400/day
+   the total budget, and the kill criterion. A \$400/day
    instance left running over a forgotten weekend has cost
-   real projects real money. Set up billing alerts; check
-   them.
+   real projects real money. Set up billing alerts, and
+   check them.
 
 ## Exercises
 
@@ -500,7 +531,7 @@ Three habits define defensible HPC work:
 
 5. Cost-model a 200-iteration MCMC study where each chain
    takes 4 hours. Assume an on-demand `c5.4xlarge` is
-   $0.68/hour, spot is $0.20/hour, and spot reclaim
+   \$0.68/hour, spot is \$0.20/hour, and spot reclaim
    probability is 8%. With 200 chains needed and four
    chains per instance, compute the total expected cost
    under each strategy. Document your assumptions.

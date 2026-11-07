@@ -18,8 +18,9 @@ By the end of this chapter you should be able to:
   document toolchain.
 - Audit a reproducibility setup and calibrate each claim by
   status: verified, inspected, or inferred.
-- Harden a research software supply chain: pin continuous-
-  integration actions to commit digests, apply least-privilege
+- Harden a research software supply chain: pin
+  continuous-integration actions to commit digests, apply
+  least-privilege
   tokens, and gate merges on a security scan of the real
   artifact.
 - Write a test that proves the core reproducibility promise, a
@@ -30,30 +31,30 @@ By the end of this chapter you should be able to:
 
 ## Orientation
 
-The previous chapter treated software engineering as a craft:
-profiling, the C++ escape hatch, package authorship, and
-tests. Here we take up the matter from the other side, as
-*infrastructure*: the environment a computation runs in, the
-dependencies it pulls, the pipeline that builds it, and the
-supply chain that all of this trusts. A statistician can write
-a flawless, well-tested function and still ship an analysis
-that no one, the original author included, can reproduce a
-year later, because the environment around the function was
-never pinned.
+The previous chapter treated software engineering as a craft,
+covering profiling, the C++ escape hatch, package authorship,
+and tests. In this chapter we take up the matter from the other
+side, as *infrastructure*. That is, we consider the environment
+a computation runs in, the dependencies it pulls, the pipeline
+that builds it, and the supply chain that all of this trusts. A
+statistician can write a flawless, well-tested function and
+still ship an analysis that no one can reproduce a year later,
+the original author included. In such a case the cause is that
+the environment around the function was never pinned.
 
 The motivating evidence is the reproducibility record of the
-field. The Open Science Collaboration reproduced 39 percent
-of a psychology sample, and @trisovic2022 found that fewer
-than one in four R scripts deposited with published articles
-in the Harvard Dataverse ran without error when rerun. A
-non-trivial share of these failures are computational: code that
-once produced a result no longer
-does, because the software beneath it moved. The R 4.0.0
+field. The Open Science Collaboration reproduced 39 percent of
+a psychology sample. @trisovic2022 found that fewer than one in
+four R scripts deposited with published articles in the Harvard
+Dataverse ran without error when rerun. A non-trivial share of
+these failures are computational. That is, code that once
+produced a result no longer does, because the software beneath
+it moved. Two changes to R are the canonical cases: the R 4.0.0
 change to the `stringsAsFactors` default in 2020, and the R
 3.6.0 change to the default `sample.kind` of the random-number
-generator in 2019, are the canonical cases. In each a default
-flipped between releases, and an analysis silently produced
-different output from identical source and identical data.
+generator in 2019. In each case a default flipped between
+releases, and an analysis silently produced different output
+from identical source and identical data.
 
 The thesis we shall develop is that **reproducibility is a
 property of the relationships among many components held
@@ -62,10 +63,11 @@ fixed over time.** We begin in
 @sec-determinant-model with the full set of determinants and
 the smaller subset a tool can place under version control. We
 then turn to the judgments the statistician owns
-(@sec-reproducibility-human), to the containerized environment
-and where it leaks, to the determinants most often missed, and
-finally to a worked audit of a real framework that we use to
-teach the method itself.
+(@sec-reproducibility-human). After that we shall examine the
+containerized environment and where it leaks, and then the
+determinants most often missed. Finally, we work through an
+audit of a real framework, which we use to teach the method
+itself.
 
 ## The determinant model {#sec-determinant-model}
 
@@ -98,22 +100,22 @@ the result while every other layer is held fixed.
 9. **Intrinsic non-determinism:** use of the wall clock, and
    race conditions in parallel code.
 
-The familiar five-artifact view (the environment, the
-lockfile, the session profile, the source, and the data),
-sometimes promoted as the `pillars` of a reproducible
-project, is best understood as the version-controllable
-subset of this stack: the five things a tool can place under
-version control and diff. That subset is useful and
-actionable, but it is not the whole stack. Layers 1 and 2 are pinned only if the
-container is made to pin them explicitly; layer 6 is capturable
-in a session profile but is routinely left to the default; and
-layers 8 and 9 are barely addressed by package tooling at all.
+The familiar five-artifact view comprises the environment, the
+lockfile, the session profile, the source, and the data. It is
+sometimes promoted as the `pillars` of a reproducible project.
+It is best understood as the version-controllable subset of
+this stack, that is, the five things a tool can place under
+version control and diff. That subset is useful and actionable,
+but it is not the whole stack. Layers 1 and 2 are pinned only
+if the container is made to pin them explicitly. Layer 6 is
+capturable in a session profile but is routinely left to the
+default. Layers 8 and 9, finally, are barely addressed by
+package tooling at all.
 
 @tbl-determinants maps each determinant to the artifact that
-would capture it, marking each as *named* (the artifact
-captures it by design), *capturable* (the artifact could
-capture it but usually does not), or *unpinned* (no artifact
-captures it).
+would capture it. Each is marked *named* (the artifact captures
+it by design), *capturable* (the artifact could capture it but
+usually does not), or *unpinned* (no artifact captures it).
 
 | Determinant | Captured by | Status |
 |---|---|---|
@@ -131,11 +133,11 @@ captures it).
 : Determinants of reproducibility and the artifact that
 captures each. {#tbl-determinants}
 
-The lockfile, the visible artifact that most practitioners
-equate with reproducibility, captures the fewest of the
-silent-drift determinants. A project that has pinned its
-packages and stopped there has done the easy part; the rest of
-this chapter is about pinning the remainder.
+Unfortunately, the lockfile, which is the visible artifact most
+practitioners equate with reproducibility, captures the fewest
+of the silent-drift determinants. A project that has pinned its
+packages and stopped there has done the easy part. The
+remainder of the chapter is concerned with pinning the rest.
 
 ## The statistician's contribution {#sec-reproducibility-human}
 
@@ -148,22 +150,23 @@ one.** A lockfile pins packages and feels like the whole job.
 The environment, the document toolchain, the random-number
 generator, and the locale drift silently around it. The
 statistician's role is to know which inputs move and to pin the
-ones that matter, preferring *content addresses* (image
-digests, dated repository snapshots, file checksums) to
+ones that matter. In doing so we prefer *content addresses*
+(image digests, dated repository snapshots, file checksums) to
 *mutable names* (image tags, `latest`, bare URLs). A content
-address cannot be repointed beneath you; a mutable name can,
-and in the supply-chain section we shall see what follows when
+address cannot be repointed beneath us, whereas a mutable name
+can. In the supply-chain section we shall see what follows when
 one is.
 
 **(Judgment 2.) Reproducibility is a claim that must be
 tested, not asserted.** That a thing ran on one machine today
 does not show that it will produce the same result on another
-machine later. The discipline is the same one
-@sec-software-engineering applied to numerical equivalence: a
+machine later. The discipline is the same one that
+@sec-software-engineering applied to numerical equivalence. A
 speedup is not established until it is verified against a
-reference, and an environment is not known to be deterministic
-until it is tested. We write a test that proves determinism,
-and we treat an untested reproducibility claim as unverified.
+reference. In the same way, an environment is not known to be
+deterministic until it is tested. We shall write a test that
+proves determinism, and we treat an untested reproducibility
+claim as unverified.
 
 **(Judgment 3.) Calibrate status.** When auditing a
 setup, it is necessary to distinguish what was *verified* by
@@ -171,19 +174,21 @@ running it, *inspected* by reading it, and *inferred* from how
 it is assembled. To report an inferred problem as verified, or
 to treat a structural check (a file exists, a function is
 defined) as a correctness test, is the auditing equivalent of
-shipping an unverified optimization. The audit is only as
-trustworthy as the honesty of its confidence labels, a point we
-shall see has teeth in the worked example.
+shipping an unverified optimization. An audit is only as
+trustworthy as the honesty of its confidence labels. The worked
+example later in the chapter shows that this point has
+practical consequences.
 
 ## Containerizing an R environment
 
-The mainstream baseline for a reproducible R environment is a
-Docker image built on the `rocker` project [@boettiger2015],
-which pins the operating system and the R version, combined
-with `renv` [@ushey2020], which records exact package versions
-in a lockfile. The composition is sound and is the right place
-to begin, but it is also where most setups leak, because the
-convenient form of each component is the non-reproducible one.
+The mainstream baseline for a reproducible R environment
+combines two components. The first is a Docker image built on
+the `rocker` project [@boettiger2015], which pins the operating
+system and the R version. The second is `renv` [@ushey2020],
+which records exact package versions in a lockfile. The
+composition is sound and is the right place to begin. However,
+it is also where most setups leak, because the convenient form
+of each component is the non-reproducible one.
 
 To illustrate, consider a typical generated Dockerfile.
 
@@ -197,19 +202,19 @@ COPY renv.lock renv.lock
 RUN R -e "renv::restore()"
 ````
 
-The file has four leaks. The base is pinned by a *tag*
+The file has four leaks. First, the base is pinned by a *tag*
 (`4.4.2`), which `rocker` rebuilds over time with security and
-system-library updates, so that the tag today and the tag in a
-year are not the same bytes. The package-manager URL ends in
-`latest`, a rolling snapshot, so that once a pinned version's
+system-library updates. The tag today and the tag in a year are
+therefore not the same bytes. Second, the package-manager URL
+ends in `latest`, a rolling snapshot. Once a pinned version's
 pre-built binary ages out, resolution silently changes or falls
-back to compiling from source. `renv` itself is installed
+back to compiling from source. Third, `renv` itself is installed
 unpinned, so the resolver that reads the lockfile is whatever
-version happens to be current at build time. And if `renv`
-restores into the default project-local library, a later bind
-mount of the working tree over that directory will shadow it,
-with the consequence that the carefully built library is not
-even the one that runs.
+version happens to be current at build time. Lastly, suppose
+that `renv` restores into the default project-local library. A
+later bind mount of the working tree over that directory will
+then shadow it, with the consequence that the carefully built
+library is not even the one that runs.
 
 The durable form pins each of these.
 
@@ -231,8 +236,8 @@ known day. `renv` is bootstrapped from the project's own
 The library lives at `/opt/renv/library`, outside any path the
 runtime will bind-mount, so the baked environment is the one
 that executes. Each of these four pins prevents a specific,
-observed failure, and we shall meet each again as a finding in
-the worked audit.
+observed failure. We shall meet each of them again as a finding
+in the worked audit.
 
 ## The dependency triad and lockfile discipline
 
@@ -249,45 +254,48 @@ $$
 $$
 
 that is, every package the code calls is declared, and every
-declared package is installed and recorded. The relation drifts
-in practice the moment a collaborator installs a package for an
-exploratory notebook and neglects to snapshot it: the code now
-uses a package the lockfile does not record, and the next clean
-rebuild fails. A mechanical check that scans the code, parses
-the `DESCRIPTION`, reads the lockfile, and repairs the gaps is
-the least expensive guard available, and it is the kind of
-invariant a framework ought to enforce rather than leave to
-discipline.
+declared package is installed and recorded. In practice the
+relation drifts the moment a collaborator installs a package
+for an exploratory notebook and neglects to snapshot it. The
+code then uses a package the lockfile does not record, and the
+next clean rebuild fails. A mechanical check would scan the
+code, parse the `DESCRIPTION`, read the lockfile, and repair the
+gaps. Such a check is the least expensive guard available. It
+is also the kind of invariant a framework ought to enforce
+rather than leave to discipline.
 
 ## Session-level determinants that are routinely missed
 
 The session profile, in R the project `.Rprofile`, is where
 several silent determinants are either pinned or, more often,
-left to the default. Four of them are worth demonstrating
-concretely, because each produces a result that differs with no
-change whatever to the
-source.
+left to the default. Four of them merit concrete
+demonstration, because each produces a different result with
+no change whatever to the source.
 
 The first is the random-number generator. The seed alone is not
 enough; the generator *kind* matters too. The R 3.6.0 change to
 the default `sample.kind` means that an identical `set.seed()`
-produces different draws under different R versions, so that any
+produces different draws under different R versions. Any
 bootstrap, cross-validation split, permutation test, or
-simulation is exposed. The remedy is to set `RNGkind()`
-explicitly and to record the seed, so that the draw sequence
-becomes a property of the project rather than of the R build.
+simulation is therefore exposed. The remedy is to set
+`RNGkind()` explicitly and to record the seed, so that the draw
+sequence becomes a property of the project rather than of the R
+build.
 
 The second is the locale. `sort()` and `order()` on a character
-vector depend on `LC_COLLATE`, so that a project sorted under
-one locale and rerun under another can reorder its rows, which
-silently changes any downstream computation that depends on
-order; parsing and printing month and weekday names depend in
-turn on `LC_TIME`. The third is the numerical libraries:
-a different BLAS, or merely a different thread count under the
-same BLAS, reorders the additions in a matrix reduction and
-changes the result in its low-order bits, which is enough to
-move a convergence test or a tie-break. The fourth is fonts and
-the document toolchain. A figure's text depends on the
+vector depend on `LC_COLLATE`. A project sorted under one
+locale and rerun under another can therefore reorder its rows.
+That reordering silently changes any downstream computation
+that depends on order. Parsing and printing month and weekday
+names depend in turn on `LC_TIME`.
+
+The third is the numerical libraries. A different BLAS, or
+merely a different thread count under the same BLAS, reorders
+the additions in a matrix reduction. The result changes in its
+low-order bits, which is enough to move a convergence test or a
+tie-break.
+
+The fourth is fonts and the document toolchain. A figure's text depends on the
 installed fonts and the graphics device, and a rendered PDF
 depends on the `pandoc`, LaTeX, and `quarto` versions. None of
 these is an R package, so none is captured by the lockfile. A
@@ -299,14 +307,13 @@ not reproducible even when the numbers are.
 
 A resolvable identifier (a URL or a repository path) records
 *where* the data came from, but it does not detect that the
-content has *changed*. Provenance needs an integrity check to
-go with it: a checksum
-(`md5`, `sha256`) stored alongside the analysis and verified
-before use, or, better, a reference to an immutable,
-content-addressed snapshot with a digital object identifier
-(Zenodo, Dataverse). The distinction is the data analog of
-Judgment 1, in that a name may be repointed where a content
-address may not.
+content has *changed*. Provenance therefore needs an integrity
+check to go with it. One form is a checksum (`md5`, `sha256`)
+stored alongside the analysis and verified before use. A better
+form is a reference to an immutable, content-addressed snapshot
+with a digital object identifier (Zenodo, Dataverse). The
+distinction is the data analog of Judgment 1. That is, a name
+may be repointed, whereas a content address may not.
 
 ## The research software supply chain
 
@@ -316,15 +323,15 @@ continuous-integration pipeline runs, each with a token and
 write access to the repository. Pinning an action to a mutable
 tag (`@v4`), or worse to a branch (`@master`), is the exposure
 exploited in the `tj-actions/changed-files` incident
-(CVE-2025-30066, 2025), in which a repointed reference
+(CVE-2025-30066, 2025). In that incident a repointed reference
 exfiltrated secrets from thousands of repositories. The
 defenses carry the digest-over-mutable-name lesson from the
-environment across to the pipeline. Pin every third-party
-action to a full commit digest. Scope the pipeline token to
-least privilege: default-deny, then grant only what each job
-needs. Gate merges on a security scan of the *real* image
-rather than a convenient stub. A dependency bot then keeps the
-pinned digests current without reintroducing floating
+environment across to the pipeline. We pin every third-party
+action to a full commit digest. We scope the pipeline token to
+least privilege, that is, default-deny, then grant only what
+each job needs. We gate merges on a security scan of the *real*
+image rather than a convenient stub. A dependency bot then
+keeps the pinned digests current without reintroducing floating
 references.
 
 ::: {.callout-note icon=false collapse=true}
@@ -342,110 +349,112 @@ almost always pinned by a mutable *tag* (for example
 `rocker/tidyverse:4.4.2`), which is rebuilt over time; only an
 `@sha256` digest is immutable. Second, the lockfile pins
 package *versions*, but the package manager is typically
-pointed at a moving `latest` snapshot, so that once a pinned
-version's binary ages out, resolution changes or falls back to
-source. Third, and most subtly, if packages are restored into a
+pointed at a moving `latest` snapshot. Once a pinned version's
+binary ages out, resolution changes or falls back to source.
+Third, and most subtly, if packages are restored into a
 project-local library that a runtime bind mount then shadows,
 the carefully built library is not even the one that runs. The
-lockfile is necessary and far from sufficient. Reproducibility
-is a property of the whole stack of @sec-determinant-model and
-not of its most visible layer.
+lockfile is therefore necessary but far from sufficient, and
+the remaining layers of @sec-determinant-model need to be
+pinned as well.
 
 :::
 
 ## Worked example: auditing a real framework
 
 The running example for the remainder of the chapter is a full
-audit of a real reproducible-research framework, `zzcollab`, a
-Docker-first tool that assembles `rocker`, `renv`, and a
-research-compendium layout into a turnkey workflow. The audit
-itself is documented in a companion system review; here we use
-it to teach the method.
+audit of a real reproducible-research framework, `zzcollab`.
+The framework is a Docker-first tool that assembles `rocker`,
+`renv`, and a research-compendium layout into a turnkey
+workflow. The audit itself is documented in a companion system
+review; here we use it to teach the method.
 
-We walk the determinant model over the actual code. To its
-credit, the framework pins package versions in a lockfile and
-sets the locale and timezone in the image, which is already
-more than many setups manage. It also exhibits
-the full chain of moving inputs from the section above: the
-base is pinned by a mutable tag, the package-manager URL is the
-rolling `latest`, and both the `renv` bootstrap and an external
-validation tool are installed unpinned from moving sources.
-More subtly, the image restores packages into a project-local
-library that the runtime bind mount then shadows, so that the
-environment is resolved live at first run rather than baked into
-the image, which is to say that layer 5 of
-@sec-determinant-model does not in fact govern execution. The
-document toolchain, in turn, is absent, so that the framework's
-own manuscript render fails inside the container for want of a
-single LaTeX package.
+We begin by walking the determinant model over the actual code.
+To its credit, the framework pins package versions in a
+lockfile and sets the locale and timezone in the image. That is
+already more than many setups manage. Unfortunately, it also
+exhibits the full chain of moving inputs from the section
+above. The base is pinned by a mutable tag, and the
+package-manager URL is the rolling `latest`. Both the `renv`
+bootstrap and an external validation tool are installed
+unpinned from moving sources. More subtly, the image restores
+packages into a project-local library that the runtime bind
+mount then shadows. The environment is therefore resolved live
+at first run rather than baked into the image. In other words,
+layer 5 of @sec-determinant-model does not in fact govern
+execution. The document toolchain, in turn, is absent. As a
+result, the framework's own manuscript render fails inside the
+container for want of a single LaTeX package.
 
-The audit also illustrates Judgment 3. Two further findings came
-from *running* the
-system rather than reading it: a shell test harness that
-reported failing tests as passing, and a security scan that
-examined a hand-written stub image rather than the artifact
-users actually run. Both of these are *verified*. The
-library-masking finding, by contrast, was derived from reading
-the build and the mount logic, and it remains *inferred* until
-an experiment confirms it, which is the matter of Exercise 3.
-The distinction tells the maintainer which findings to act
-upon at once and which to confirm first.
+The audit also illustrates Judgment 3. Two further findings
+came from *running* the system rather than reading it. The
+first was a shell test harness that reported failing tests as
+passing. The second was a security scan that examined a
+hand-written stub image rather than the artifact users actually
+run. Both of these are *verified*. The library-masking finding,
+by contrast, was derived from reading the build and the mount
+logic. It remains *inferred* until an experiment confirms it,
+which is the matter of Exercise 3. The distinction tells the
+maintainer which findings to act upon at once and which to
+confirm first.
 
-Even a thoughtfully designed tool, built by someone who
-understands the problem, fails several determinants; that is
-the normal condition of research software, not an indictment
-of this one. The skill we are after is to find the failures
-systematically, to classify them honestly, and to prioritize
-their repair.
+We note that even a thoughtfully designed tool, built by
+someone who understands the problem, fails several
+determinants. That is the normal condition of research
+software, and it is not an indictment of this one. The skill we
+are after is to find such failures systematically, to classify
+them honestly, and to prioritize their repair.
 
 ## Collaborating with an LLM on reproducibility engineering
 
 As elsewhere in this book, the coding assistant is productive
 on the boilerplate of this domain and unreliable on the
-judgments that matter. The boilerplate is real: an assistant
-will produce a plausible Dockerfile, a CI workflow, and pinning
-syntax far faster than one can type them. The judgment is
-which inputs move, and that is exactly what the assistant tends
-to miss, because the common patterns in its training data are
-the convenient, non-reproducible ones.
+judgments that matter. On the one hand, an assistant will
+produce a plausible Dockerfile, a CI workflow, and pinning
+syntax far faster than one can type them. On the other hand,
+the judgment in this domain is which inputs move, and that is
+exactly what the assistant tends to miss. The reason is that
+the common patterns in its training data are the convenient,
+non-reproducible ones.
 
 **Prompt 1: `Write me a reproducible Dockerfile for an R
 project.`** *What to watch for.* The output will frequently use
 `FROM rocker/...:latest` or a bare tag, `install.packages`
 rather than a pinned bootstrap, and a package-manager URL
-ending in `latest`, which are precisely the leaks of the
-section above. *Verification.* Check every line against the
+ending in `latest`. These are precisely the leaks of the
+section above. *Verification.* We check every line against the
 four pins (digest, dated snapshot, pinned bootstrap, library
-outside the mount); build the image twice and diff the
+outside the mount). We then build the image twice and diff the
 resulting digest.
 
 **Prompt 2: `Is this project reproducible?`** *What to watch
 for.* The assistant inspects the lockfile, sees pinned
 versions, and answers yes, over-weighting the visible artifact
 and missing the base tag, the snapshot, the toolchain, and the
-runtime library. *Verification.* Work through the determinant
-table of @tbl-determinants yourself; the lockfile is the layer
-the assistant trusts most and the one that proves least.
+runtime library. *Verification.* We work through the
+determinant table of @tbl-determinants ourselves. The lockfile
+is the layer the assistant trusts most and the one that proves
+least.
 
 **Prompt 3: `Write a test that the build is reproducible.`**
 *What to watch for.* The assistant tends to write a test that
 the image *builds*, not one that it is *deterministic*.
 *Verification.* The test must generate the artifacts twice from
 identical inputs and assert byte-identity and a stable content
-hash, and then change an input and assert that the hash
+hash. It must then change an input and assert that the hash
 changes. A test that only checks that the build succeeds cannot
 detect non-determinism.
 
-The meta-pattern of @sec-software-engineering holds here too:
-the assistant accelerates the keystrokes of configuration; it
-does not supply the judgment about which inputs move. Treat it
-as a fast typist of YAML and Dockerfiles whose defaults lean
-toward the non-reproducible, and supply the pinning discipline
-yourself.
+The meta-pattern of @sec-software-engineering holds here as
+well. The assistant accelerates the keystrokes of
+configuration, but the judgment about which inputs move remains
+ours. We therefore treat it as a fast typist of YAML and
+Dockerfiles whose defaults lean toward the non-reproducible,
+and we supply the pinning discipline ourselves.
 
 ## Turning an audit into a plan
 
-Auditing produces findings; shipping requires a plan, and the
+An audit produces findings, but shipping requires a plan. The
 ordering of the plan is itself an engineering decision. Three
 sequencing principles, drawn from the companion remediation
 plan, generalize beyond the case at hand.
@@ -453,19 +462,18 @@ plan, generalize beyond the case at hand.
 First, we make the test suite able to fail before we fix
 anything else. A harness that reports failures as passes (the
 verified finding noted above) protects nothing, and until it is
-repaired no new test can guard a fix. The first change is
-therefore the one that restores the ability to fail. Second, we
+repaired no new test can guard a fix. Second, we
 confirm an inferred critical finding empirically before
 redesigning around it. The library-masking finding is the
-highest-impact item but is inferred, and a short experiment
+highest-impact item, but it is inferred. A short experiment
 (Exercise 3) confirms or refutes it, so that the redesign rests
-on observation rather than speculation. Third, we write the
-failing test and then make it pass. The determinism test of
-Exercise 4 is added before the toolchain pins; it fails against
-the current build, documenting the broken state, and turns
-green as the pins land. Every fix in the plan carries an
-explicit acceptance criterion that proves it, and the
-sequencing is by dependency rather than by severity.
+on an observed result. Third, we write the failing test and
+then make it pass. The determinism test of Exercise 4 is added
+before the toolchain pins. It fails against the current build,
+which documents the broken state, and it turns green as the
+pins land. Every fix in the plan carries an explicit acceptance
+criterion that proves it. The sequencing, finally, is by
+dependency rather than by severity.
 
 ## Principle in use
 
@@ -479,10 +487,10 @@ environments.
    is the one to pin.
 
 2. **Make reproducibility testable.** A reproducibility claim
-   that cannot be run as a test is unverified. The minimal test generates the
-   environment twice and asserts that the results are
-   identical; the strongest runs the analysis twice and asserts
-   that the outputs match.
+   that cannot be run as a test is unverified. The minimal test
+   generates the environment twice and asserts that the results
+   are identical. The strongest runs the analysis twice and
+   asserts that the outputs match.
 
 3. **Match pinning effort to the required lifespan.** A one-off
    exploratory notebook needs little; an archival compendium

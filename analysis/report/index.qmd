@@ -2,17 +2,18 @@
 
 
 This is the online version of **Statistical Computing in the
-Age of AI** by The rgtlab Curriculum Project. We have written it as
+Age of AI** by the rgtlab curriculum team. We have written it as
 a graduate textbook in statistical computing for biostatistics
 students.
 
 We intend the book as a practical, code-first introduction to the
-computing techniques that biostatisticians use daily:
-programming in R, version control, linear algebra, simulation,
-statistical modeling, graphics, reproducible software, and the
-emerging role of large language models in each of these activities.
+computing techniques that biostatisticians use daily. These
+techniques include programming in R, version control, linear
+algebra, simulation, statistical modeling, graphics, and
+reproducible software. We also treat the emerging role of large
+language models in each of these activities.
 
-We have written it in the tradition of the Posit book family
+We have written the book in the tradition of the Posit book family
 ([*R for Data Science*](https://r4ds.hadley.nz),
 [*Advanced R*](https://adv-r.hadley.nz),
 [*R Packages*](https://r-pkgs.org)), and we use the same Quarto
@@ -35,9 +36,9 @@ three books in a graduate sequence:
   classes, reasoning models, biomedical RAG, multimodal
   medical AI, agents, evaluation, regulation, deployment.
 
-We refer the reader to the [Preface](preface.qmd) for motivation and
-to the [Conventions](conventions.qmd) page for the visual cues used
-throughout.
+The reader is referred to the [Preface](preface.qmd) for the
+motivation of the book and to the [Conventions](conventions.qmd)
+page for the visual cues used throughout.
 
 ## License
 
