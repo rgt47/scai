@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Quarto
         uses: quarto-dev/quarto-actions/setup@v2
@@ -77,7 +77,7 @@ jobs:
 
       - name: Set up Python (host)
         if: steps.mode.outputs.backend == 'host' && steps.mode.outputs.python == 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
@@ -92,7 +92,7 @@ jobs:
       # --- Container backend: build the project image and render inside it ---
       - name: Set up Buildx
         if: steps.mode.outputs.backend == 'docker'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build project image
         if: steps.mode.outputs.backend == 'docker'
@@ -107,7 +107,7 @@ jobs:
 
       - name: Upload rendered book
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: book
           path: analysis/report/_book
@@ -117,7 +117,7 @@ jobs:
       # --- Deploy: only on a push to main ---
       - name: Deploy to Netlify
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: nwtgck/actions-netlify@v3
+        uses: nwtgck/actions-netlify@v4
         with:
           publish-dir: ./analysis/report/_book
           production-branch: main
