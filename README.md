@@ -5,7 +5,7 @@ Source repository for the open-access graduate textbook
 **Statistical Computing in the Age of AI**.
 
 - **Live site:** <https://rgtlab.org/scai>
-- **License:** Creative Commons BY-NC-ND 4.0 (see `LICENSE.md`)
+- **License:** Creative Commons BY 4.0 (see `LICENSE.md`)
 - **Format:** Quarto book (HTML + PDF)
 - **Template:** Follows the conventions of the Posit/Hadley Wickham
   book family (e.g., `r4ds.hadley.nz`, `r-pkgs.org`).

@@ -44,9 +44,12 @@ page for the visual cues used throughout.
 
 This book is licensed to you under a
 [Creative Commons
-Attribution-NonCommercial-NoDerivatives 4.0 International
-License](https://creativecommons.org/licenses/by-nc-nd/4.0/).
+Attribution 4.0 International
+License](https://creativecommons.org/licenses/by/4.0/).
 
-The code samples in this book are licensed under the
-[MIT License](https://opensource.org/licenses/MIT).
+The code samples printed in this book are licensed under the
+[MIT License](https://opensource.org/licenses/MIT). The
+repository code (package functions and build scripts) is
+licensed under
+[GPL-3](https://www.gnu.org/licenses/gpl-3.0.html).
 

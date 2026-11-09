@@ -11,9 +11,9 @@ A graduate textbook in biostatistics.
 Copyright &copy; 2026 rgtlab curriculum team.
 
 This work is licensed under a Creative Commons
-Attribution-NonCommercial-NoDerivatives 4.0 International
+Attribution 4.0 International
 License. To view a copy of this license, visit
-<https://creativecommons.org/licenses/by-nc-nd/4.0/>.
+<https://creativecommons.org/licenses/by/4.0/>.
 
 No ISBN has been assigned; this is an open-access teaching
 text. Citations should use the form:
