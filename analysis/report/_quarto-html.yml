@@ -11,6 +11,7 @@ book:
     - half-title.qmd
     - copyright.qmd
     - index.qmd
+    - contents.qmd
     - preface.qmd
     - conventions.qmd
     - intro.qmd

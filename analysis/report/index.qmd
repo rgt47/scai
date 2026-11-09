@@ -40,6 +40,10 @@ The reader is referred to the [Preface](preface.qmd) for the
 motivation of the book and to the [Conventions](conventions.qmd)
 page for the visual cues used throughout.
 
+::: {.content-visible when-format="html"}
+The [Contents](contents.qmd) page lists every chapter on one page.
+:::
+
 ## License
 
 This book is licensed to you under a

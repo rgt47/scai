@@ -11,6 +11,7 @@
 project:
   pre-render:
     - ../../tools/us-spelling
+    - ../../tools/make-contents.py
   type: book
   resources:
     - _redirects
