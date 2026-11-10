@@ -28,10 +28,3 @@ Typeset with DejaVu Sans Mono for code using Quarto and
 
 First draft: Spring 2026.
 
-::: {.content-visible when-format='pdf'}
-```{=latex}
-\clearpage
-\tableofcontents
-\clearpage
-```
-:::
