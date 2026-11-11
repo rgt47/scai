@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Quarter volumes, run by render-book.yml after the site and the full PDF
+# are published. The two one-quarter volumes are profiles of the same
+# sources, each writing its own output directory. Rendering after the
+# deploy means a failing volume cannot hold back the website or the full
+# PDF; the run still fails visibly.
+set -euo pipefail
+
+quarto render analysis/report --profile vol1 --to pdf
+quarto render analysis/report --profile vol2 --to pdf
+
+for vol in vol1 vol2; do
+  pdf="analysis/report/_book-$vol/scai-$vol.pdf"
+  if [ ! -f "$pdf" ]; then echo "::error::No PDF for $vol"; exit 1; fi
+done
+
+gh release upload latest-pdf \
+  analysis/report/_book-vol1/scai-vol1.pdf \
+  analysis/report/_book-vol2/scai-vol2.pdf \
+  --repo "$GITHUB_REPOSITORY" --clobber
+gh release edit latest-pdf --repo "$GITHUB_REPOSITORY" --notes \
+  "Draft PDFs built from ${GITHUB_SHA::7} on $(date -u +%Y-%m-%d): the full book, which is also served at the book's website, and Volumes I and II, one per quarter."
